@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, useEffect } from "react";
@@ -25,7 +24,6 @@ export default function AppContainer() {
 
   useEffect(() => {
     setMounted(true);
-    // Garante que o usuário esteja pelo menos logado anonimamente para passar pelas regras de segurança
     if (auth) {
       initiateAnonymousSignIn(auth);
     }
