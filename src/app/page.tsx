@@ -1,7 +1,7 @@
+
 "use client"
 
 import { useState, useMemo, useEffect } from "react";
-import { brokers } from "@/app/lib/mock-data";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { ChannelPerformance } from "@/components/dashboard/channel-performance";
 import { AIPerformanceSummary } from "@/components/dashboard/ai-performance-summary";
@@ -16,7 +16,7 @@ import { ImportedDataTable } from "@/components/dashboard/imported-data-table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LayoutDashboard, FilePlus, BadgeCheck, TrendingUp, Loader2, Table2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useAuth, initiateAnonymousSignIn, useCollection, useMemoFirebase, useFirestore } from "@/firebase";
+import { useAuth, initiateAnonymousSignIn, useCollection, useMemoFirebase, useFirebase } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
 
 export default function AppContainer() {
@@ -24,8 +24,8 @@ export default function AppContainer() {
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [selectedBroker, setSelectedBroker] = useState<string>("all");
   const [businessType, setBusinessType] = useState<string>("all");
-  const auth = useAuth();
-  const { firestore } = useFirestore() ? { firestore: useFirestore() } : { firestore: null };
+  
+  const { auth, firestore } = useFirebase();
 
   useEffect(() => {
     setMounted(true);
@@ -58,19 +58,19 @@ export default function AppContainer() {
   const sales = useMemo(() => {
     if (!rawSales) return [];
     return rawSales.map(v => ({
-      id_imovel: v.propertyId,
-      data_entrada: v.propertyCaptureDate,
+      id_imovel: v.propertyId || "N/A",
+      data_entrada: v.propertyCaptureDate || v.saleDate,
       data_venda: v.saleDate,
-      origem: v.originChannel,
-      cliente: v.clientName,
-      corretor: v.sellingBrokerId,
-      valor_anuncio: v.advertisedValue,
-      valor_fechado: v.closedValue,
+      origem: v.originChannel || "Outros",
+      cliente: v.clientName || "Cliente",
+      corretor: v.sellingBrokerId || "Não Definido",
+      valor_anuncio: Number(v.advertisedValue || v.closedValue || 0),
+      valor_fechado: Number(v.closedValue || 0),
       status: v.status || 'Vendido',
       tipo: v.listingType || 'Venda',
       bairro: v.neighborhood || 'Desconhecido',
-      comissao_percentual: 5.5, // Default for calculation
-      satisfacao_nps: 9 // Default for calculation
+      comissao_percentual: 5.5,
+      satisfacao_nps: 9
     }));
   }, [rawSales]);
 
@@ -97,17 +97,6 @@ export default function AppContainer() {
     }));
   }, [rawVisits]);
 
-  const months = useMemo(() => {
-    const monthsSet = new Set<string>();
-    sales.forEach(sale => {
-      const date = new Date(sale.data_venda);
-      if (!isNaN(date.getTime())) {
-        monthsSet.add(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
-      }
-    });
-    return Array.from(monthsSet).sort().reverse();
-  }, [sales]);
-
   const filteredSales = useMemo(() => {
     return sales.filter(sale => {
       const matchBroker = selectedBroker === "all" || sale.corretor === selectedBroker;
@@ -116,8 +105,7 @@ export default function AppContainer() {
       const matchMonth = selectedMonth === "all" || saleMonth === selectedMonth;
       const matchType = businessType === "all" || 
                         (businessType === "venda" && sale.tipo === "Venda") || 
-                        (businessType === "locacao" && sale.tipo === "Aluguel") ||
-                        (businessType === "locacao" && sale.tipo === "Locação");
+                        (businessType === "locacao" && (sale.tipo === "Aluguel" || sale.tipo === "Locação"));
       return matchBroker && matchMonth && matchType;
     });
   }, [sales, selectedBroker, selectedMonth, businessType]);
@@ -140,18 +128,6 @@ export default function AppContainer() {
       return Math.max(0, totalDays / data.length);
     };
 
-    const avgCommission = filteredSales.length > 0 
-      ? filteredSales.reduce((acc, s) => acc + (s.comissao_percentual || 5.5), 0) / filteredSales.length 
-      : 0;
-
-    const avgDiscount = filteredSales.length > 0
-      ? filteredSales.reduce((acc, s) => acc + ((s.valor_anuncio - s.valor_fechado) / (s.valor_anuncio || 1)), 0) / filteredSales.length * 100
-      : 0;
-
-    const avgNps = filteredSales.length > 0
-      ? filteredSales.reduce((acc, s) => acc + (s.satisfacao_nps || 9), 0) / filteredSales.length
-      : 0;
-
     const lastSaleDate = filteredSales.length > 0 
       ? new Date(Math.max(...filteredSales.map(s => new Date(s.data_venda).getTime())))
       : new Date();
@@ -159,21 +135,20 @@ export default function AppContainer() {
 
     const contextLeads = Math.max(1, leads.length);
     const contextVisits = visits.length;
-    const leadToVisitConv = (contextVisits / contextLeads) * 100;
-    const visitToSaleConv = contextVisits > 0 ? (filteredSales.length / contextVisits) * 100 : 0;
-    const leadToSaleConv = (filteredSales.length / contextLeads) * 100;
 
     return { 
       avgDaysToSell: calcAvgDays(salesOnly), 
       avgDaysToRent: calcAvgDays(rentsOnly), 
       totalValue, 
       avgTicket,
-      leadToVisitConv,
-      visitToSaleConv,
-      leadToSaleConv,
-      avgCommission,
-      avgDiscount,
-      avgNps,
+      leadToVisitConv: (contextVisits / contextLeads) * 100,
+      visitToSaleConv: contextVisits > 0 ? (filteredSales.length / contextVisits) * 100 : 0,
+      leadToSaleConv: (filteredSales.length / contextLeads) * 100,
+      avgCommission: 5.5,
+      avgDiscount: filteredSales.length > 0
+        ? filteredSales.reduce((acc, s) => acc + ((s.valor_anuncio - s.valor_fechado) / (s.valor_anuncio || 1)), 0) / filteredSales.length * 100
+        : 0,
+      avgNps: 9,
       recency,
       cac: 450
     };

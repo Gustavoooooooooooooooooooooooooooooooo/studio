@@ -1,7 +1,7 @@
+
 "use client"
 
-import { useMemo } from "react";
-import { useCollection, useMemoFirebase, useFirestore } from "@/firebase";
+import { useCollection, useMemoFirebase, useFirebase } from "@/firebase";
 import { collection, query, orderBy, limit } from "firebase/firestore";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,13 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Database, Calendar, User, MapPin } from "lucide-react";
 
 export function ImportedDataTable() {
-  const { firestore } = useFirestore() ? { firestore: useFirestore() } : { firestore: null };
+  const { firestore } = useFirebase();
   
   const vendasQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(
       collection(firestore, "vendas_imoveis"),
-      orderBy("saleDate", "desc"),
+      orderBy("importedAt", "desc"),
       limit(50)
     );
   }, [firestore]);
@@ -32,10 +32,10 @@ export function ImportedDataTable() {
         <div>
           <CardTitle className="text-lg flex items-center gap-2">
             <Database className="h-5 w-5 text-primary" />
-            Dados Sincronizados (Últimos 50)
+            Dados no Banco de Dados (Últimos 50)
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Visualização em tempo real dos registros presentes no banco de dados.
+            Estes são os dados reais que estão alimentando o Dashboard.
           </p>
         </div>
       </CardHeader>
@@ -62,32 +62,32 @@ export function ImportedDataTable() {
               <TableBody>
                 {vendas.map((venda) => (
                   <TableRow key={venda.id} className="hover:bg-muted/5">
-                    <TableCell className="font-semibold text-xs">{venda.propertyId}</TableCell>
+                    <TableCell className="font-semibold text-xs">{venda.propertyId || "S/N"}</TableCell>
                     <TableCell className="text-xs">
                       <div className="flex items-center gap-1">
                         <Calendar className="h-3 w-3 text-muted-foreground" />
-                        {new Date(venda.saleDate).toLocaleDateString('pt-BR')}
+                        {venda.saleDate ? new Date(venda.saleDate).toLocaleDateString('pt-BR') : "N/D"}
                       </div>
                     </TableCell>
                     <TableCell className="text-xs">
                       <div className="flex items-center gap-1">
                         <MapPin className="h-3 w-3 text-muted-foreground" />
-                        {venda.neighborhood}
+                        {venda.neighborhood || "Não Inf."}
                       </div>
                     </TableCell>
-                    <TableCell className="text-xs font-medium text-primary">{venda.sellingBrokerId}</TableCell>
+                    <TableCell className="text-xs font-medium text-primary">{venda.sellingBrokerId || "N/A"}</TableCell>
                     <TableCell className="text-xs">
                       <div className="flex items-center gap-1">
                         <User className="h-3 w-3 text-muted-foreground" />
-                        {venda.clientName}
+                        {venda.clientName || "Cliente"}
                       </div>
                     </TableCell>
                     <TableCell className="text-right text-xs font-bold text-emerald-600">
-                      {formatCurrency(venda.closedValue)}
+                      {formatCurrency(venda.closedValue || 0)}
                     </TableCell>
                     <TableCell className="text-center">
                       <Badge variant="outline" className="text-[9px] px-1.5 py-0">
-                        {venda.originChannel}
+                        {venda.originChannel || "Planilha"}
                       </Badge>
                     </TableCell>
                   </TableRow>
@@ -98,8 +98,8 @@ export function ImportedDataTable() {
         ) : (
           <div className="py-20 text-center space-y-2">
             <Database className="h-12 w-12 text-muted-foreground/20 mx-auto" />
-            <p className="text-muted-foreground">Nenhum dado encontrado no banco de dados.</p>
-            <p className="text-xs text-muted-foreground/60">Utilize a conexão com o Google Sheets acima para importar dados.</p>
+            <p className="text-muted-foreground">Nenhum dado real encontrado.</p>
+            <p className="text-xs text-muted-foreground/60">Use a limpeza e sincronize sua planilha para ver seus dados aqui.</p>
           </div>
         )}
       </CardContent>
