@@ -198,7 +198,6 @@ export default function AppContainer() {
                 />
               </div>
               <div className="space-y-6">
-                <GoogleSheetsSync />
                 <AIPerformanceSummary sales={filteredSales} />
                 <ChannelPerformance sales={filteredSales} />
                 <NeighborhoodAnalysis sales={filteredSales} />
@@ -211,7 +210,8 @@ export default function AppContainer() {
           </TabsContent>
 
           <TabsContent value="cadastro" className="animate-in slide-in-from-bottom-4 duration-500">
-            <div className="max-w-2xl mx-auto">
+            <div className="max-w-2xl mx-auto space-y-6">
+              <GoogleSheetsSync />
               <PropertyForm />
             </div>
           </TabsContent>
