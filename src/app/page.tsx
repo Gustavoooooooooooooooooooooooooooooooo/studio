@@ -8,10 +8,11 @@ import { ChannelPerformance } from "@/components/dashboard/channel-performance";
 import { AIPerformanceSummary } from "@/components/dashboard/ai-performance-summary";
 import { NeighborhoodAnalysis } from "@/components/dashboard/neighborhood-analysis";
 import { MonthlyTrends } from "@/components/dashboard/monthly-trends";
+import { SalesMatrix } from "@/components/dashboard/sales-matrix";
 import { PropertyForm } from "@/components/forms/property-form";
 import { SaleForm } from "@/components/forms/sale-form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LayoutDashboard, FilePlus, BadgeCheck, Filter, Calendar, TrendingUp, Loader2 } from "lucide-react";
+import { LayoutDashboard, FilePlus, BadgeCheck, Filter, Calendar, TrendingUp, Loader2, Table2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function AppContainer() {
@@ -44,7 +45,7 @@ export default function AppContainer() {
 
   const metrics = useMemo(() => {
     const salesOnly = filteredSales.filter(s => s.tipo === 'Venda');
-    const rentsOnly = filteredSales.filter(s => s.tipo === 'Locação');
+    const rentsOnly = filteredSales.filter(s => s.tipo === 'Aluguel');
 
     const totalSales = salesOnly.length;
     const totalRents = rentsOnly.length;
@@ -144,19 +145,26 @@ export default function AppContainer() {
           <TabsContent value="base" className="space-y-8 animate-in fade-in duration-500">
             <StatsCards {...metrics} />
             
-            <div className="grid lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 space-y-6">
-                <MonthlyTrends 
-                  sales={MOCK_SALES_DATA} 
-                  leads={MOCK_LEADS_DATA} 
-                  visits={MOCK_VISITS_DATA}
-                />
-                <PerformanceTable sales={filteredSales} />
-              </div>
-              <div className="space-y-6">
-                <AIPerformanceSummary sales={filteredSales} />
-                <ChannelPerformance sales={filteredSales} />
-                <NeighborhoodAnalysis sales={filteredSales} />
+            <div className="space-y-8">
+              <div className="grid lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-6">
+                  <MonthlyTrends 
+                    sales={MOCK_SALES_DATA} 
+                    leads={MOCK_LEADS_DATA} 
+                    visits={MOCK_VISITS_DATA}
+                  />
+                  <div className="flex items-center gap-2 mb-2">
+                    <Table2 className="h-5 w-5 text-primary" />
+                    <h2 className="text-xl font-bold text-primary">Matriz de Performance (Planilha)</h2>
+                  </div>
+                  <SalesMatrix sales={filteredSales} />
+                </div>
+                <div className="space-y-6">
+                  <AIPerformanceSummary sales={filteredSales} />
+                  <ChannelPerformance sales={filteredSales} />
+                  <NeighborhoodAnalysis sales={filteredSales} />
+                  <PerformanceTable sales={filteredSales} />
+                </div>
               </div>
             </div>
           </TabsContent>
