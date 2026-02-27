@@ -26,7 +26,7 @@ export interface VisitRecord {
   bairro: string;
 }
 
-export const brokers = ['Claudia', 'Henrique', 'João', 'Mila', 'Oriel', 'Felipe', 'Eduardo'];
+export const brokers = ['Claudia', 'Henrique', 'João', 'Mila', 'Orlei', 'Felipe', 'Eduardo', 'Wagner', 'Ane'];
 export const origins = [
   'Imóvel Web', 
   'Grupo Zap', 
@@ -43,7 +43,6 @@ export const neighborhoods = ['Jardins', 'Moema', 'Itaim Bibi', 'Pinheiros', 'Vi
 
 const generateMockSales = (count: number): SaleRecord[] => {
   const sales: SaleRecord[] = [];
-  const now = new Date();
   
   for (let i = 0; i < count; i++) {
     const isSale = Math.random() > 0.3;
