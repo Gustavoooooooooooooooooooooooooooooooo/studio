@@ -1,8 +1,8 @@
-
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import { Home, Landmark, Calculator, Target } from "lucide-react";
 import { MOCK_VGV_TOTAL, MOCK_PROPERTIES_IN_STOCK } from "@/app/lib/mock-data";
 
