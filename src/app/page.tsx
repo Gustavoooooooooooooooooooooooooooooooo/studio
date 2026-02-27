@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react";
-import { MOCK_SALES_DATA, MOCK_LEADS_DATA, MOCK_VISITS_DATA, brokers } from "@/app/lib/mock-data";
+import { brokers } from "@/app/lib/mock-data";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { ChannelPerformance } from "@/components/dashboard/channel-performance";
 import { AIPerformanceSummary } from "@/components/dashboard/ai-performance-summary";
@@ -16,7 +16,8 @@ import { ImportedDataTable } from "@/components/dashboard/imported-data-table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LayoutDashboard, FilePlus, BadgeCheck, TrendingUp, Loader2, Table2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useAuth, initiateAnonymousSignIn } from "@/firebase";
+import { useAuth, initiateAnonymousSignIn, useCollection, useMemoFirebase, useFirestore } from "@/firebase";
+import { collection, query, orderBy } from "firebase/firestore";
 
 export default function AppContainer() {
   const [mounted, setMounted] = useState(false);
@@ -24,6 +25,7 @@ export default function AppContainer() {
   const [selectedBroker, setSelectedBroker] = useState<string>("all");
   const [businessType, setBusinessType] = useState<string>("all");
   const auth = useAuth();
+  const { firestore } = useFirestore() ? { firestore: useFirestore() } : { firestore: null };
 
   useEffect(() => {
     setMounted(true);
@@ -32,53 +34,122 @@ export default function AppContainer() {
     }
   }, [auth]);
 
+  // Real data fetching from Firestore
+  const salesQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, "vendas_imoveis"), orderBy("saleDate", "desc"));
+  }, [firestore]);
+
+  const leadsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, "leads"), orderBy("captureDate", "desc"));
+  }, [firestore]);
+
+  const visitsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, "visits"), orderBy("visitDate", "desc"));
+  }, [firestore]);
+
+  const { data: rawSales, isLoading: isSalesLoading } = useCollection(salesQuery);
+  const { data: rawLeads, isLoading: isLeadsLoading } = useCollection(leadsQuery);
+  const { data: rawVisits, isLoading: isVisitsLoading } = useCollection(visitsQuery);
+
+  // Mapping Firestore data to the expected UI format
+  const sales = useMemo(() => {
+    if (!rawSales) return [];
+    return rawSales.map(v => ({
+      id_imovel: v.propertyId,
+      data_entrada: v.propertyCaptureDate,
+      data_venda: v.saleDate,
+      origem: v.originChannel,
+      cliente: v.clientName,
+      corretor: v.sellingBrokerId,
+      valor_anuncio: v.advertisedValue,
+      valor_fechado: v.closedValue,
+      status: v.status || 'Vendido',
+      tipo: v.listingType || 'Venda',
+      bairro: v.neighborhood || 'Desconhecido',
+      comissao_percentual: 5.5, // Default for calculation
+      satisfacao_nps: 9 // Default for calculation
+    }));
+  }, [rawSales]);
+
+  const leads = useMemo(() => {
+    if (!rawLeads) return [];
+    return rawLeads.map(l => ({
+      id: l.id,
+      data: l.captureDate,
+      origem: l.originChannel,
+      corretor: l.assignedBrokerId,
+      status: l.status
+    }));
+  }, [rawLeads]);
+
+  const visits = useMemo(() => {
+    if (!rawVisits) return [];
+    return rawVisits.map(v => ({
+      id: v.id,
+      data: v.visitDate,
+      tipo: v.visitType,
+      bairro: 'Vários',
+      corretor: v.brokerId,
+      concluida: true
+    }));
+  }, [rawVisits]);
+
   const months = useMemo(() => {
     const monthsSet = new Set<string>();
-    MOCK_SALES_DATA.forEach(sale => {
+    sales.forEach(sale => {
       const date = new Date(sale.data_venda);
-      monthsSet.add(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
+      if (!isNaN(date.getTime())) {
+        monthsSet.add(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`);
+      }
     });
     return Array.from(monthsSet).sort().reverse();
-  }, []);
+  }, [sales]);
 
   const filteredSales = useMemo(() => {
-    return MOCK_SALES_DATA.filter(sale => {
+    return sales.filter(sale => {
       const matchBroker = selectedBroker === "all" || sale.corretor === selectedBroker;
       const saleDate = new Date(sale.data_venda);
       const saleMonth = `${saleDate.getFullYear()}-${String(saleDate.getMonth() + 1).padStart(2, '0')}`;
       const matchMonth = selectedMonth === "all" || saleMonth === selectedMonth;
-      const matchType = businessType === "all" || sale.tipo === (businessType === "venda" ? "Venda" : "Aluguel");
+      const matchType = businessType === "all" || 
+                        (businessType === "venda" && sale.tipo === "Venda") || 
+                        (businessType === "locacao" && sale.tipo === "Aluguel") ||
+                        (businessType === "locacao" && sale.tipo === "Locação");
       return matchBroker && matchMonth && matchType;
     });
-  }, [selectedBroker, selectedMonth, businessType]);
+  }, [sales, selectedBroker, selectedMonth, businessType]);
 
   const metrics = useMemo(() => {
     const salesOnly = filteredSales.filter(s => s.tipo === 'Venda');
-    const rentsOnly = filteredSales.filter(s => s.tipo === 'Aluguel');
+    const rentsOnly = filteredSales.filter(s => s.tipo === 'Aluguel' || s.tipo === 'Locação');
 
     const totalValue = filteredSales.reduce((acc, sale) => acc + sale.valor_fechado, 0);
     const avgTicket = filteredSales.length > 0 ? totalValue / filteredSales.length : 0;
 
-    const calcAvgDays = (data: typeof filteredSales) => {
+    const calcAvgDays = (data: any[]) => {
       if (data.length === 0) return 0;
       const totalDays = data.reduce((acc, item) => {
         const start = new Date(item.data_entrada).getTime();
         const end = new Date(item.data_venda).getTime();
+        if (isNaN(start) || isNaN(end)) return acc;
         return acc + (end - start) / 86400000;
       }, 0);
-      return totalDays / data.length;
+      return Math.max(0, totalDays / data.length);
     };
 
     const avgCommission = filteredSales.length > 0 
-      ? filteredSales.reduce((acc, s) => acc + s.comissao_percentual, 0) / filteredSales.length 
+      ? filteredSales.reduce((acc, s) => acc + (s.comissao_percentual || 5.5), 0) / filteredSales.length 
       : 0;
 
     const avgDiscount = filteredSales.length > 0
-      ? filteredSales.reduce((acc, s) => acc + ((s.valor_anuncio - s.valor_fechado) / s.valor_anuncio), 0) / filteredSales.length * 100
+      ? filteredSales.reduce((acc, s) => acc + ((s.valor_anuncio - s.valor_fechado) / (s.valor_anuncio || 1)), 0) / filteredSales.length * 100
       : 0;
 
     const avgNps = filteredSales.length > 0
-      ? filteredSales.reduce((acc, s) => acc + s.satisfacao_nps, 0) / filteredSales.length
+      ? filteredSales.reduce((acc, s) => acc + (s.satisfacao_nps || 9), 0) / filteredSales.length
       : 0;
 
     const lastSaleDate = filteredSales.length > 0 
@@ -86,10 +157,10 @@ export default function AppContainer() {
       : new Date();
     const recency = Math.floor((new Date().getTime() - lastSaleDate.getTime()) / 86400000);
 
-    const contextLeads = MOCK_LEADS_DATA.length / 12;
-    const contextVisits = MOCK_VISITS_DATA.length / 12;
+    const contextLeads = Math.max(1, leads.length);
+    const contextVisits = visits.length;
     const leadToVisitConv = (contextVisits / contextLeads) * 100;
-    const visitToSaleConv = (filteredSales.length / contextVisits) * 100;
+    const visitToSaleConv = contextVisits > 0 ? (filteredSales.length / contextVisits) * 100 : 0;
     const leadToSaleConv = (filteredSales.length / contextLeads) * 100;
 
     return { 
@@ -106,9 +177,9 @@ export default function AppContainer() {
       recency,
       cac: 450
     };
-  }, [filteredSales]);
+  }, [filteredSales, leads, visits]);
 
-  if (!mounted) {
+  if (!mounted || isSalesLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -169,14 +240,14 @@ export default function AppContainer() {
             <div className="grid lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 space-y-6">
                 <MonthlyTrends 
-                  sales={MOCK_SALES_DATA} 
-                  leads={MOCK_LEADS_DATA} 
-                  visits={MOCK_VISITS_DATA}
+                  sales={sales} 
+                  leads={leads} 
+                  visits={visits}
                 />
                 <BrokerPerformanceGrid 
                   sales={filteredSales}
-                  leads={MOCK_LEADS_DATA}
-                  visits={MOCK_VISITS_DATA}
+                  leads={leads}
+                  visits={visits}
                 />
               </div>
               <div className="space-y-6">
@@ -188,7 +259,7 @@ export default function AppContainer() {
           </TabsContent>
 
           <TabsContent value="base" className="space-y-8 animate-in fade-in duration-500">
-            <SalesMatrix sales={filteredSales} />
+            <SalesMatrix sales={sales} />
           </TabsContent>
 
           <TabsContent value="cadastro" className="animate-in slide-in-from-bottom-4 duration-500">
