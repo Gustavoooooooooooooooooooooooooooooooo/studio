@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from "react";
@@ -20,63 +19,57 @@ export function GoogleSheetsSync() {
   const { toast } = useToast();
   const { firestore } = useFirebase();
 
-  // Função auxiliar para encontrar valores em colunas com nomes variados (Fuzzy matching)
+  // Função auxiliar para encontrar valores em colunas com nomes variados
   const getVal = (row: any, keys: string[]) => {
     if (!row) return undefined;
     const rowKeys = Object.keys(row);
     
-    // 1. Tenta correspondência exata (normalizada) primeiro
     for (const key of keys) {
       const normalizedKey = key.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
       const found = rowKeys.find(k => {
         const normalizedK = k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-        return normalizedK === normalizedKey;
-      });
-      if (found && row[found] !== undefined && row[found] !== null && row[found] !== "") return row[found];
-    }
-
-    // 2. Tenta correspondência parcial se não achou exata
-    for (const key of keys) {
-      const normalizedKey = key.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-      const found = rowKeys.find(k => {
-        const normalizedK = k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-        return normalizedK.includes(normalizedKey);
+        return normalizedK === normalizedKey || normalizedK.includes(normalizedKey);
       });
       if (found && row[found] !== undefined && row[found] !== null && row[found] !== "") return row[found];
     }
     return undefined;
   };
 
-  // Conversor de moeda robusto para o formato brasileiro e americano
+  // Conversor de data robusto (suporta DD/MM/YYYY)
+  const parseDate = (val: any) => {
+    if (!val) return new Date().toISOString().split('T')[0];
+    const s = String(val).trim();
+    
+    // Tenta detectar formatos como 31/12/2024 ou 31.12.2024 ou 31-12-2024
+    const dateMatch = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/);
+    if (dateMatch) {
+      const day = parseInt(dateMatch[1]);
+      const month = parseInt(dateMatch[2]) - 1;
+      let year = parseInt(dateMatch[3]);
+      if (year < 100) year += 2000;
+      const d = new Date(year, month, day);
+      if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+    }
+    
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? new Date().toISOString().split('T')[0] : d.toISOString().split('T')[0];
+  };
+
   const parseCurrency = (val: any) => {
     if (val === undefined || val === null || val === "") return 0;
     if (typeof val === 'number') return val;
     let s = String(val).trim();
-    if (!s) return 0;
-
-    // Remove tudo que não é número, ponto ou vírgula
     s = s.replace(/[^0-9,.]/g, "");
 
     if (s.includes('.') && s.includes(',')) {
-      // Padrão BR: 1.250,00 -> remove ponto, troca vírgula por ponto
       if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
         s = s.replace(/\./g, "").replace(",", ".");
       } else {
-        // Padrão US: 1,250.00 -> remove vírgula
         s = s.replace(/,/g, "");
       }
     } else if (s.includes(',')) {
-      // Só tem vírgula: 1250,00 -> vira 1250.00
       s = s.replace(",", ".");
-    } else if (s.includes('.')) {
-      // Só tem ponto: Pode ser milhar (BR) 1.250 ou decimal (US) 1250.00
-      const parts = s.split('.');
-      // Se a última parte tem 3 dígitos, tratamos como separador de milhar
-      if (parts[parts.length - 1].length === 3) {
-        s = s.replace(/\./g, "");
-      }
     }
-
     const num = parseFloat(s);
     return isNaN(num) ? 0 : num;
   };
@@ -87,27 +80,16 @@ export function GoogleSheetsSync() {
 
     setClearing(true);
     try {
-      // Vamos apagar as coleções principais
       const collectionsToClear = ["vendas_imoveis", "properties", "leads", "visits"];
-      
       for (const colName of collectionsToClear) {
         const snapshot = await getDocs(collection(firestore, colName));
         const batch = writeBatch(firestore);
         snapshot.docs.forEach((d) => batch.delete(d.ref));
         await batch.commit();
       }
-
-      toast({
-        title: "Banco de Dados Limpo",
-        description: "Todos os registros foram removidos com sucesso.",
-      });
+      toast({ title: "Banco de Dados Limpo", description: "Todos os registros foram removidos." });
     } catch (error: any) {
-      console.error("Erro ao limpar:", error);
-      toast({
-        variant: "destructive",
-        title: "Erro ao limpar",
-        description: error.message || "Não foi possível remover os dados antigos.",
-      });
+      toast({ variant: "destructive", title: "Erro ao limpar", description: error.message });
     } finally {
       setClearing(false);
     }
@@ -115,14 +97,9 @@ export function GoogleSheetsSync() {
 
   const handleSync = async () => {
     if (!url) {
-      toast({
-        variant: "destructive",
-        title: "URL ausente",
-        description: "Por favor, insira a URL CSV da planilha pública.",
-      });
+      toast({ variant: "destructive", title: "URL ausente", description: "Insira a URL da planilha." });
       return;
     }
-
     if (!firestore) return;
 
     setSyncing(true);
@@ -133,62 +110,48 @@ export function GoogleSheetsSync() {
         let addedCount = 0;
         
         result.data.forEach((row: any) => {
-          // 1. Identificação do Imóvel (Crucial)
           const propertyId = String(getVal(row, ["imovel", "codigo", "ref", "id", "unidade"]) || "");
           if (!propertyId || propertyId === "undefined" || propertyId === "") return;
 
-          // 2. Identificação do Tipo (Venda ou Locação)
           let type = String(getVal(row, ["tipo", "transacao", "categoria", "operacao"]) || "");
-          if (type.toLowerCase().includes("loc") || type.toLowerCase().includes("alug")) {
-            type = "Locação";
-          } else {
-            type = "Venda";
-          }
+          type = (type.toLowerCase().includes("loc") || type.toLowerCase().includes("alug")) ? "Locação" : "Venda";
 
-          // 3. Captura de Valores Financeiros (Mapeamento Agressivo)
-          const advertisedValue = parseCurrency(getVal(row, [
-            "valor anuncio", "valor imovel", "valor venda", "valor locacao", 
-            "valor aluguel", "venda", "locacao", "aluguel", "preco", "pedida", "valor"
-          ]));
-
+          const advertisedValue = parseCurrency(getVal(row, ["valor anuncio", "valor imovel", "valor venda", "valor locacao", "preco", "pedida", "valor"]));
           const closedValue = parseCurrency(getVal(row, ["valor fechado", "valor fechamento", "fechado"])) || advertisedValue;
 
-          // 4. Outros Dados
           const broker = String(getVal(row, ["corretor", "vendedor", "angariador", "responsavel"]) || "Não Identificado");
-          const captureDate = getVal(row, ["data entrada", "angariacao", "entrada", "data"]) || new Date().toISOString().split('T')[0];
-          const saleDate = getVal(row, ["data venda", "fechamento", "venda em", "data"]);
+          const captureDate = parseDate(getVal(row, ["data entrada", "angariacao", "entrada", "data", "lancamento"]));
+          const saleDate = getVal(row, ["data venda", "fechamento", "venda em"]);
           const neighborhood = String(getVal(row, ["bairro", "regiao", "localidade", "zona"]) || "Desconhecido");
           const address = String(getVal(row, ["endereco", "logradouro", "rua"]) || "Endereço não informado");
           const clientName = String(getVal(row, ["cliente", "comprador", "locatario"]) || "Cliente");
           const origin = String(getVal(row, ["canal", "origem", "fonte"]) || "Google Sheets");
 
-          // Salvar na coleção de Angariação (Estoque)
           const propRef = doc(firestore, "properties", propertyId);
           setDocumentNonBlocking(propRef, {
             propertyCode: propertyId,
-            address: address,
-            neighborhood: neighborhood,
+            address,
+            neighborhood,
             listingType: type,
             listingValue: advertisedValue,
             brokerId: broker,
-            captureDate: captureDate,
+            captureDate,
             status: saleDate ? "Vendido" : "Disponível",
             importedAt: serverTimestamp(),
           }, { merge: true });
 
-          // Se tiver data de venda, registrar na coleção de Vendas para o Dashboard
           if (saleDate && String(saleDate).length > 5) {
             const saleRef = doc(firestore, "vendas_imoveis", `${propertyId}_sale`);
             setDocumentNonBlocking(saleRef, {
-              propertyId: propertyId,
-              clientName: clientName,
-              closedValue: closedValue,
-              advertisedValue: advertisedValue,
+              propertyId,
+              clientName,
+              closedValue,
+              advertisedValue,
               originChannel: origin,
               sellingBrokerId: broker,
-              saleDate: saleDate,
+              saleDate: parseDate(saleDate),
               propertyCaptureDate: captureDate,
-              neighborhood: neighborhood,
+              neighborhood,
               listingType: type,
               status: "Vendido",
               importedAt: serverTimestamp(),
@@ -199,21 +162,13 @@ export function GoogleSheetsSync() {
 
         toast({
           title: "Sincronização Concluída",
-          description: `${addedCount} imóveis processados. Os valores agora devem aparecer corretamente.`,
+          description: `${addedCount} registros processados. Note que o Google pode levar até 5 minutos para atualizar o link público após mudanças na planilha.`,
         });
       } else {
-        toast({
-          variant: "destructive",
-          title: "Nenhum dado encontrado",
-          description: "Certifique-se de que a planilha está publicada como CSV e contém dados.",
-        });
+        toast({ variant: "destructive", title: "Nenhum dado", description: "A planilha parece vazia ou não está publicada corretamente." });
       }
     } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Erro na sincronização",
-        description: "Verifique se o link está publicado corretamente como CSV.",
-      });
+      toast({ variant: "destructive", title: "Erro na sincronização", description: "Verifique o link e se a planilha está publicada como CSV." });
     } finally {
       setSyncing(false);
     }
@@ -228,8 +183,8 @@ export function GoogleSheetsSync() {
               <Table2 className="h-5 w-5" />
             </div>
             <div>
-              <CardTitle className="text-lg">Sincronização de Dados Reais</CardTitle>
-              <CardDescription className="text-xs">Importe seu estoque de Vendas e Locações do Google Sheets</CardDescription>
+              <CardTitle className="text-lg">Sincronização de Angariação</CardTitle>
+              <CardDescription className="text-xs">Importe seu estoque real do Google Sheets</CardDescription>
             </div>
           </div>
           <Button 
@@ -246,7 +201,7 @@ export function GoogleSheetsSync() {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Link CSV da Planilha (Publicada na Web)</Label>
+          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Link CSV da Planilha</Label>
           <div className="flex gap-2">
             <Input 
               placeholder="Cole o link aqui..." 
@@ -269,12 +224,11 @@ export function GoogleSheetsSync() {
              <AlertCircle className="h-4 w-4 text-emerald-600" />
           </div>
           <div className="text-[11px] text-muted-foreground leading-relaxed">
-            <p className="font-bold text-emerald-800 mb-1">Como garantir que os valores apareçam:</p>
+            <p className="font-bold text-emerald-800 mb-1">Dicas Importantes:</p>
             <ul className="list-disc list-inside space-y-1">
-              <li>No Google Sheets: <b>Arquivo {'>'} Compartilhar {'>'} Publicar na Web</b></li>
-              <li>Escolha <b>Valores separados por vírgula (.csv)</b></li>
-              <li>Sua planilha deve ter uma coluna chamada: <b>VALOR ANÚNCIO</b> ou <b>VALOR VENDA</b>.</li>
-              <li>Clique em <b>Limpar Estoque</b> antes de importar novos dados reais para evitar duplicidade.</li>
+              <li><b>Atualização:</b> O Google Sheets pode levar até 5 minutos para refletir novos dados no link público.</li>
+              <li><b>Datas:</b> O sistema agora aceita formatos como <b>31/12/2024</b> corretamente.</li>
+              <li><b>Valores:</b> Certifique-se de que a coluna de valor contenha apenas números ou formato de moeda padrão.</li>
             </ul>
           </div>
         </div>

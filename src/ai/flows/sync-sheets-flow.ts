@@ -43,7 +43,12 @@ const syncSheetsFlow = ai.defineFlow(
         finalUrl = `${baseUrl}/export?format=csv&gid=${gid}`;
       }
 
-      const response = await fetch(finalUrl, {
+      // Adiciona cache-busting para evitar que o Google Sheets entregue dados antigos
+      const cacheBuster = `&t=${Date.now()}`;
+      const urlWithNoCache = finalUrl.includes('?') ? `${finalUrl}${cacheBuster}` : `${finalUrl}?${cacheBuster}`;
+
+      const response = await fetch(urlWithNoCache, {
+        cache: 'no-store', // Crucial para pegar dados novos
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         },
