@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SaleRecord, brokers, origins } from "@/app/lib/mock-data";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import React from 'react';
 
 interface SalesMatrixProps {
   sales: SaleRecord[];
@@ -44,48 +45,58 @@ export function SalesMatrix({ sales }: SalesMatrixProps) {
     return matrix;
   }, [sales]);
 
-  // Matriz de Vendas por Canal (Total Mensal)
-  const originMatrix = useMemo(() => {
+  // Matriz de Vendas por Canal
+  const originVendaMatrix = useMemo(() => {
     const matrix: Record<string, number[]> = {};
     origins.forEach(o => matrix[o] = new Array(12).fill(0));
-
-    sales.forEach(sale => {
+    sales.filter(s => s.tipo === 'Venda').forEach(sale => {
       const monthIndex = new Date(sale.data_venda).getMonth();
-      if (matrix[sale.origem]) {
-        matrix[sale.origem][monthIndex] += 1;
-      }
+      if (matrix[sale.origem]) matrix[sale.origem][monthIndex] += 1;
     });
-
     return matrix;
   }, [sales]);
 
-  // Matriz de Quantidade por Corretor
-  const brokerCountMatrix = useMemo(() => {
+  // Matriz de Locações por Canal
+  const originLocacaoMatrix = useMemo(() => {
+    const matrix: Record<string, number[]> = {};
+    origins.forEach(o => matrix[o] = new Array(12).fill(0));
+    sales.filter(s => s.tipo === 'Aluguel').forEach(sale => {
+      const monthIndex = new Date(sale.data_venda).getMonth();
+      if (matrix[sale.origem]) matrix[sale.origem][monthIndex] += 1;
+    });
+    return matrix;
+  }, [sales]);
+
+  // Matriz de Vendas por Corretor (Qtd)
+  const brokerVendaCountMatrix = useMemo(() => {
     const matrix: Record<string, number[]> = {};
     brokers.forEach(b => matrix[b] = new Array(12).fill(0));
-
-    sales.forEach(sale => {
+    sales.filter(s => s.tipo === 'Venda').forEach(sale => {
       const monthIndex = new Date(sale.data_venda).getMonth();
-      if (matrix[sale.corretor]) {
-        matrix[sale.corretor][monthIndex] += 1;
-      }
+      if (matrix[sale.corretor]) matrix[sale.corretor][monthIndex] += 1;
     });
-
     return matrix;
   }, [sales]);
 
-  // Matriz de Valor por Corretor
+  // Matriz de Locações por Corretor (Qtd)
+  const brokerLocacaoCountMatrix = useMemo(() => {
+    const matrix: Record<string, number[]> = {};
+    brokers.forEach(b => matrix[b] = new Array(12).fill(0));
+    sales.filter(s => s.tipo === 'Aluguel').forEach(sale => {
+      const monthIndex = new Date(sale.data_venda).getMonth();
+      if (matrix[sale.corretor]) matrix[sale.corretor][monthIndex] += 1;
+    });
+    return matrix;
+  }, [sales]);
+
+  // Matriz de Valor por Corretor (Venda)
   const brokerValueMatrix = useMemo(() => {
     const matrix: Record<string, number[]> = {};
     brokers.forEach(b => matrix[b] = new Array(12).fill(0));
-
-    sales.forEach(sale => {
+    sales.filter(s => s.tipo === 'Venda').forEach(sale => {
       const monthIndex = new Date(sale.data_venda).getMonth();
-      if (matrix[sale.corretor]) {
-        matrix[sale.corretor][monthIndex] += sale.valor_fechado;
-      }
+      if (matrix[sale.corretor]) matrix[sale.corretor][monthIndex] += sale.valor_fechado;
     });
-
     return matrix;
   }, [sales]);
 
@@ -141,7 +152,6 @@ export function SalesMatrix({ sales }: SalesMatrixProps) {
                 );
               })}
               
-              {/* Rodapé: Totais de Angariações */}
               <TableRow className="bg-emerald-50 font-bold border-t-2">
                 <TableCell className="border-r">Angariações</TableCell>
                 {months.map((_, i) => {
@@ -162,7 +172,6 @@ export function SalesMatrix({ sales }: SalesMatrixProps) {
                 </TableCell>
               </TableRow>
 
-              {/* Rodapé: Total/Mês (Venda + Locação) */}
               <TableRow className="bg-muted/10 font-bold">
                 <TableCell className="border-r">Total/Mês</TableCell>
                 {months.map((_, i) => {
@@ -187,10 +196,10 @@ export function SalesMatrix({ sales }: SalesMatrixProps) {
     </Card>
   );
 
-  const renderTable = (title: string, dataMatrix: Record<string, number[]>, isCurrency: boolean = false) => (
+  const renderTable = (title: string, dataMatrix: Record<string, number[]>, colorClass: string, isCurrency: boolean = false) => (
     <Card className="mb-8 border-none shadow-sm">
-      <CardHeader className="bg-muted/30 pb-3">
-        <CardTitle className="text-lg font-bold text-primary">{title}</CardTitle>
+      <CardHeader className={`${colorClass} pb-3 rounded-t-lg`}>
+        <CardTitle className="text-lg font-bold text-white">{title}</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
         <ScrollArea className="w-full">
@@ -249,11 +258,15 @@ export function SalesMatrix({ sales }: SalesMatrixProps) {
   return (
     <div className="space-y-4">
       {renderAngariacaoTable()}
-      {renderTable("Total Vendas por Canal", originMatrix)}
-      {renderTable("Total Vendas por Corretor (Qtd)", brokerCountMatrix)}
-      {renderTable("Valor Total Vendido por Corretor", brokerValueMatrix, true)}
+      <div className="grid lg:grid-cols-2 gap-6">
+        {renderTable("Total Vendas por Canal", originVendaMatrix, "bg-primary")}
+        {renderTable("Total Locações por Canal", originLocacaoMatrix, "bg-accent")}
+      </div>
+      <div className="grid lg:grid-cols-2 gap-6">
+        {renderTable("Total Vendas por Corretor (Qtd)", brokerVendaCountMatrix, "bg-primary/80")}
+        {renderTable("Total Locações por Corretor (Qtd)", brokerLocacaoCountMatrix, "bg-accent/80")}
+      </div>
+      {renderTable("Valor Total Vendido por Corretor (VGV)", brokerValueMatrix, "bg-indigo-600", true)}
     </div>
   );
 }
-
-import React from 'react';
