@@ -1,8 +1,8 @@
 
 "use client"
 
-import { useState, useMemo } from "react";
-import { MOCK_SALES_DATA, brokers, origins } from "@/app/lib/mock-data";
+import { useState, useMemo, useEffect } from "react";
+import { MOCK_SALES_DATA, brokers } from "@/app/lib/mock-data";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { PerformanceTable } from "@/components/dashboard/performance-table";
 import { ChannelPerformance } from "@/components/dashboard/channel-performance";
@@ -12,12 +12,17 @@ import { MonthlyTrends } from "@/components/dashboard/monthly-trends";
 import { PropertyForm } from "@/components/forms/property-form";
 import { SaleForm } from "@/components/forms/sale-form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LayoutDashboard, FilePlus, BadgeCheck, Filter, Calendar, Home, TrendingUp } from "lucide-react";
+import { LayoutDashboard, FilePlus, BadgeCheck, Filter, Calendar, TrendingUp, Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function AppContainer() {
+  const [mounted, setMounted] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [selectedBroker, setSelectedBroker] = useState<string>("all");
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const months = useMemo(() => {
     const monthsSet = new Set<string>();
@@ -52,6 +57,14 @@ export default function AppContainer() {
 
     return { totalSales, totalValue, avgTicket, avgDaysToSell, lastSaleDate };
   }, [filteredSales]);
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">

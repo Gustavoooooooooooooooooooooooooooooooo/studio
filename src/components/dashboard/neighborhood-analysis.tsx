@@ -1,6 +1,7 @@
 
 "use client"
 
+import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 import { SaleRecord } from "@/app/lib/mock-data";
@@ -12,11 +13,13 @@ interface NeighborhoodAnalysisProps {
 const mockNeighborhoods = ["Jardins", "Moema", "Itaim Bibi", "Pinheiros", "Vila Madalena", "Brooklin"];
 
 export function NeighborhoodAnalysis({ sales }: NeighborhoodAnalysisProps) {
-  // Simulate neighborhood distribution since mock data doesn't have it explicitly
-  const stats = mockNeighborhoods.map(name => ({
-    name,
-    value: Math.floor(Math.random() * 20) + 5
-  })).sort((a, b) => b.value - a.value);
+  // Use useMemo to stabilize random generation and prevent hydration mismatch
+  const stats = useMemo(() => {
+    return mockNeighborhoods.map(name => ({
+      name,
+      value: Math.floor(Math.random() * 20) + 5
+    })).sort((a, b) => b.value - a.value);
+  }, []);
 
   const COLORS = ['#0ea5e9', '#06b6d4', '#14b8a6', '#10b981', '#3b82f6', '#6366f1'];
 

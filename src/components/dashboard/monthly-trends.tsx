@@ -1,6 +1,7 @@
 
 "use client"
 
+import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Line, LineChart, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Legend } from "recharts";
@@ -11,18 +12,24 @@ interface MonthlyTrendsProps {
 }
 
 export function MonthlyTrends({ sales }: MonthlyTrendsProps) {
-  // Aggregate mock data for visualization
-  // In a real app, this would query separate collections for listings vs leads vs visits
-  const monthlyData = sales.reduce((acc, sale) => {
-    const month = new Date(sale.data_venda).toLocaleDateString('pt-BR', { month: 'short' });
-    if (!acc[month]) {
-      acc[month] = { month, vendas: 0, angariados: Math.floor(Math.random() * 10) + 5, leads: Math.floor(Math.random() * 30) + 20 };
-    }
-    acc[month].vendas += 1;
-    return acc;
-  }, {} as Record<string, any>);
+  // Stabilize random simulation data with useMemo
+  const data = useMemo(() => {
+    const monthlyData = sales.reduce((acc, sale) => {
+      const month = new Date(sale.data_venda).toLocaleDateString('pt-BR', { month: 'short' });
+      if (!acc[month]) {
+        acc[month] = { 
+          month, 
+          vendas: 0, 
+          angariados: Math.floor(Math.random() * 10) + 5, 
+          leads: Math.floor(Math.random() * 30) + 20 
+        };
+      }
+      acc[month].vendas += 1;
+      return acc;
+    }, {} as Record<string, any>);
 
-  const data = Object.values(monthlyData).reverse();
+    return Object.values(monthlyData).reverse();
+  }, [sales]);
 
   const config = {
     vendas: { label: "Vendas", color: "hsl(var(--primary))" },
