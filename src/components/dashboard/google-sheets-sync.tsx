@@ -82,24 +82,41 @@ export function GoogleSheetsSync() {
         let addedCount = 0;
         
         result.data.forEach((row: any) => {
-          // Mapeamento exaustivo
-          const propertyId = String(getVal(row, ["imóvel", "imovel", "id_imovel", "id", "código", "codigo"]) || "");
-          const clientName = String(getVal(row, ["cliente", "comprador", "nome"]) || "N/D");
-          const closedValue = typeof getVal(row, ["valor fechado", "valor_fechado", "venda", "valor"]) === 'string' 
-            ? Number(getVal(row, ["valor fechado", "valor_fechado"])?.replace(/[^0-9.-]+/g,"")) 
-            : Number(getVal(row, ["valor fechado", "valor_fechado", "venda", "valor"]) || 0);
+          // Mapeamento exaustivo para suportar diferentes nomenclaturas
+          const propertyId = String(getVal(row, ["imóvel", "imovel", "id_imovel", "id", "código", "codigo", "ref"]) || "");
+          const clientName = String(getVal(row, ["cliente", "comprador", "nome", "locatário", "locatario"]) || "N/D");
           
-          const advertisedValue = typeof getVal(row, ["valor anúncio", "valor_anuncio", "anuncio"]) === 'string'
-            ? Number(getVal(row, ["valor anúncio", "valor_anuncio"])?.replace(/[^0-9.-]+/g,""))
-            : Number(getVal(row, ["valor anúncio", "valor_anuncio", "anuncio"]) || closedValue || 0);
+          // Captura de valores financeiros (tratando strings de moeda se necessário)
+          const parseCurrency = (val: any) => {
+            if (typeof val === 'number') return val;
+            if (typeof val === 'string') return Number(val.replace(/[^0-9,.-]+/g,"").replace(",", "."));
+            return 0;
+          };
 
-          const broker = String(getVal(row, ["corretor", "vendedor", "angariador", "nome"]) || "Não Identificado");
-          const captureDate = getVal(row, ["data entrada", "data_entrada", "angariação", "entrada"]) || new Date().toISOString().split('T')[0];
-          const saleDate = getVal(row, ["data venda", "data_venda", "fechamento"]);
-          const neighborhood = String(getVal(row, ["bairro", "região", "localidade"]) || "Desconhecido");
-          const address = String(getVal(row, ["endereço", "endereco", "logradouro"]) || "Endereço não informado");
-          const type = String(getVal(row, ["tipo", "transação", "venda/aluguel"]) || "Venda");
-          const origin = String(getVal(row, ["canal", "origem", "fonte"]) || "Google Sheets");
+          const closedValue = parseCurrency(getVal(row, ["valor fechado", "valor_fechado", "venda", "valor", "valor fechamento"]));
+          
+          // Valor de Anúncio - Tenta várias colunas comuns para Venda e Locação
+          const advertisedValue = parseCurrency(getVal(row, [
+            "valor anúncio", "valor anuncio", "valor_anuncio", 
+            "valor de anúncio", "valor de anuncio",
+            "valor pedido", "valor total", "valor venda", "valor locação", "valor locacao"
+          ])) || closedValue;
+
+          const broker = String(getVal(row, ["corretor", "vendedor", "angariador", "nome", "responsável"]) || "Não Identificado");
+          const captureDate = getVal(row, ["data entrada", "data_entrada", "angariação", "entrada", "data"]) || new Date().toISOString().split('T')[0];
+          const saleDate = getVal(row, ["data venda", "data_venda", "fechamento", "data fechamento"]);
+          const neighborhood = String(getVal(row, ["bairro", "região", "localidade", "distrito"]) || "Desconhecido");
+          const address = String(getVal(row, ["endereço", "endereco", "logradouro", "rua"]) || "Endereço não informado");
+          
+          // Determinação do Tipo (Venda ou Locação)
+          let type = String(getVal(row, ["tipo", "transação", "transacao", "venda/aluguel", "categoria"]) || "Venda");
+          if (type.toLowerCase().includes("loc") || type.toLowerCase().includes("alug")) {
+            type = "Locação";
+          } else {
+            type = "Venda";
+          }
+
+          const origin = String(getVal(row, ["canal", "origem", "fonte", "lead"]) || "Google Sheets");
 
           if (propertyId) {
             // 1. Registrar na coleção de Angariação (Properties)
@@ -116,7 +133,7 @@ export function GoogleSheetsSync() {
               importedAt: serverTimestamp(),
             }, { merge: true });
 
-            // 2. Se tiver data de venda, registrar na coleção de Vendas
+            // 2. Se tiver data de venda/locação, registrar na coleção de Vendas
             if (saleDate) {
               const saleRef = doc(firestore, "vendas_imoveis", `${propertyId}_sale`);
               setDocumentNonBlocking(saleRef, {
@@ -140,7 +157,7 @@ export function GoogleSheetsSync() {
 
         toast({
           title: "Sincronização Concluída",
-          description: `${addedCount} imóveis processados e atualizados no estoque.`,
+          description: `${addedCount} registros processados e atualizados no estoque.`,
         });
       } else {
         toast({
@@ -210,11 +227,11 @@ export function GoogleSheetsSync() {
              <AlertCircle className="h-4 w-4 text-emerald-600" />
           </div>
           <div className="text-[11px] text-muted-foreground leading-relaxed">
-            <p className="font-bold text-emerald-800 mb-1">Dicas para uma sincronização perfeita:</p>
+            <p className="font-bold text-emerald-800 mb-1">Dicas para capturar Venda e Locação:</p>
             <ul className="list-disc list-inside space-y-1">
-              <li>Certifique-se de ter as colunas: <b>Imóvel, Data Entrada, Bairro, Corretor e Valor Anúncio</b>.</li>
-              <li>Se o imóvel já foi vendido, inclua a coluna <b>Data Venda</b> para atualizar os gráficos de performance.</li>
-              <li>O sistema identifica automaticamente os nomes das colunas, mesmo com acentos ou maiúsculas.</li>
+              <li>Use uma coluna <b>Tipo</b> (Venda ou Locação) para o sistema separar os dados.</li>
+              <li>O sistema busca o valor em colunas como <b>Valor Anúncio, Valor Venda ou Valor Locação</b>.</li>
+              <li>Certifique-se de "Publicar na Web" como CSV para que o app consiga ler os dados.</li>
             </ul>
           </div>
         </div>

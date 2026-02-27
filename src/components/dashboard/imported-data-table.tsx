@@ -6,12 +6,12 @@ import { collection, query, orderBy, limit } from "firebase/firestore";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Home, Calendar, User, MapPin, DollarSign } from "lucide-react";
+import { Loader2, Home, Calendar, User, MapPin, DollarSign, Tag } from "lucide-react";
 
 export function ImportedDataTable() {
   const { firestore } = useFirebase();
   
-  // Alterado para buscar da coleção 'properties' que representa a Angariação/Estoque
+  // Busca da coleção 'properties' que representa a Angariação/Estoque
   const angariacaoQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(
@@ -36,7 +36,7 @@ export function ImportedDataTable() {
             Gestão de Angariação (Estoque Real)
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Lista dos últimos 50 imóveis captados e sincronizados da sua planilha.
+            Lista dos últimos 50 imóveis captados. Exibindo valores de Venda e Locação sincronizados.
           </p>
         </div>
       </CardHeader>
@@ -52,6 +52,7 @@ export function ImportedDataTable() {
               <TableHeader className="bg-muted/30">
                 <TableRow>
                   <TableHead className="text-[11px] font-bold uppercase">Cód. Imóvel</TableHead>
+                  <TableHead className="text-[11px] font-bold uppercase">Tipo</TableHead>
                   <TableHead className="text-[11px] font-bold uppercase">Data Entrada</TableHead>
                   <TableHead className="text-[11px] font-bold uppercase">Bairro / Local</TableHead>
                   <TableHead className="text-[11px] font-bold uppercase">Angariador</TableHead>
@@ -63,6 +64,14 @@ export function ImportedDataTable() {
                 {imoveis.map((imovel) => (
                   <TableRow key={imovel.id} className="hover:bg-muted/5">
                     <TableCell className="font-bold text-xs text-primary">{imovel.propertyCode || "S/N"}</TableCell>
+                    <TableCell className="text-xs">
+                      <div className="flex items-center gap-1">
+                        <Tag className="h-3 w-3 text-muted-foreground" />
+                        <span className={`font-semibold ${imovel.listingType === 'Locação' ? 'text-accent' : 'text-primary'}`}>
+                          {imovel.listingType || "Venda"}
+                        </span>
+                      </div>
+                    </TableCell>
                     <TableCell className="text-xs">
                       <div className="flex items-center gap-1">
                         <Calendar className="h-3 w-3 text-muted-foreground" />
