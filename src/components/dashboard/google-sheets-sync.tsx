@@ -20,13 +20,18 @@ export function GoogleSheetsSync() {
   const { toast } = useToast();
   const { firestore } = useFirebase();
 
-  // Função auxiliar para encontrar valores em colunas com nomes variados
+  // Função auxiliar para encontrar valores em colunas com nomes variados (Fuzzy matching)
   const getVal = (row: any, keys: string[]) => {
     if (!row) return undefined;
     const rowKeys = Object.keys(row);
+    // Tenta correspondência exata ou aproximada (ignorando acentos e espaços)
     for (const key of keys) {
-      const found = rowKeys.find(k => k.toLowerCase().trim() === key.toLowerCase().trim());
-      if (found) return row[found];
+      const found = rowKeys.find(k => {
+        const normalizedK = k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+        const normalizedKey = key.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+        return normalizedK === normalizedKey || normalizedK.includes(normalizedKey);
+      });
+      if (found && row[found] !== undefined && row[found] !== null && row[found] !== "") return row[found];
     }
     return undefined;
   };
@@ -82,95 +87,99 @@ export function GoogleSheetsSync() {
         let addedCount = 0;
         
         result.data.forEach((row: any) => {
-          // Mapeamento exaustivo para suportar diferentes nomenclaturas
-          const propertyId = String(getVal(row, ["imóvel", "imovel", "id_imovel", "id", "código", "codigo", "ref"]) || "");
-          const clientName = String(getVal(row, ["cliente", "comprador", "nome", "locatário", "locatario"]) || "N/D");
-          
-          // Captura de valores financeiros (tratando strings de moeda se necessário)
-          const parseCurrency = (val: any) => {
-            if (typeof val === 'number') return val;
-            if (typeof val === 'string') return Number(val.replace(/[^0-9,.-]+/g,"").replace(",", "."));
-            return 0;
-          };
+          // 1. Identificação do Imóvel
+          const propertyId = String(getVal(row, ["imovel", "id", "codigo", "ref", "unidade"]) || "");
+          if (!propertyId) return;
 
-          const closedValue = parseCurrency(getVal(row, ["valor fechado", "valor_fechado", "venda", "valor", "valor fechamento"]));
-          
-          // Valor de Anúncio - Tenta várias colunas comuns para Venda e Locação
-          const advertisedValue = parseCurrency(getVal(row, [
-            "valor anúncio", "valor anuncio", "valor_anuncio", 
-            "valor de anúncio", "valor de anuncio",
-            "valor pedido", "valor total", "valor venda", "valor locação", "valor locacao"
-          ])) || closedValue;
-
-          const broker = String(getVal(row, ["corretor", "vendedor", "angariador", "nome", "responsável"]) || "Não Identificado");
-          const captureDate = getVal(row, ["data entrada", "data_entrada", "angariação", "entrada", "data"]) || new Date().toISOString().split('T')[0];
-          const saleDate = getVal(row, ["data venda", "data_venda", "fechamento", "data fechamento"]);
-          const neighborhood = String(getVal(row, ["bairro", "região", "localidade", "distrito"]) || "Desconhecido");
-          const address = String(getVal(row, ["endereço", "endereco", "logradouro", "rua"]) || "Endereço não informado");
-          
-          // Determinação do Tipo (Venda ou Locação)
-          let type = String(getVal(row, ["tipo", "transação", "transacao", "venda/aluguel", "categoria"]) || "Venda");
+          // 2. Identificação do Tipo (Venda ou Locação)
+          let type = String(getVal(row, ["tipo", "transacao", "venda/aluguel", "categoria"]) || "Venda");
           if (type.toLowerCase().includes("loc") || type.toLowerCase().includes("alug")) {
             type = "Locação";
           } else {
             type = "Venda";
           }
 
-          const origin = String(getVal(row, ["canal", "origem", "fonte", "lead"]) || "Google Sheets");
+          // 3. Captura de Valores Financeiros (Mapeamento Robusto)
+          const parseCurrency = (val: any) => {
+            if (typeof val === 'number') return val;
+            if (typeof val === 'string') {
+              // Remove símbolos de moeda, pontos de milhar e troca vírgula por ponto
+              const cleaned = val.replace(/[^0-9,.-]+/g,"").replace(/\./g, "").replace(",", ".");
+              const num = parseFloat(cleaned);
+              return isNaN(num) ? 0 : num;
+            }
+            return 0;
+          };
 
-          if (propertyId) {
-            // 1. Registrar na coleção de Angariação (Properties)
-            const propRef = doc(firestore, "properties", propertyId);
-            setDocumentNonBlocking(propRef, {
-              propertyCode: propertyId,
-              address: address,
+          // Tenta buscar o valor de anúncio em várias colunas possíveis, inclusive específicas de venda/locação
+          const advertisedValue = parseCurrency(getVal(row, [
+            "valor anuncio", "valor de anuncio", "valor do imovel", 
+            "valor venda", "valor locacao", "valor aluguel", 
+            "preço", "pedida", "valor"
+          ]));
+
+          const closedValue = parseCurrency(getVal(row, ["valor fechado", "valor de fechamento", "valor venda", "valor locacao"])) || advertisedValue;
+
+          // 4. Outros Dados
+          const broker = String(getVal(row, ["corretor", "vendedor", "angariador", "responsavel"]) || "Não Identificado");
+          const captureDate = getVal(row, ["data entrada", "angariacao", "entrada", "data"]) || new Date().toISOString().split('T')[0];
+          const saleDate = getVal(row, ["data venda", "fechamento", "data fechamento", "data de venda"]);
+          const neighborhood = String(getVal(row, ["bairro", "regiao", "localidade", "distrito"]) || "Desconhecido");
+          const address = String(getVal(row, ["endereco", "logradouro", "rua"]) || "Endereço não informado");
+          const clientName = String(getVal(row, ["cliente", "comprador", "locatario"]) || "Cliente");
+          const origin = String(getVal(row, ["canal", "origem", "fonte"]) || "Google Sheets");
+
+          // Salvar na coleção de Angariação (Estoque)
+          const propRef = doc(firestore, "properties", propertyId);
+          setDocumentNonBlocking(propRef, {
+            propertyCode: propertyId,
+            address: address,
+            neighborhood: neighborhood,
+            listingType: type,
+            listingValue: advertisedValue,
+            brokerId: broker,
+            captureDate: captureDate,
+            status: saleDate ? "Vendido" : "Disponível",
+            importedAt: serverTimestamp(),
+          }, { merge: true });
+
+          // Se tiver data de venda, registrar na coleção de Vendas para o Dashboard
+          if (saleDate) {
+            const saleRef = doc(firestore, "vendas_imoveis", `${propertyId}_sale`);
+            setDocumentNonBlocking(saleRef, {
+              propertyId: propertyId,
+              clientName: clientName,
+              closedValue: closedValue,
+              advertisedValue: advertisedValue,
+              originChannel: origin,
+              sellingBrokerId: broker,
+              saleDate: saleDate,
+              propertyCaptureDate: captureDate,
               neighborhood: neighborhood,
               listingType: type,
-              listingValue: advertisedValue,
-              brokerId: broker,
-              captureDate: captureDate,
-              status: saleDate ? "Vendido" : "Disponível",
+              status: "Vendido",
               importedAt: serverTimestamp(),
             }, { merge: true });
-
-            // 2. Se tiver data de venda/locação, registrar na coleção de Vendas
-            if (saleDate) {
-              const saleRef = doc(firestore, "vendas_imoveis", `${propertyId}_sale`);
-              setDocumentNonBlocking(saleRef, {
-                propertyId: propertyId,
-                clientName: clientName,
-                closedValue: closedValue,
-                advertisedValue: advertisedValue,
-                originChannel: origin,
-                sellingBrokerId: broker,
-                saleDate: saleDate,
-                propertyCaptureDate: captureDate,
-                neighborhood: neighborhood,
-                listingType: type,
-                status: "Vendido",
-                importedAt: serverTimestamp(),
-              }, { merge: true });
-            }
-            addedCount++;
           }
+          addedCount++;
         });
 
         toast({
           title: "Sincronização Concluída",
-          description: `${addedCount} registros processados e atualizados no estoque.`,
+          description: `${addedCount} imóveis sincronizados com sucesso.`,
         });
       } else {
         toast({
           variant: "destructive",
-          title: "Sem dados",
-          description: result.message || "A planilha parece estar vazia ou o link está incorreto.",
+          title: "Nenhum dado encontrado",
+          description: "Certifique-se de que a planilha está publicada como CSV e contém dados.",
         });
       }
     } catch (error) {
       toast({
         variant: "destructive",
-        title: "Erro fatal",
-        description: "Não foi possível conectar ao serviço de sincronização.",
+        title: "Erro na sincronização",
+        description: "Não foi possível ler os dados. Verifique se o link está correto.",
       });
     } finally {
       setSyncing(false);
@@ -186,8 +195,8 @@ export function GoogleSheetsSync() {
               <Table2 className="h-5 w-5" />
             </div>
             <div>
-              <CardTitle className="text-lg">Importação de Angariação (Google Sheets)</CardTitle>
-              <CardDescription className="text-xs">Sincronize seu estoque de imóveis via CSV</CardDescription>
+              <CardTitle className="text-lg">Sincronização Google Sheets</CardTitle>
+              <CardDescription className="text-xs">Importe seu estoque de Vendas e Locações</CardDescription>
             </div>
           </div>
           <Button 
@@ -204,7 +213,7 @@ export function GoogleSheetsSync() {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Link da Planilha Publicada (CSV)</Label>
+          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">URL da Planilha Publicada (CSV)</Label>
           <div className="flex gap-2">
             <Input 
               placeholder="Cole o link do CSV aqui..." 
@@ -227,11 +236,11 @@ export function GoogleSheetsSync() {
              <AlertCircle className="h-4 w-4 text-emerald-600" />
           </div>
           <div className="text-[11px] text-muted-foreground leading-relaxed">
-            <p className="font-bold text-emerald-800 mb-1">Dicas para capturar Venda e Locação:</p>
+            <p className="font-bold text-emerald-800 mb-1">Como garantir que todos os valores apareçam:</p>
             <ul className="list-disc list-inside space-y-1">
-              <li>Use uma coluna <b>Tipo</b> (Venda ou Locação) para o sistema separar os dados.</li>
-              <li>O sistema busca o valor em colunas como <b>Valor Anúncio, Valor Venda ou Valor Locação</b>.</li>
-              <li>Certifique-se de "Publicar na Web" como CSV para que o app consiga ler os dados.</li>
+              <li>O sistema busca colunas chamadas: <b>Valor Anúncio, Valor Venda, Valor Locação ou Valor do Imóvel</b>.</li>
+              <li>Se você tem abas diferentes (Vendas e Locação), sincronize o link de cada uma separadamente.</li>
+              <li>Certifique-se de <b>Arquivo {'>'} Compartilhar {'>'} Publicar na Web</b> como <b>CSV</b>.</li>
             </ul>
           </div>
         </div>

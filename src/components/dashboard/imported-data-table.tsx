@@ -6,12 +6,12 @@ import { collection, query, orderBy, limit } from "firebase/firestore";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Home, Calendar, User, MapPin, DollarSign, Tag } from "lucide-react";
+import { Loader2, Home, Calendar, User, Tag } from "lucide-react";
 
 export function ImportedDataTable() {
   const { firestore } = useFirebase();
   
-  // Busca da coleção 'properties' que representa a Angariação/Estoque
+  // Busca da coleção 'properties' que representa a Angariação/Estoque Real
   const angariacaoQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(
@@ -24,6 +24,7 @@ export function ImportedDataTable() {
   const { data: imoveis, isLoading } = useCollection(angariacaoQuery);
 
   const formatCurrency = (value: number) => {
+    if (!value) return "R$ 0,00";
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
   };
 
@@ -33,10 +34,10 @@ export function ImportedDataTable() {
         <div>
           <CardTitle className="text-lg flex items-center gap-2">
             <Home className="h-5 w-5 text-primary" />
-            Gestão de Angariação (Estoque Real)
+            Gestão de Angariação (Estoque Sincronizado)
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Lista dos últimos 50 imóveis captados. Exibindo valores de Venda e Locação sincronizados.
+            Exibindo os últimos 50 imóveis capturados via Google Sheets.
           </p>
         </div>
       </CardHeader>
@@ -44,17 +45,17 @@ export function ImportedDataTable() {
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">Carregando estoque...</p>
+            <p className="text-sm text-muted-foreground">Lendo banco de dados...</p>
           </div>
         ) : imoveis && imoveis.length > 0 ? (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader className="bg-muted/30">
                 <TableRow>
-                  <TableHead className="text-[11px] font-bold uppercase">Cód. Imóvel</TableHead>
+                  <TableHead className="text-[11px] font-bold uppercase">Código</TableHead>
                   <TableHead className="text-[11px] font-bold uppercase">Tipo</TableHead>
                   <TableHead className="text-[11px] font-bold uppercase">Data Entrada</TableHead>
-                  <TableHead className="text-[11px] font-bold uppercase">Bairro / Local</TableHead>
+                  <TableHead className="text-[11px] font-bold uppercase">Bairro</TableHead>
                   <TableHead className="text-[11px] font-bold uppercase">Angariador</TableHead>
                   <TableHead className="text-right text-[11px] font-bold uppercase">Valor Anúncio</TableHead>
                   <TableHead className="text-center text-[11px] font-bold uppercase">Status</TableHead>
@@ -67,7 +68,7 @@ export function ImportedDataTable() {
                     <TableCell className="text-xs">
                       <div className="flex items-center gap-1">
                         <Tag className="h-3 w-3 text-muted-foreground" />
-                        <span className={`font-semibold ${imovel.listingType === 'Locação' ? 'text-accent' : 'text-primary'}`}>
+                        <span className={`font-semibold ${imovel.listingType === 'Locação' ? 'text-cyan-600' : 'text-blue-600'}`}>
                           {imovel.listingType || "Venda"}
                         </span>
                       </div>
@@ -78,20 +79,17 @@ export function ImportedDataTable() {
                         {imovel.captureDate ? new Date(imovel.captureDate).toLocaleDateString('pt-BR') : "N/D"}
                       </div>
                     </TableCell>
-                    <TableCell className="text-xs">
-                      <div className="flex flex-col">
-                        <span className="font-medium">{imovel.neighborhood || "Não Inf."}</span>
-                        <span className="text-[10px] text-muted-foreground truncate max-w-[150px]">{imovel.address}</span>
-                      </div>
-                    </TableCell>
                     <TableCell className="text-xs font-medium">
+                      {imovel.neighborhood || "Desconhecido"}
+                    </TableCell>
+                    <TableCell className="text-xs">
                       <div className="flex items-center gap-1">
                         <User className="h-3 w-3 text-muted-foreground" />
                         {imovel.brokerId || "N/A"}
                       </div>
                     </TableCell>
                     <TableCell className="text-right text-xs font-bold text-primary">
-                      {formatCurrency(imovel.listingValue || 0)}
+                      {formatCurrency(imovel.listingValue)}
                     </TableCell>
                     <TableCell className="text-center">
                       <Badge 
@@ -111,7 +109,7 @@ export function ImportedDataTable() {
             <Home className="h-12 w-12 text-muted-foreground/20 mx-auto" />
             <p className="text-muted-foreground font-medium">Estoque vazio.</p>
             <p className="text-xs text-muted-foreground/60 px-10">
-              Sincronize sua planilha Google Sheets acima para popular sua base de angariação.
+              Sincronize sua planilha Google Sheets para popular o estoque de Venda e Locação.
             </p>
           </div>
         )}
