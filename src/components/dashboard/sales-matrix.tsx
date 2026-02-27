@@ -89,11 +89,22 @@ export function SalesMatrix({ sales }: SalesMatrixProps) {
     return matrix;
   }, [sales]);
 
-  // Matriz de Valor por Corretor (Venda)
+  // Matriz de Valor por Corretor (Venda - VGV)
   const brokerValueMatrix = useMemo(() => {
     const matrix: Record<string, number[]> = {};
     brokers.forEach(b => matrix[b] = new Array(12).fill(0));
     sales.filter(s => s.tipo === 'Venda').forEach(sale => {
+      const monthIndex = new Date(sale.data_venda).getMonth();
+      if (matrix[sale.corretor]) matrix[sale.corretor][monthIndex] += sale.valor_fechado;
+    });
+    return matrix;
+  }, [sales]);
+
+  // Matriz de Valor por Corretor (Locação)
+  const brokerRentalValueMatrix = useMemo(() => {
+    const matrix: Record<string, number[]> = {};
+    brokers.forEach(b => matrix[b] = new Array(12).fill(0));
+    sales.filter(s => s.tipo === 'Aluguel').forEach(sale => {
       const monthIndex = new Date(sale.data_venda).getMonth();
       if (matrix[sale.corretor]) matrix[sale.corretor][monthIndex] += sale.valor_fechado;
     });
@@ -197,8 +208,8 @@ export function SalesMatrix({ sales }: SalesMatrixProps) {
   );
 
   const renderTable = (title: string, dataMatrix: Record<string, number[]>, colorClass: string, isCurrency: boolean = false) => (
-    <Card className="mb-8 border-none shadow-sm">
-      <CardHeader className={`${colorClass} pb-3 rounded-t-lg`}>
+    <Card className="mb-8 border-none shadow-sm overflow-hidden">
+      <CardHeader className={`${colorClass} pb-3`}>
         <CardTitle className="text-lg font-bold text-white">{title}</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
@@ -266,7 +277,10 @@ export function SalesMatrix({ sales }: SalesMatrixProps) {
         {renderTable("Total Vendas por Corretor (Qtd)", brokerVendaCountMatrix, "bg-primary/80")}
         {renderTable("Total Locações por Corretor (Qtd)", brokerLocacaoCountMatrix, "bg-accent/80")}
       </div>
-      {renderTable("Valor Total Vendido por Corretor (VGV)", brokerValueMatrix, "bg-indigo-600", true)}
+      <div className="grid lg:grid-cols-2 gap-6">
+        {renderTable("Valor Total Vendido por Corretor (VGV)", brokerValueMatrix, "bg-indigo-600", true)}
+        {renderTable("Valor Total Locado por Corretor", brokerRentalValueMatrix, "bg-rose-600", true)}
+      </div>
     </div>
   );
 }
