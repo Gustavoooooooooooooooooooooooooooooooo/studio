@@ -1,0 +1,161 @@
+/**
+ * Firestore Security Rules for ImmoSales Insight
+ *
+ * Core Philosophy:
+ * This ruleset implements a strict ownership-based security model enhanced by administrative 
+ * overrides. It is designed for a multi-tenant real estate environment where brokers manage 
+ * their own listings, leads, and sales, while designated administrators maintain global 
+ * visibility for deep "Base" analytics.
+ *
+ * Data Structure:
+ * The system utilizes a flat, top-level collection structure (/brokers, /properties, /leads, 
+ * /vendas_imoveis, /visits). This layout supports efficient global querying for the 
+ * analytics dashboard while avoiding the complexity of deeply nested subcollections.
+ *
+ * Key Security Decisions:
+ * 1. Authorization Independence: Every document (Property, Lead, SalesRecord, Visit) contains 
+ *    a denormalized UID field (e.g., brokerId, assignedBrokerId). This allows rules to perform 
+ *    instant authorization checks using request.auth.uid without costly get() calls.
+ * 2. Role-Based Access Control (RBAC): Admin privileges are managed via a dedicated 
+ *    /roles_admin/{userId} collection. The existence of a document for a UID grants that 
+ *    user full read/write access to the entire database.
+ * 3. Relational Integrity: On document creation, the system validates that the 
+ *    ownership field (brokerId) matches the authenticated user. On updates, these 
+ *    ownership fields are enforced as immutable to prevent data hijacking.
+ * 4. Prototyping Flexibility: While authorization is strictly enforced, the rules 
+ *    do not validate the specific schema or data types of non-relational fields, 
+ *    allowing for rapid iteration of the property and lead forms.
+ *
+ * Denormalization for Authorization:
+ * To ensure high performance, fields like 'sellingBrokerId' and 'propertyCaptureDate' 
+ * are denormalized into the 'vendas_imoveis' collection. This allows the rules to 
+ * verify ownership and the client to perform complex time-to-sale calculations 
+ * without fetching multiple documents.
+ */
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- GLOBAL HELPER FUNCTIONS ---
+
+    /** 
+     * Checks if the user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /** 
+     * Checks if the user has an administrative entry in the roles_admin collection.
+     */
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
+    /** 
+     * Checks if the provided UID matches the authenticated user's UID.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /** 
+     * Validates ownership for existing documents (Update/Delete).
+     */
+    function isExistingOwner(userId) {
+      return resource != null && isOwner(userId);
+    }
+
+    /** 
+     * Accessor for the incoming document data.
+     */
+    function incomingData() {
+      return request.resource.data;
+    }
+
+    // --- COLLECTION RULES ---
+
+    /**
+     * @description Rules for Broker profiles. Users can manage their own profile; admins can manage all.
+     * @path /brokers/{brokerId}
+     * @allow Authenticated user matching the {brokerId} (create/get/list/update).
+     * @deny Any user attempting to modify another broker's profile.
+     * @principle Path-based ownership and self-creation.
+     */
+    match /brokers/{brokerId} {
+      allow get, list: if isOwner(brokerId) || isAdmin();
+      allow create: if isOwner(brokerId) && incomingData().id == brokerId;
+      allow update: if (isExistingOwner(brokerId) || isAdmin()) && incomingData().id == resource.data.id;
+      allow delete: if isAdmin();
+    }
+
+    /**
+     * @description Rules for Property listings. Brokers manage their own captures.
+     * @path /properties/{propertyId}
+     * @allow Broker to create a property if their UID is set as the brokerId.
+     * @deny User attempting to list a property under a different broker's ID.
+     * @principle Field-based ownership and relational integrity.
+     */
+    match /properties/{propertyId} {
+      allow get, list: if isSignedIn() && (isOwner(resource.data.brokerId) || isAdmin());
+      allow create: if isSignedIn() && incomingData().brokerId == request.auth.uid;
+      allow update: if (isExistingOwner(resource.data.brokerId) || isAdmin()) && incomingData().brokerId == resource.data.brokerId;
+      allow delete: if isExistingOwner(resource.data.brokerId) || isAdmin();
+    }
+
+    /**
+     * @description Rules for Leads. Brokers access only leads assigned to them.
+     * @path /leads/{leadId}
+     * @allow Access if request.auth.uid matches assignedBrokerId.
+     * @deny Access to leads assigned to other brokers.
+     * @principle Strict resource-level isolation via denormalized owner fields.
+     */
+    match /leads/{leadId} {
+      allow get, list: if isSignedIn() && (isOwner(resource.data.assignedBrokerId) || isAdmin());
+      allow create: if isSignedIn() && incomingData().assignedBrokerId == request.auth.uid;
+      allow update: if (isExistingOwner(resource.data.assignedBrokerId) || isAdmin()) && incomingData().assignedBrokerId == resource.data.assignedBrokerId;
+      allow delete: if isExistingOwner(resource.data.assignedBrokerId) || isAdmin();
+    }
+
+    /**
+     * @description Rules for Sales Records (vendas_imoveis).
+     * @path /vendas_imoveis/{salesRecordId}
+     * @allow The selling broker to record the sale; Admins to view all for "Base" analytics.
+     * @deny Unauthorized brokers from viewing or modifying sales they didn't close.
+     * @principle Resource-specific role validation with administrative override.
+     */
+    match /vendas_imoveis/{salesRecordId} {
+      allow get, list: if isSignedIn() && (isOwner(resource.data.sellingBrokerId) || isAdmin());
+      allow create: if isSignedIn() && incomingData().sellingBrokerId == request.auth.uid;
+      allow update: if (isExistingOwner(resource.data.sellingBrokerId) || isAdmin()) && incomingData().sellingBrokerId == resource.data.sellingBrokerId;
+      allow delete: if isAdmin();
+    }
+
+    /**
+     * @description Rules for Property Visits.
+     * @path /visits/{visitId}
+     * @allow Brokers to log and view visits they conducted.
+     * @deny Modifications to visits belonging to other brokers.
+     * @principle Ownership-based write protection.
+     */
+    match /visits/{visitId} {
+      allow get, list: if isSignedIn() && (isOwner(resource.data.brokerId) || isAdmin());
+      allow create: if isSignedIn() && incomingData().brokerId == request.auth.uid;
+      allow update: if (isExistingOwner(resource.data.brokerId) || isAdmin()) && incomingData().brokerId == resource.data.brokerId;
+      allow delete: if isExistingOwner(resource.data.brokerId) || isAdmin();
+    }
+
+    /**
+     * @description Rules for Admin Roles.
+     * @path /roles_admin/{userId}
+     * @allow Admins to view the list of other admins.
+     * @deny Non-admins from seeing or modifying administrative privileges.
+     * @principle Database-Backed Access Control (DBAC) with restricted management.
+     */
+    match /roles_admin/{userId} {
+      allow get, list: if isAdmin();
+      allow create, update, delete: if false; // Admin roles should be managed via secure environment (CLI/Functions)
+    }
+  }
+}

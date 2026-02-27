@@ -1,0 +1,353 @@
+{
+  "entities": {
+    "Broker": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Broker",
+      "type": "object",
+      "description": "Represents a real estate broker or agent responsible for property listings, leads, and sales.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Broker entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The full name of the broker."
+        },
+        "email": {
+          "type": "string",
+          "description": "The professional email address of the broker.",
+          "format": "email"
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "The contact phone number of the broker."
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "Property": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Property",
+      "type": "object",
+      "description": "Represents a real estate property listing available for sale or rent, captured by a broker.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Property entity."
+        },
+        "propertyCode": {
+          "type": "string",
+          "description": "A unique code or identifier for the physical property, corresponding to 'id_imovel'."
+        },
+        "captureDate": {
+          "type": "string",
+          "description": "The date and time when the property was listed or entered into inventory ('data_entrada').",
+          "format": "date-time"
+        },
+        "listingType": {
+          "type": "string",
+          "description": "The type of listing for the property (e.g., 'Sale', 'Rent')."
+        },
+        "address": {
+          "type": "string",
+          "description": "The full street address of the property."
+        },
+        "neighborhood": {
+          "type": "string",
+          "description": "The neighborhood or district where the property is located."
+        },
+        "listingValue": {
+          "type": "number",
+          "description": "The initial advertised value or price of the property ('valor_anuncio')."
+        },
+        "brokerId": {
+          "type": "string",
+          "description": "Reference to the Broker who captured and listed this property. (Relationship: Broker 1:N Property)"
+        },
+        "status": {
+          "type": "string",
+          "description": "The current availability status of the property (e.g., 'Available', 'Under Offer', 'Rented', 'Sold')."
+        }
+      },
+      "required": [
+        "id",
+        "propertyCode",
+        "captureDate",
+        "listingType",
+        "address",
+        "neighborhood",
+        "listingValue",
+        "brokerId",
+        "status"
+      ]
+    },
+    "Lead": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Lead",
+      "type": "object",
+      "description": "Represents a potential client or prospect interested in real estate properties, managed by a broker.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Lead entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The full name of the lead."
+        },
+        "contactEmail": {
+          "type": "string",
+          "description": "The email address of the lead for contact purposes.",
+          "format": "email"
+        },
+        "contactPhone": {
+          "type": "string",
+          "description": "The phone number of the lead for contact purposes."
+        },
+        "captureDate": {
+          "type": "string",
+          "description": "The date and time when the lead was first acquired or entered into the system.",
+          "format": "date-time"
+        },
+        "originChannel": {
+          "type": "string",
+          "description": "The marketing channel or platform from which the lead originated (e.g., 'Imóvel Web', 'Zap', 'Google', 'Site')."
+        },
+        "assignedBrokerId": {
+          "type": "string",
+          "description": "Reference to the Broker who is responsible for managing and following up on this lead. (Relationship: Broker 1:N Lead)"
+        },
+        "status": {
+          "type": "string",
+          "description": "The current status of the lead in the sales pipeline (e.g., 'New', 'Contacted', 'Qualified', 'Disqualified', 'Converted', 'Lost')."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "captureDate",
+        "originChannel",
+        "assignedBrokerId",
+        "status"
+      ]
+    },
+    "SalesRecord": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SalesRecord",
+      "type": "object",
+      "description": "Represents a completed sale transaction of a real estate property, mapping directly to the 'vendas_imoveis' collection.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the SalesRecord entity."
+        },
+        "propertyId": {
+          "type": "string",
+          "description": "Reference to the Property entity that was sold. (Relationship: Property 0:1 SalesRecord)"
+        },
+        "propertyCaptureDate": {
+          "type": "string",
+          "description": "The date and time when the sold property was initially listed ('data_entrada' from original request).",
+          "format": "date-time"
+        },
+        "saleDate": {
+          "type": "string",
+          "description": "The date and time when the property sale was closed ('data_venda').",
+          "format": "date-time"
+        },
+        "originChannel": {
+          "type": "string",
+          "description": "The marketing channel from which the lead for this sale originated ('origem')."
+        },
+        "clientName": {
+          "type": "string",
+          "description": "The name of the client who purchased the property ('cliente')."
+        },
+        "sellingBrokerId": {
+          "type": "string",
+          "description": "Reference to the Broker who successfully closed this sale ('corretor'). (Relationship: Broker 1:N SalesRecord)"
+        },
+        "advertisedValue": {
+          "type": "number",
+          "description": "The value at which the property was advertised ('valor_anuncio')."
+        },
+        "closedValue": {
+          "type": "number",
+          "description": "The final value at which the property was sold ('valor_fechado')."
+        },
+        "status": {
+          "type": "string",
+          "description": "The status of the sales record, fixed as 'Vendido' (Sold)."
+        },
+        "leadId": {
+          "type": "string",
+          "description": "Optional reference to the Lead entity that converted into this sale. (Relationship: Lead 0:1 SalesRecord)"
+        }
+      },
+      "required": [
+        "id",
+        "propertyId",
+        "propertyCaptureDate",
+        "saleDate",
+        "originChannel",
+        "clientName",
+        "sellingBrokerId",
+        "advertisedValue",
+        "closedValue",
+        "status"
+      ]
+    },
+    "Visit": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Visit",
+      "type": "object",
+      "description": "Represents a scheduled or completed visit by a lead/client to a property.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Visit entity."
+        },
+        "visitDate": {
+          "type": "string",
+          "description": "The date and time when the property visit occurred or is scheduled.",
+          "format": "date-time"
+        },
+        "visitType": {
+          "type": "string",
+          "description": "The type of visit (e.g., 'Sale Visit', 'Rental Visit')."
+        },
+        "brokerId": {
+          "type": "string",
+          "description": "Reference to the Broker who conducted or will conduct this visit. (Relationship: Broker 1:N Visit)"
+        },
+        "propertyId": {
+          "type": "string",
+          "description": "Reference to the Property that was visited. (Relationship: Property 1:N Visit)"
+        },
+        "leadId": {
+          "type": "string",
+          "description": "Reference to the Lead who participated in this visit. (Relationship: Lead 1:N Visit)"
+        }
+      },
+      "required": [
+        "id",
+        "visitDate",
+        "visitType",
+        "brokerId",
+        "propertyId",
+        "leadId"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/brokers/{brokerId}",
+        "definition": {
+          "entityName": "Broker",
+          "schema": {
+            "$ref": "#/backend/entities/Broker"
+          },
+          "description": "Stores individual broker profiles. Access is typically restricted to the broker themselves or administrators.",
+          "params": [
+            {
+              "name": "brokerId",
+              "description": "The unique identifier of the broker, corresponding to their user UID."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/properties/{propertyId}",
+        "definition": {
+          "entityName": "Property",
+          "schema": {
+            "$ref": "#/backend/entities/Property"
+          },
+          "description": "Contains all real estate property listings. Each property document includes 'brokerId' for authorization independence and ownership tracking. This enables easy filtering and security rules based on the capturing broker.",
+          "params": [
+            {
+              "name": "propertyId",
+              "description": "The unique identifier of the property listing."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/leads/{leadId}",
+        "definition": {
+          "entityName": "Lead",
+          "schema": {
+            "$ref": "#/backend/entities/Lead"
+          },
+          "description": "Stores all potential client (lead) records. Each lead document includes 'assignedBrokerId' for authorization independence, allowing brokers to manage only their assigned leads.",
+          "params": [
+            {
+              "name": "leadId",
+              "description": "The unique identifier of the lead."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/vendas_imoveis/{salesRecordId}",
+        "definition": {
+          "entityName": "SalesRecord",
+          "schema": {
+            "$ref": "#/backend/entities/SalesRecord"
+          },
+          "description": "A top-level collection dedicated to all completed sales records, as specifically requested. For authorization independence and enhanced analytics, each document will include 'sellingBrokerId' and denormalized fields from the associated Property, such as 'propertyCode', 'listingType', 'neighborhood', and 'advertisedValue'. This simplifies complex queries for the 'Base' dashboard.",
+          "params": [
+            {
+              "name": "salesRecordId",
+              "description": "The unique identifier of the sales transaction record."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/visits/{visitId}",
+        "definition": {
+          "entityName": "Visit",
+          "schema": {
+            "$ref": "#/backend/entities/Visit"
+          },
+          "description": "Records all property visits by leads. Each visit document includes 'brokerId' for authorization independence, 'propertyId', and 'leadId' to link to the respective entities.",
+          "params": [
+            {
+              "name": "visitId",
+              "description": "The unique identifier of the property visit record."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_admin/{userId}",
+        "definition": {
+          "entityName": "AdminRole",
+          "schema": {
+            "$ref": "#/backend/entities/AdminRole"
+          },
+          "description": "A collection used for Database-Backed Access Control (DBAC) to define administrators. The mere existence of a document at this path for a given 'userId' grants administrative privileges, adhering to the 'existence over content' principle for roles.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The UID of the user who possesses administrative privileges."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to fulfill the analytics requirements of the 'Base' dashboard while strictly adhering to the core design principles for security, scalability, and debuggability. The primary strategy employed is **Authorization Independence via Denormalization**, especially for analytics-heavy entities.Key design choices and their justifications:1.  **Top-Level Collections for Core Entities**: `brokers`, `properties`, `leads`, `vendas_imoveis` (SalesRecords), and `visits` are established as top-level collections. This decision facilitates efficient **QAPs (Rules are not Filters)** and global analytics required by the 'Base' dashboard (e.g., 'quantidade de imovel de venda angariados', 'quais bairros foram vendidos'). It avoids the complexities of Collection Group Queries for broad reporting and ensures all relevant data for analytical views is easily queryable from a single collection.2.  **Authorization Independence via Denormalization**: Each document in `properties`, `leads`, `vendas_imoveis`, and `visits` explicitly contains the `brokerId` (or `assignedBrokerId`, `sellingBrokerId`) of the responsible broker. This critical denormalization allows security rules to evaluate access using only `request.auth.uid` against the `resource.data.<brokerIdField>`, eliminating `get()` calls in rules. For example, a broker can only read/write their own properties: `allow read, write: if resource.data.brokerId == request.auth.uid;`. This makes rules atomic, performant, and easy to debug.\n\n    *   **Enhanced SalesRecord Denormalization**: The `SalesRecord` entity (stored in `vendas_imoveis`) explicitly denormalizes fields crucial for analytics and authorization. For instance, in addition to its inherent fields, documents will include `propertyCode`, `listingType`, `neighborhood`, and `advertisedValue` (the last two being denormalized from the `Property` entity). This ensures that calculations like 'Tempo de Venda' (using `propertyCaptureDate` and `saleDate`), 'quais bairros foram vendidos' (using `neighborhood`), and other aggregated metrics for the 'Base' dashboard can be performed by querying only the `vendas_imoveis` collection. This directly addresses the requirement for analytics by simplifying data retrieval and eliminating cross-document lookups during rule evaluation or complex client-side joins for reporting.3.  **Structural Segregation (Homogeneous Security Posture)**: Each collection maintains a homogeneous security posture. For example, all documents in `/properties` are `Property` entities, and their access primarily depends on the `brokerId` field. The `status` field (e.g., `Available`, `Sold`) within a `Property` document manages state without requiring separate collections for different property states, thus simplifying rules.4.  **Access Modeling**: Path-based ownership is used for individual broker profiles (`/brokers/{brokerId}`). For all other entities, the `brokerId` is a direct field, allowing simple `DBAC` (Database-Backed Access Control) via `request.auth.uid` comparisons. Global roles (like admin) are implemented using an 'existence over content' pattern via a dedicated `/roles_admin/{uid}` collection, ensuring efficient authorization checks.5.  **QAPs for List Operations**: By embedding authorization-relevant fields (`brokerId`) directly into each document, `list` operations become secure and efficient. Clients can query `vendas_imoveis` and security rules can enforce that only `SalesRecords` where `sellingBrokerId == request.auth.uid` are returned, or all records if the user is an admin. This ensures that rules are not used as filters after data retrieval, preventing data over-fetching and potential security loopholes.This architecture provides a robust foundation for 'ImmoSales Insight', enabling complex analytics while maintaining strong security and simplified rule management."
+  }
+}
