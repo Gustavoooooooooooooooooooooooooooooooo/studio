@@ -1,18 +1,27 @@
-
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TrendingUp, Users, Clock, DollarSign, CalendarCheck } from "lucide-react";
+import { TrendingUp, Users, Clock, DollarSign, CalendarCheck, Home } from "lucide-react";
 
 interface StatsCardsProps {
   totalSales: number;
+  totalRents: number;
   totalValue: number;
   avgTicket: number;
   avgDaysToSell: number;
+  avgDaysToRent: number;
   lastSaleDate: string | null;
 }
 
-export function StatsCards({ totalSales, totalValue, avgTicket, avgDaysToSell, lastSaleDate }: StatsCardsProps) {
+export function StatsCards({ 
+  totalSales, 
+  totalRents, 
+  totalValue, 
+  avgTicket, 
+  avgDaysToSell, 
+  avgDaysToRent, 
+  lastSaleDate 
+}: StatsCardsProps) {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
   };
@@ -21,29 +30,29 @@ export function StatsCards({ totalSales, totalValue, avgTicket, avgDaysToSell, l
     {
       title: "VGV Acumulado",
       value: formatCurrency(totalValue),
-      description: "Valor Geral de Vendas no período",
+      description: `${totalSales} vendas e ${totalRents} locações`,
       icon: DollarSign,
       color: "text-emerald-600",
     },
     {
-      title: "Ticket Médio",
+      title: "Ticket Médio (Venda)",
       value: formatCurrency(avgTicket),
       description: "Valor médio por venda",
       icon: Users,
       color: "text-indigo-600",
     },
     {
-      title: "Giro de Carteira",
+      title: "Giro de Venda",
       value: `${Math.round(avgDaysToSell)} dias`,
       description: "Média entrada até venda",
       icon: Clock,
       color: "text-orange-600",
     },
     {
-      title: "Última Venda",
-      value: lastSaleDate ? new Date(lastSaleDate).toLocaleDateString('pt-BR') : "N/A",
-      description: "Data do último fechamento",
-      icon: CalendarCheck,
+      title: "Giro de Locação",
+      value: `${Math.round(avgDaysToRent)} dias`,
+      description: "Média entrada até locação",
+      icon: Home,
       color: "text-rose-600",
     },
   ];

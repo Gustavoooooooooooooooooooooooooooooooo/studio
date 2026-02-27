@@ -1,8 +1,7 @@
-
 "use client"
 
 import { useState, useMemo, useEffect } from "react";
-import { MOCK_SALES_DATA, brokers } from "@/app/lib/mock-data";
+import { MOCK_SALES_DATA, MOCK_LEADS_DATA, MOCK_VISITS_DATA, brokers } from "@/app/lib/mock-data";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { PerformanceTable } from "@/components/dashboard/performance-table";
 import { ChannelPerformance } from "@/components/dashboard/channel-performance";
@@ -44,18 +43,29 @@ export default function AppContainer() {
   }, [selectedBroker, selectedMonth]);
 
   const metrics = useMemo(() => {
-    const totalSales = filteredSales.length;
+    const salesOnly = filteredSales.filter(s => s.tipo === 'Venda');
+    const rentsOnly = filteredSales.filter(s => s.tipo === 'Locação');
+
+    const totalSales = salesOnly.length;
+    const totalRents = rentsOnly.length;
     const totalValue = filteredSales.reduce((acc, sale) => acc + sale.valor_fechado, 0);
-    const avgTicket = totalSales > 0 ? totalValue / totalSales : 0;
-    const totalDays = filteredSales.reduce((acc, sale) => {
-      const start = new Date(sale.data_entrada).getTime();
-      const end = new Date(sale.data_venda).getTime();
-      return acc + (end - start) / (1000 * 3600 * 24);
-    }, 0);
-    const avgDaysToSell = totalSales > 0 ? totalDays / totalSales : 0;
+    const avgTicket = totalSales > 0 ? salesOnly.reduce((acc, s) => acc + s.valor_fechado, 0) / totalSales : 0;
+
+    const calcAvgDays = (data: typeof filteredSales) => {
+      if (data.length === 0) return 0;
+      const totalDays = data.reduce((acc, item) => {
+        const start = new Date(item.data_entrada).getTime();
+        const end = new Date(item.data_venda).getTime();
+        return acc + (end - start) / (1000 * 3600 * 24);
+      }, 0);
+      return totalDays / data.length;
+    };
+
+    const avgDaysToSell = calcAvgDays(salesOnly);
+    const avgDaysToRent = calcAvgDays(rentsOnly);
     const lastSaleDate = filteredSales.length > 0 ? filteredSales[0].data_venda : null;
 
-    return { totalSales, totalValue, avgTicket, avgDaysToSell, lastSaleDate };
+    return { totalSales, totalRents, totalValue, avgTicket, avgDaysToSell, avgDaysToRent, lastSaleDate };
   }, [filteredSales]);
 
   if (!mounted) {
@@ -136,7 +146,11 @@ export default function AppContainer() {
             
             <div className="grid lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 space-y-6">
-                <MonthlyTrends sales={MOCK_SALES_DATA} />
+                <MonthlyTrends 
+                  sales={MOCK_SALES_DATA} 
+                  leads={MOCK_LEADS_DATA} 
+                  visits={MOCK_VISITS_DATA}
+                />
                 <PerformanceTable sales={filteredSales} />
               </div>
               <div className="space-y-6">

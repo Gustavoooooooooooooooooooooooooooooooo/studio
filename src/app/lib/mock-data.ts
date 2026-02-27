@@ -8,24 +8,43 @@ export interface SaleRecord {
   valor_anuncio: number;
   valor_fechado: number;
   status: 'Vendido';
+  tipo: 'Venda' | 'Locação';
+  bairro: string;
+}
+
+export interface LeadRecord {
+  id: string;
+  data: string;
+  origem: string;
+  corretor: string;
+}
+
+export interface VisitRecord {
+  id: string;
+  data: string;
+  tipo: 'Venda' | 'Locação';
+  bairro: string;
 }
 
 export const brokers = ['Claudia', 'Mila', 'Henrique', 'Rafael', 'Beatriz'];
 export const origins = ['Imóvel Web', 'Zap', 'Google', 'Site', 'Instagram', 'Indicação'];
+export const neighborhoods = ['Jardins', 'Moema', 'Itaim Bibi', 'Pinheiros', 'Vila Madalena', 'Brooklin', 'Campo Belo'];
 
 const generateMockSales = (count: number): SaleRecord[] => {
   const sales: SaleRecord[] = [];
   const now = new Date();
   
   for (let i = 0; i < count; i++) {
+    const isSale = Math.random() > 0.3;
     const monthsAgo = Math.floor(Math.random() * 12);
     const day = Math.floor(Math.random() * 28) + 1;
-    const entryDate = new Date(2024, now.getMonth() - monthsAgo - 2, day);
+    const entryDate = new Date(2024, now.getMonth() - monthsAgo - 3, day);
     const saleDate = new Date(entryDate);
-    saleDate.setDate(saleDate.getDate() + Math.floor(Math.random() * 90) + 10);
+    // Tempo de venda: entre 15 e 120 dias
+    saleDate.setDate(saleDate.getDate() + Math.floor(Math.random() * 105) + 15);
 
-    const anuncio = Math.floor(Math.random() * 500000) + 300000;
-    const fechado = anuncio * (0.9 + Math.random() * 0.1);
+    const anuncio = isSale ? Math.floor(Math.random() * 800000) + 400000 : Math.floor(Math.random() * 5000) + 2500;
+    const fechado = anuncio * (0.92 + Math.random() * 0.08);
 
     sales.push({
       id_imovel: `IM-${1000 + i}`,
@@ -36,10 +55,42 @@ const generateMockSales = (count: number): SaleRecord[] => {
       corretor: brokers[Math.floor(Math.random() * brokers.length)],
       valor_anuncio: Math.round(anuncio),
       valor_fechado: Math.round(fechado),
-      status: 'Vendido'
+      status: 'Vendido',
+      tipo: isSale ? 'Venda' : 'Locação',
+      bairro: neighborhoods[Math.floor(Math.random() * neighborhoods.length)]
     });
   }
   return sales.sort((a, b) => new Date(b.data_venda).getTime() - new Date(a.data_venda).getTime());
 };
 
-export const MOCK_SALES_DATA = generateMockSales(45);
+const generateMockLeads = (count: number): LeadRecord[] => {
+  const leads: LeadRecord[] = [];
+  for (let i = 0; i < count; i++) {
+    const date = new Date(2024, Math.floor(Math.random() * 12), Math.floor(Math.random() * 28) + 1);
+    leads.push({
+      id: `L-${i}`,
+      data: date.toISOString().split('T')[0],
+      origem: origins[Math.floor(Math.random() * origins.length)],
+      corretor: brokers[Math.floor(Math.random() * brokers.length)]
+    });
+  }
+  return leads;
+};
+
+const generateMockVisits = (count: number): VisitRecord[] => {
+  const visits: VisitRecord[] = [];
+  for (let i = 0; i < count; i++) {
+    const date = new Date(2024, Math.floor(Math.random() * 12), Math.floor(Math.random() * 28) + 1);
+    visits.push({
+      id: `V-${i}`,
+      data: date.toISOString().split('T')[0],
+      tipo: Math.random() > 0.5 ? 'Venda' : 'Locação',
+      bairro: neighborhoods[Math.floor(Math.random() * neighborhoods.length)]
+    });
+  }
+  return visits;
+};
+
+export const MOCK_SALES_DATA = generateMockSales(60);
+export const MOCK_LEADS_DATA = generateMockLeads(150);
+export const MOCK_VISITS_DATA = generateMockVisits(200);

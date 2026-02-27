@@ -1,32 +1,36 @@
-
 "use client"
 
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
-import { SaleRecord } from "@/app/lib/mock-data";
+import { SaleRecord, neighborhoods } from "@/app/lib/mock-data";
 
 interface NeighborhoodAnalysisProps {
   sales: SaleRecord[];
 }
 
-const mockNeighborhoods = ["Jardins", "Moema", "Itaim Bibi", "Pinheiros", "Vila Madalena", "Brooklin"];
-
 export function NeighborhoodAnalysis({ sales }: NeighborhoodAnalysisProps) {
-  // Use useMemo to stabilize random generation and prevent hydration mismatch
   const stats = useMemo(() => {
-    return mockNeighborhoods.map(name => ({
-      name,
-      value: Math.floor(Math.random() * 20) + 5
-    })).sort((a, b) => b.value - a.value);
-  }, []);
+    const counts: Record<string, number> = {};
+    neighborhoods.forEach(n => counts[n] = 0);
+    
+    sales.forEach(sale => {
+      if (counts[sale.bairro] !== undefined) {
+        counts[sale.bairro] += 1;
+      }
+    });
 
-  const COLORS = ['#0ea5e9', '#06b6d4', '#14b8a6', '#10b981', '#3b82f6', '#6366f1'];
+    return Object.entries(counts)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [sales]);
+
+  const COLORS = ['#0ea5e9', '#06b6d4', '#14b8a6', '#10b981', '#3b82f6', '#6366f1', '#a855f7'];
 
   return (
     <Card className="shadow-sm border-none">
       <CardHeader>
-        <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Performance por Bairro</CardTitle>
+        <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Bairros Vendidos / Disponíveis</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="h-[240px] w-full">
@@ -56,8 +60,8 @@ export function NeighborhoodAnalysis({ sales }: NeighborhoodAnalysisProps) {
                 <span className="font-bold text-primary">{stats[0].name}</span>
             </div>
             <div className="flex justify-between text-[11px]">
-                <span className="text-muted-foreground">Total de bairros ativos:</span>
-                <span className="font-bold">{mockNeighborhoods.length}</span>
+                <span className="text-muted-foreground">Foco de angariação:</span>
+                <span className="font-bold text-accent">{neighborhoods[Math.floor(Math.random() * neighborhoods.length)]}</span>
             </div>
         </div>
       </CardContent>
