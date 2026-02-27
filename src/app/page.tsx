@@ -133,10 +133,14 @@ export default function AppContainer() {
       </header>
 
       <main className="container mx-auto px-4 py-6 max-w-7xl">
-        <Tabs defaultValue="base" className="space-y-6">
-          <TabsList className="grid grid-cols-3 w-full max-w-2xl mx-auto h-12 p-1 bg-muted/50 rounded-xl">
-            <TabsTrigger value="base" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">
+        <Tabs defaultValue="dashboard" className="space-y-6">
+          <TabsList className="grid grid-cols-4 w-full max-w-3xl mx-auto h-12 p-1 bg-muted/50 rounded-xl">
+            <TabsTrigger value="dashboard" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">
               <LayoutDashboard className="h-4 w-4 mr-2" />
+              Dashboard
+            </TabsTrigger>
+            <TabsTrigger value="base" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              <Table2 className="h-4 w-4 mr-2" />
               Base
             </TabsTrigger>
             <TabsTrigger value="cadastro" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">
@@ -149,30 +153,36 @@ export default function AppContainer() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="base" className="space-y-8 animate-in fade-in duration-500">
+          <TabsContent value="dashboard" className="space-y-8 animate-in fade-in duration-500">
             <StatsCards {...metrics} />
             
-            <div className="space-y-8">
-              <div className="grid lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 space-y-6">
-                  <MonthlyTrends 
-                    sales={MOCK_SALES_DATA} 
-                    leads={MOCK_LEADS_DATA} 
-                    visits={MOCK_VISITS_DATA}
-                  />
-                  <div className="flex items-center gap-2 mb-2">
-                    <Table2 className="h-5 w-5 text-primary" />
-                    <h2 className="text-xl font-bold text-primary">Matriz de Performance (Planilha)</h2>
-                  </div>
-                  <SalesMatrix sales={filteredSales} />
-                </div>
-                <div className="space-y-6">
-                  <AIPerformanceSummary sales={filteredSales} />
-                  <ChannelPerformance sales={filteredSales} />
-                  <NeighborhoodAnalysis sales={filteredSales} />
-                  <PerformanceTable sales={filteredSales} />
+            <div className="grid lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 space-y-6">
+                <MonthlyTrends 
+                  sales={MOCK_SALES_DATA} 
+                  leads={MOCK_LEADS_DATA} 
+                  visits={MOCK_VISITS_DATA}
+                />
+              </div>
+              <div className="space-y-6">
+                <AIPerformanceSummary sales={filteredSales} />
+                <ChannelPerformance sales={filteredSales} />
+                <NeighborhoodAnalysis sales={filteredSales} />
+                <PerformanceTable sales={filteredSales} />
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="base" className="space-y-8 animate-in fade-in duration-500">
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 mb-2">
+                <Table2 className="h-6 w-6 text-primary" />
+                <div>
+                  <h2 className="text-2xl font-bold text-primary">Matriz de Performance</h2>
+                  <p className="text-sm text-muted-foreground">Visão analítica consolidada em formato de planilha.</p>
                 </div>
               </div>
+              <SalesMatrix sales={filteredSales} />
             </div>
           </TabsContent>
 
