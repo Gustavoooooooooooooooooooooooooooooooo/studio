@@ -13,6 +13,7 @@ import { BrokerPerformanceGrid } from "@/components/dashboard/broker-performance
 import { InventoryHealth } from "@/components/dashboard/inventory-health";
 import { PropertyForm } from "@/components/forms/property-form";
 import { SaleForm } from "@/components/forms/sale-form";
+import { GoogleSheetsSync } from "@/components/dashboard/google-sheets-sync";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LayoutDashboard, FilePlus, BadgeCheck, Filter, Calendar, TrendingUp, Loader2, Table2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -81,6 +82,12 @@ export default function AppContainer() {
       ? filteredSales.reduce((acc, s) => acc + s.satisfacao_nps, 0) / filteredSales.length
       : 0;
 
+    // Recência de Venda (Dias)
+    const lastSaleDate = filteredSales.length > 0 
+      ? new Date(Math.max(...filteredSales.map(s => new Date(s.data_venda).getTime())))
+      : new Date();
+    const recency = Math.floor((new Date().getTime() - lastSaleDate.getTime()) / 86400000);
+
     // Funnel Conversions (Mock logic based on total volumes for filtered context)
     const contextLeads = MOCK_LEADS_DATA.length / 12; // Adjusted for context
     const contextVisits = MOCK_VISITS_DATA.length / 12;
@@ -99,6 +106,7 @@ export default function AppContainer() {
       avgCommission,
       avgDiscount,
       avgNps,
+      recency,
       cac: 450 // Valor fixo simulado de CAC
     };
   }, [filteredSales]);
@@ -190,6 +198,7 @@ export default function AppContainer() {
                 />
               </div>
               <div className="space-y-6">
+                <GoogleSheetsSync />
                 <AIPerformanceSummary sales={filteredSales} />
                 <ChannelPerformance sales={filteredSales} />
                 <NeighborhoodAnalysis sales={filteredSales} />
