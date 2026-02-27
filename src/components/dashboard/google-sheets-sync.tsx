@@ -24,16 +24,50 @@ export function GoogleSheetsSync() {
   const getVal = (row: any, keys: string[]) => {
     if (!row) return undefined;
     const rowKeys = Object.keys(row);
-    // Tenta correspondência exata ou aproximada (ignorando acentos e espaços)
+    
+    // 1. Tenta correspondência exata (normalizada) primeiro
     for (const key of keys) {
+      const normalizedKey = key.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
       const found = rowKeys.find(k => {
         const normalizedK = k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-        const normalizedKey = key.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-        return normalizedK === normalizedKey || normalizedK.includes(normalizedKey);
+        return normalizedK === normalizedKey;
+      });
+      if (found && row[found] !== undefined && row[found] !== null && row[found] !== "") return row[found];
+    }
+
+    // 2. Tenta correspondência parcial se não achou exata
+    for (const key of keys) {
+      const normalizedKey = key.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      const found = rowKeys.find(k => {
+        const normalizedK = k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+        return normalizedK.includes(normalizedKey);
       });
       if (found && row[found] !== undefined && row[found] !== null && row[found] !== "") return row[found];
     }
     return undefined;
+  };
+
+  // Conversor de moeda robusto para o formato brasileiro e americano
+  const parseCurrency = (val: any) => {
+    if (val === undefined || val === null || val === "") return 0;
+    if (typeof val === 'number') return val;
+    if (typeof val !== 'string') return 0;
+
+    // Limpeza agressiva: mantém apenas números, vírgula e ponto
+    const raw = val.replace(/[^0-9,.]/g, "").trim();
+    if (!raw) return 0;
+
+    // Lógica para Formato BR (1.250,00 ou 1250,00)
+    // Se tem vírgula e ela é o separador decimal (geralmente no final)
+    if (raw.includes(',') && (!raw.includes('.') || raw.indexOf(',') > raw.indexOf('.'))) {
+      const cleaned = raw.replace(/\./g, "").replace(",", ".");
+      const num = parseFloat(cleaned);
+      return isNaN(num) ? 0 : num;
+    }
+
+    // Lógica para Formato US ou Simples (1250.00)
+    const num = parseFloat(raw);
+    return isNaN(num) ? 0 : num;
   };
 
   const handleClearData = async () => {
@@ -87,44 +121,31 @@ export function GoogleSheetsSync() {
         let addedCount = 0;
         
         result.data.forEach((row: any) => {
-          // 1. Identificação do Imóvel
-          const propertyId = String(getVal(row, ["imovel", "id", "codigo", "ref", "unidade"]) || "");
-          if (!propertyId) return;
+          // 1. Identificação do Imóvel (Crucial)
+          const propertyId = String(getVal(row, ["imovel", "codigo", "ref", "id", "unidade"]) || "");
+          if (!propertyId || propertyId === "undefined") return;
 
           // 2. Identificação do Tipo (Venda ou Locação)
-          let type = String(getVal(row, ["tipo", "transacao", "venda/aluguel", "categoria"]) || "Venda");
+          let type = String(getVal(row, ["tipo", "transacao", "categoria", "operacao"]) || "");
           if (type.toLowerCase().includes("loc") || type.toLowerCase().includes("alug")) {
             type = "Locação";
           } else {
             type = "Venda";
           }
 
-          // 3. Captura de Valores Financeiros (Mapeamento Robusto)
-          const parseCurrency = (val: any) => {
-            if (typeof val === 'number') return val;
-            if (typeof val === 'string') {
-              // Remove símbolos de moeda, pontos de milhar e troca vírgula por ponto
-              const cleaned = val.replace(/[^0-9,.-]+/g,"").replace(/\./g, "").replace(",", ".");
-              const num = parseFloat(cleaned);
-              return isNaN(num) ? 0 : num;
-            }
-            return 0;
-          };
-
-          // Tenta buscar o valor de anúncio em várias colunas possíveis, inclusive específicas de venda/locação
+          // 3. Captura de Valores Financeiros (Mapeamento Agressivo)
           const advertisedValue = parseCurrency(getVal(row, [
-            "valor anuncio", "valor de anuncio", "valor do imovel", 
-            "valor venda", "valor locacao", "valor aluguel", 
-            "preço", "pedida", "valor"
+            "valor anuncio", "valor imovel", "valor venda", "valor locacao", 
+            "valor aluguel", "venda", "locacao", "aluguel", "preco", "pedida", "valor"
           ]));
 
-          const closedValue = parseCurrency(getVal(row, ["valor fechado", "valor de fechamento", "valor venda", "valor locacao"])) || advertisedValue;
+          const closedValue = parseCurrency(getVal(row, ["valor fechado", "valor fechamento", "fechado"])) || advertisedValue;
 
           // 4. Outros Dados
           const broker = String(getVal(row, ["corretor", "vendedor", "angariador", "responsavel"]) || "Não Identificado");
           const captureDate = getVal(row, ["data entrada", "angariacao", "entrada", "data"]) || new Date().toISOString().split('T')[0];
-          const saleDate = getVal(row, ["data venda", "fechamento", "data fechamento", "data de venda"]);
-          const neighborhood = String(getVal(row, ["bairro", "regiao", "localidade", "distrito"]) || "Desconhecido");
+          const saleDate = getVal(row, ["data venda", "fechamento", "venda em", "data"]);
+          const neighborhood = String(getVal(row, ["bairro", "regiao", "localidade", "zona"]) || "Desconhecido");
           const address = String(getVal(row, ["endereco", "logradouro", "rua"]) || "Endereço não informado");
           const clientName = String(getVal(row, ["cliente", "comprador", "locatario"]) || "Cliente");
           const origin = String(getVal(row, ["canal", "origem", "fonte"]) || "Google Sheets");
@@ -144,7 +165,7 @@ export function GoogleSheetsSync() {
           }, { merge: true });
 
           // Se tiver data de venda, registrar na coleção de Vendas para o Dashboard
-          if (saleDate) {
+          if (saleDate && String(saleDate).length > 5) {
             const saleRef = doc(firestore, "vendas_imoveis", `${propertyId}_sale`);
             setDocumentNonBlocking(saleRef, {
               propertyId: propertyId,
@@ -166,7 +187,7 @@ export function GoogleSheetsSync() {
 
         toast({
           title: "Sincronização Concluída",
-          description: `${addedCount} imóveis sincronizados com sucesso.`,
+          description: `${addedCount} imóveis processados. Se os valores continuarem zerados, verifique os nomes das colunas.`,
         });
       } else {
         toast({
@@ -179,7 +200,7 @@ export function GoogleSheetsSync() {
       toast({
         variant: "destructive",
         title: "Erro na sincronização",
-        description: "Não foi possível ler os dados. Verifique se o link está correto.",
+        description: "Verifique se o link está publicado corretamente como CSV.",
       });
     } finally {
       setSyncing(false);
@@ -195,8 +216,8 @@ export function GoogleSheetsSync() {
               <Table2 className="h-5 w-5" />
             </div>
             <div>
-              <CardTitle className="text-lg">Sincronização Google Sheets</CardTitle>
-              <CardDescription className="text-xs">Importe seu estoque de Vendas e Locações</CardDescription>
+              <CardTitle className="text-lg">Sincronização de Dados Reais</CardTitle>
+              <CardDescription className="text-xs">Importe seu estoque de Vendas e Locações do Google Sheets</CardDescription>
             </div>
           </div>
           <Button 
@@ -213,10 +234,10 @@ export function GoogleSheetsSync() {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">URL da Planilha Publicada (CSV)</Label>
+          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Link CSV da Planilha (Publicada na Web)</Label>
           <div className="flex gap-2">
             <Input 
-              placeholder="Cole o link do CSV aqui..." 
+              placeholder="Cole o link aqui..." 
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               className="bg-white/80"
@@ -236,11 +257,12 @@ export function GoogleSheetsSync() {
              <AlertCircle className="h-4 w-4 text-emerald-600" />
           </div>
           <div className="text-[11px] text-muted-foreground leading-relaxed">
-            <p className="font-bold text-emerald-800 mb-1">Como garantir que todos os valores apareçam:</p>
+            <p className="font-bold text-emerald-800 mb-1">Como garantir que os valores apareçam:</p>
             <ul className="list-disc list-inside space-y-1">
-              <li>O sistema busca colunas chamadas: <b>Valor Anúncio, Valor Venda, Valor Locação ou Valor do Imóvel</b>.</li>
-              <li>Se você tem abas diferentes (Vendas e Locação), sincronize o link de cada uma separadamente.</li>
-              <li>Certifique-se de <b>Arquivo {'>'} Compartilhar {'>'} Publicar na Web</b> como <b>CSV</b>.</li>
+              <li>Sua planilha deve ter uma coluna chamada exatamente: <b>VALOR ANÚNCIO</b>, <b>VALOR VENDA</b> ou <b>VALOR LOCAÇÃO</b>.</li>
+              <li>O sistema ignora o "R$" e pontos de milhar, focando apenas nos números.</li>
+              <li>Para que o sistema diferencie Venda de Locação, tenha uma coluna <b>TIPO</b> ou <b>TRANSAÇÃO</b>.</li>
+              <li><b>Dica:</b> Se tiver abas separadas, sincronize o link de cada uma individualmente.</li>
             </ul>
           </div>
         </div>
