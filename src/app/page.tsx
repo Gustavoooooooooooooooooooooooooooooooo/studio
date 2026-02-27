@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo, useEffect } from "react";
@@ -14,15 +15,21 @@ import { SaleForm } from "@/components/forms/sale-form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LayoutDashboard, FilePlus, BadgeCheck, Filter, Calendar, TrendingUp, Loader2, Table2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAuth, initiateAnonymousSignIn } from "@/firebase";
 
 export default function AppContainer() {
   const [mounted, setMounted] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [selectedBroker, setSelectedBroker] = useState<string>("all");
+  const auth = useAuth();
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    // Garante que o usuário esteja pelo menos logado anonimamente para passar pelas regras de segurança
+    if (auth) {
+      initiateAnonymousSignIn(auth);
+    }
+  }, [auth]);
 
   const months = useMemo(() => {
     const monthsSet = new Set<string>();
