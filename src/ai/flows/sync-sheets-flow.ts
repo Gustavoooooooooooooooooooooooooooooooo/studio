@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Genkit flow to sync Google Sheets CSV data to Firestore.
@@ -17,6 +16,7 @@ const SyncSheetsOutputSchema = z.object({
   success: z.boolean(),
   recordsProcessed: z.number(),
   message: z.string(),
+  data: z.array(z.any()).optional(),
   errors: z.array(z.string()).optional(),
 });
 export type SyncSheetsOutput = z.infer<typeof SyncSheetsOutputSchema>;
@@ -52,16 +52,11 @@ const syncSheetsFlow = ai.defineFlow(
         };
       }
 
-      // Note: Data persistence to Firestore should ideally happen on the client 
-      // via return data or specific service calls, but here we return the records
-      // to the UI for final processing to adhere to the architecture rules.
-      
       return {
         success: true,
         recordsProcessed: parsed.data.length,
-        message: 'Data fetched successfully. Processing on client...',
-        // We could pass back the data but for safety we'll just return the count 
-        // and let the client know it's ready.
+        message: 'Data fetched successfully. Persisting to database...',
+        data: parsed.data,
       };
     } catch (error: any) {
       return {

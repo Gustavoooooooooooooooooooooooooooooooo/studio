@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from "react";
@@ -9,11 +8,15 @@ import { Label } from "@/components/ui/label";
 import { Table2, RefreshCcw, ExternalLink, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { syncGoogleSheets } from "@/ai/flows/sync-sheets-flow";
 import { useToast } from "@/hooks/use-toast";
+import { useFirebase } from "@/firebase";
+import { collection, serverTimestamp } from "firebase/firestore";
+import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 
 export function GoogleSheetsSync() {
   const [url, setUrl] = useState("");
   const [syncing, setSyncing] = useState(false);
   const { toast } = useToast();
+  const { firestore } = useFirebase();
 
   const handleSync = async () => {
     if (!url) {
@@ -25,14 +28,40 @@ export function GoogleSheetsSync() {
       return;
     }
 
+    if (!firestore) return;
+
     setSyncing(true);
     try {
       const result = await syncGoogleSheets({ sheetUrl: url });
       
-      if (result.success) {
+      if (result.success && result.data) {
+        const salesCol = collection(firestore, "vendas_imoveis");
+        
+        // Process records and save to Firestore
+        result.data.forEach((row: any) => {
+          // Map CSV headers to SalesRecord schema
+          // Assuming common names from the request
+          if (row.id_imovel || row.propertyId) {
+            addDocumentNonBlocking(salesCol, {
+              propertyId: String(row.id_imovel || row.propertyId),
+              clientName: row.cliente || row.clientName || "Importado",
+              closedValue: Number(row.valor_fechado || row.closedValue || 0),
+              advertisedValue: Number(row.valor_anuncio || row.advertisedValue || 0),
+              originChannel: row.origem || row.originChannel || "Sincronização",
+              sellingBrokerId: row.corretor || row.sellingBrokerId || "Não Atribuído",
+              saleDate: row.data_venda || row.saleDate || new Date().toISOString().split('T')[0],
+              propertyCaptureDate: row.data_entrada || row.propertyCaptureDate || new Date().toISOString().split('T')[0],
+              status: "Vendido",
+              neighborhood: row.bairro || row.neighborhood || "Desconhecido",
+              listingType: row.tipo || row.listingType || "Venda",
+              importedAt: serverTimestamp(),
+            });
+          }
+        });
+
         toast({
-          title: "Sincronização Iniciada",
-          description: `${result.recordsProcessed} registros detectados na planilha.`,
+          title: "Sincronização Concluída",
+          description: `${result.recordsProcessed} registros processados e enviados para o banco de dados.`,
         });
       } else {
         toast({
@@ -93,7 +122,7 @@ export function GoogleSheetsSync() {
             <li>No Google Sheets, vá em <b>Arquivo</b> &gt; <b>Compartilhar</b> &gt; <b>Publicar na Web</b>.</li>
             <li>Selecione "Valores separados por vírgula (.csv)" em vez de "Página da Web".</li>
             <li>Copie o link gerado e cole acima.</li>
-            <li>O app irá mapear os campos: <i>id_imovel, data_venda, corretor, valor_fechado</i>.</li>
+            <li>O app irá mapear: <i>id_imovel, data_venda, corretor, valor_fechado</i>.</li>
           </ol>
         </div>
 
