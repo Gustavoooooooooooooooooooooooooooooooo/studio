@@ -33,10 +33,36 @@ const syncSheetsFlow = ai.defineFlow(
   },
   async (input) => {
     try {
-      const response = await fetch(input.sheetUrl);
-      if (!response.ok) throw new Error('Failed to fetch CSV from URL.');
+      let finalUrl = input.sheetUrl;
+
+      // Tenta converter links de edição comuns para links de exportação CSV
+      if (finalUrl.includes('/edit')) {
+        const baseUrl = finalUrl.split('/edit')[0];
+        const gidMatch = finalUrl.match(/gid=([0-9]+)/);
+        const gid = gidMatch ? gidMatch[1] : '0';
+        finalUrl = `${baseUrl}/export?format=csv&gid=${gid}`;
+      }
+
+      const response = await fetch(finalUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 404 || response.status === 401) {
+          throw new Error('Planilha não encontrada ou não publicada. Certifique-se de usar "Arquivo > Compartilhar > Publicar na Web" no Google Sheets.');
+        }
+        throw new Error(`Erro ao acessar planilha: ${response.statusText}`);
+      }
       
       const csvText = await response.text();
+      
+      // Verifica se o que recebemos é HTML (provavelmente a página de login do Google)
+      if (csvText.trim().startsWith('<!DOCTYPE html>') || csvText.includes('<html')) {
+        throw new Error('O link fornecido não aponta para um CSV público. Certifique-se de "Publicar na Web" como CSV.');
+      }
+
       const parsed = Papa.parse(csvText, {
         header: true,
         skipEmptyLines: true,
@@ -47,7 +73,7 @@ const syncSheetsFlow = ai.defineFlow(
         return {
           success: false,
           recordsProcessed: 0,
-          message: 'Error parsing CSV data.',
+          message: 'Erro ao processar o conteúdo do arquivo.',
           errors: parsed.errors.map(e => e.message),
         };
       }
@@ -55,14 +81,14 @@ const syncSheetsFlow = ai.defineFlow(
       return {
         success: true,
         recordsProcessed: parsed.data.length,
-        message: 'Data fetched successfully. Persisting to database...',
+        message: 'Dados processados com sucesso.',
         data: parsed.data,
       };
     } catch (error: any) {
       return {
         success: false,
         recordsProcessed: 0,
-        message: error.message || 'An unexpected error occurred during sync.',
+        message: error.message || 'Erro inesperado na sincronização.',
       };
     }
   }
