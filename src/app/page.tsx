@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, useEffect } from "react";
@@ -11,11 +10,11 @@ import { MonthlyTrends } from "@/components/dashboard/monthly-trends";
 import { SalesMatrix } from "@/components/dashboard/sales-matrix";
 import { BrokerPerformanceGrid } from "@/components/dashboard/broker-performance-grid";
 import { InventoryHealth } from "@/components/dashboard/inventory-health";
-import { PropertyForm } from "@/components/forms/property-form";
 import { SaleForm } from "@/components/forms/sale-form";
 import { GoogleSheetsSync } from "@/components/dashboard/google-sheets-sync";
+import { ImportedDataTable } from "@/components/dashboard/imported-data-table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LayoutDashboard, FilePlus, BadgeCheck, Filter, Calendar, TrendingUp, Loader2, Table2 } from "lucide-react";
+import { LayoutDashboard, FilePlus, BadgeCheck, TrendingUp, Loader2, Table2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth, initiateAnonymousSignIn } from "@/firebase";
 
@@ -82,14 +81,12 @@ export default function AppContainer() {
       ? filteredSales.reduce((acc, s) => acc + s.satisfacao_nps, 0) / filteredSales.length
       : 0;
 
-    // Recência de Venda (Dias)
     const lastSaleDate = filteredSales.length > 0 
       ? new Date(Math.max(...filteredSales.map(s => new Date(s.data_venda).getTime())))
       : new Date();
     const recency = Math.floor((new Date().getTime() - lastSaleDate.getTime()) / 86400000);
 
-    // Funnel Conversions (Mock logic based on total volumes for filtered context)
-    const contextLeads = MOCK_LEADS_DATA.length / 12; // Adjusted for context
+    const contextLeads = MOCK_LEADS_DATA.length / 12;
     const contextVisits = MOCK_VISITS_DATA.length / 12;
     const leadToVisitConv = (contextVisits / contextLeads) * 100;
     const visitToSaleConv = (filteredSales.length / contextVisits) * 100;
@@ -107,7 +104,7 @@ export default function AppContainer() {
       avgDiscount,
       avgNps,
       recency,
-      cac: 450 // Valor fixo simulado de CAC
+      cac: 450
     };
   }, [filteredSales]);
 
@@ -143,21 +140,6 @@ export default function AppContainer() {
                 <SelectItem value="locacao">Locação</SelectItem>
               </SelectContent>
             </Select>
-            <div className="hidden lg:flex items-center gap-2">
-                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                  <SelectTrigger className="w-[140px] h-8 text-xs">
-                    <SelectValue placeholder="Período" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todo 2024</SelectItem>
-                    {months.map(m => (
-                      <SelectItem key={m} value={m}>
-                        {new Date(m + '-01').toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-            </div>
           </div>
         </div>
       </header>
@@ -210,9 +192,9 @@ export default function AppContainer() {
           </TabsContent>
 
           <TabsContent value="cadastro" className="animate-in slide-in-from-bottom-4 duration-500">
-            <div className="max-w-2xl mx-auto space-y-6">
+            <div className="max-w-4xl mx-auto space-y-6">
               <GoogleSheetsSync />
-              <PropertyForm />
+              <ImportedDataTable />
             </div>
           </TabsContent>
 
