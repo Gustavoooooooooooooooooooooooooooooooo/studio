@@ -1,14 +1,16 @@
+
 "use client"
 
 import { useState, useMemo, useEffect } from "react";
 import { MOCK_SALES_DATA, MOCK_LEADS_DATA, MOCK_VISITS_DATA, brokers } from "@/app/lib/mock-data";
 import { StatsCards } from "@/components/dashboard/stats-cards";
-import { PerformanceTable } from "@/components/dashboard/performance-table";
 import { ChannelPerformance } from "@/components/dashboard/channel-performance";
 import { AIPerformanceSummary } from "@/components/dashboard/ai-performance-summary";
 import { NeighborhoodAnalysis } from "@/components/dashboard/neighborhood-analysis";
 import { MonthlyTrends } from "@/components/dashboard/monthly-trends";
 import { SalesMatrix } from "@/components/dashboard/sales-matrix";
+import { BrokerPerformanceGrid } from "@/components/dashboard/broker-performance-grid";
+import { InventoryHealth } from "@/components/dashboard/inventory-health";
 import { PropertyForm } from "@/components/forms/property-form";
 import { SaleForm } from "@/components/forms/sale-form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -20,6 +22,7 @@ export default function AppContainer() {
   const [mounted, setMounted] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [selectedBroker, setSelectedBroker] = useState<string>("all");
+  const [businessType, setBusinessType] = useState<string>("all");
   const auth = useAuth();
 
   useEffect(() => {
@@ -44,34 +47,60 @@ export default function AppContainer() {
       const saleDate = new Date(sale.data_venda);
       const saleMonth = `${saleDate.getFullYear()}-${String(saleDate.getMonth() + 1).padStart(2, '0')}`;
       const matchMonth = selectedMonth === "all" || saleMonth === selectedMonth;
-      return matchBroker && matchMonth;
+      const matchType = businessType === "all" || sale.tipo === (businessType === "venda" ? "Venda" : "Aluguel");
+      return matchBroker && matchMonth && matchType;
     });
-  }, [selectedBroker, selectedMonth]);
+  }, [selectedBroker, selectedMonth, businessType]);
 
   const metrics = useMemo(() => {
     const salesOnly = filteredSales.filter(s => s.tipo === 'Venda');
     const rentsOnly = filteredSales.filter(s => s.tipo === 'Aluguel');
 
-    const totalSales = salesOnly.length;
-    const totalRents = rentsOnly.length;
     const totalValue = filteredSales.reduce((acc, sale) => acc + sale.valor_fechado, 0);
-    const avgTicket = totalSales > 0 ? salesOnly.reduce((acc, s) => acc + s.valor_fechado, 0) / totalSales : 0;
+    const avgTicket = filteredSales.length > 0 ? totalValue / filteredSales.length : 0;
 
     const calcAvgDays = (data: typeof filteredSales) => {
       if (data.length === 0) return 0;
       const totalDays = data.reduce((acc, item) => {
         const start = new Date(item.data_entrada).getTime();
         const end = new Date(item.data_venda).getTime();
-        return acc + (end - start) / (1000 * 3600 * 24);
+        return acc + (end - start) / 86400000;
       }, 0);
       return totalDays / data.length;
     };
 
-    const avgDaysToSell = calcAvgDays(salesOnly);
-    const avgDaysToRent = calcAvgDays(rentsOnly);
-    const lastSaleDate = filteredSales.length > 0 ? filteredSales[0].data_venda : null;
+    const avgCommission = filteredSales.length > 0 
+      ? filteredSales.reduce((acc, s) => acc + s.comissao_percentual, 0) / filteredSales.length 
+      : 0;
 
-    return { totalSales, totalRents, totalValue, avgTicket, avgDaysToSell, avgDaysToRent, lastSaleDate };
+    const avgDiscount = filteredSales.length > 0
+      ? filteredSales.reduce((acc, s) => acc + ((s.valor_anuncio - s.valor_fechado) / s.valor_anuncio), 0) / filteredSales.length * 100
+      : 0;
+
+    const avgNps = filteredSales.length > 0
+      ? filteredSales.reduce((acc, s) => acc + s.satisfacao_nps, 0) / filteredSales.length
+      : 0;
+
+    // Funnel Conversions (Mock logic based on total volumes for filtered context)
+    const contextLeads = MOCK_LEADS_DATA.length / 12; // Adjusted for context
+    const contextVisits = MOCK_VISITS_DATA.length / 12;
+    const leadToVisitConv = (contextVisits / contextLeads) * 100;
+    const visitToSaleConv = (filteredSales.length / contextVisits) * 100;
+    const leadToSaleConv = (filteredSales.length / contextLeads) * 100;
+
+    return { 
+      avgDaysToSell: calcAvgDays(salesOnly), 
+      avgDaysToRent: calcAvgDays(rentsOnly), 
+      totalValue, 
+      avgTicket,
+      leadToVisitConv,
+      visitToSaleConv,
+      leadToSaleConv,
+      avgCommission,
+      avgDiscount,
+      avgNps,
+      cac: 450 // Valor fixo simulado de CAC
+    };
   }, [filteredSales]);
 
   if (!mounted) {
@@ -95,33 +124,28 @@ export default function AppContainer() {
             </h1>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Select value={businessType} onValueChange={setBusinessType}>
+              <SelectTrigger className="w-[120px] h-8 text-xs">
+                <SelectValue placeholder="Tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos Tipos</SelectItem>
+                <SelectItem value="venda">Vendas</SelectItem>
+                <SelectItem value="locacao">Locação</SelectItem>
+              </SelectContent>
+            </Select>
             <div className="hidden lg:flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-muted-foreground" />
                 <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                  <SelectTrigger className="w-[160px] h-9 bg-muted/50 border-none">
+                  <SelectTrigger className="w-[140px] h-8 text-xs">
                     <SelectValue placeholder="Período" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todos os Meses</SelectItem>
+                    <SelectItem value="all">Todo 2024</SelectItem>
                     {months.map(m => (
                       <SelectItem key={m} value={m}>
                         {new Date(m + '-01').toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })}
                       </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-            </div>
-            <div className="hidden lg:flex items-center gap-2">
-                <Filter className="h-4 w-4 text-muted-foreground" />
-                <Select value={selectedBroker} onValueChange={setSelectedBroker}>
-                  <SelectTrigger className="w-[160px] h-9 bg-muted/50 border-none">
-                    <SelectValue placeholder="Corretor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos Corretores</SelectItem>
-                    {brokers.map(b => (
-                      <SelectItem key={b} value={b}>{b}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -133,27 +157,25 @@ export default function AppContainer() {
       <main className="container mx-auto px-4 py-6 max-w-7xl">
         <Tabs defaultValue="dashboard" className="space-y-6">
           <TabsList className="grid grid-cols-4 w-full max-w-3xl mx-auto h-12 p-1 bg-muted/50 rounded-xl">
-            <TabsTrigger value="dashboard" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">
-              <LayoutDashboard className="h-4 w-4 mr-2" />
-              Dashboard
+            <TabsTrigger value="dashboard" className="rounded-lg">
+              <LayoutDashboard className="h-4 w-4 mr-2" /> Dashboard
             </TabsTrigger>
-            <TabsTrigger value="base" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">
-              <Table2 className="h-4 w-4 mr-2" />
-              Base
+            <TabsTrigger value="base" className="rounded-lg">
+              <Table2 className="h-4 w-4 mr-2" /> Base
             </TabsTrigger>
-            <TabsTrigger value="cadastro" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">
-              <FilePlus className="h-4 w-4 mr-2" />
-              Cadastro
+            <TabsTrigger value="cadastro" className="rounded-lg">
+              <FilePlus className="h-4 w-4 mr-2" /> Cadastro
             </TabsTrigger>
-            <TabsTrigger value="conclusao" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm">
-              <BadgeCheck className="h-4 w-4 mr-2" />
-              Conclusão
+            <TabsTrigger value="conclusao" className="rounded-lg">
+              <BadgeCheck className="h-4 w-4 mr-2" /> Conclusão
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-8 animate-in fade-in duration-500">
-            <StatsCards {...metrics} />
+            <StatsCards metrics={metrics} />
             
+            <InventoryHealth />
+
             <div className="grid lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 space-y-6">
                 <MonthlyTrends 
@@ -161,45 +183,32 @@ export default function AppContainer() {
                   leads={MOCK_LEADS_DATA} 
                   visits={MOCK_VISITS_DATA}
                 />
+                <BrokerPerformanceGrid 
+                  sales={filteredSales}
+                  leads={MOCK_LEADS_DATA}
+                  visits={MOCK_VISITS_DATA}
+                />
               </div>
               <div className="space-y-6">
                 <AIPerformanceSummary sales={filteredSales} />
                 <ChannelPerformance sales={filteredSales} />
                 <NeighborhoodAnalysis sales={filteredSales} />
-                <PerformanceTable sales={filteredSales} />
               </div>
             </div>
           </TabsContent>
 
           <TabsContent value="base" className="space-y-8 animate-in fade-in duration-500">
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 mb-2">
-                <Table2 className="h-6 w-6 text-primary" />
-                <div>
-                  <h2 className="text-2xl font-bold text-primary">Matriz de Performance</h2>
-                  <p className="text-sm text-muted-foreground">Visão analítica consolidada em formato de planilha.</p>
-                </div>
-              </div>
-              <SalesMatrix sales={filteredSales} />
-            </div>
+            <SalesMatrix sales={filteredSales} />
           </TabsContent>
 
           <TabsContent value="cadastro" className="animate-in slide-in-from-bottom-4 duration-500">
             <div className="max-w-2xl mx-auto">
-              <div className="mb-6">
-                <h2 className="text-2xl font-bold text-primary">Cadastro de Imóveis</h2>
-                <p className="text-muted-foreground text-sm">Registre a captação de um novo imóvel na carteira.</p>
-              </div>
               <PropertyForm />
             </div>
           </TabsContent>
 
           <TabsContent value="conclusao" className="animate-in slide-in-from-bottom-4 duration-500">
             <div className="max-w-2xl mx-auto">
-              <div className="mb-6">
-                <h2 className="text-2xl font-bold text-primary">Conclusão de Venda</h2>
-                <p className="text-muted-foreground text-sm">Preencha os dados finais após o fechamento do negócio.</p>
-              </div>
               <SaleForm />
             </div>
           </TabsContent>
