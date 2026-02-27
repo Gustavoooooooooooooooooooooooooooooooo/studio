@@ -1,23 +1,21 @@
+
 "use client"
 
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
-import { SaleRecord, neighborhoods } from "@/app/lib/mock-data";
 
 interface NeighborhoodAnalysisProps {
-  sales: SaleRecord[];
+  sales: any[];
 }
 
 export function NeighborhoodAnalysis({ sales }: NeighborhoodAnalysisProps) {
   const stats = useMemo(() => {
     const counts: Record<string, number> = {};
-    neighborhoods.forEach(n => counts[n] = 0);
     
     sales.forEach(sale => {
-      if (counts[sale.bairro] !== undefined) {
-        counts[sale.bairro] += 1;
-      }
+      const b = sale.bairro || "Outros";
+      counts[b] = (counts[b] || 0) + 1;
     });
 
     return Object.entries(counts)
@@ -26,6 +24,8 @@ export function NeighborhoodAnalysis({ sales }: NeighborhoodAnalysisProps) {
   }, [sales]);
 
   const COLORS = ['#0ea5e9', '#06b6d4', '#14b8a6', '#10b981', '#3b82f6', '#6366f1', '#a855f7'];
+
+  if (stats.length === 0) return null;
 
   return (
     <Card className="shadow-sm border-none">
@@ -57,11 +57,7 @@ export function NeighborhoodAnalysis({ sales }: NeighborhoodAnalysisProps) {
         <div className="mt-2 space-y-2">
             <div className="flex justify-between text-[11px]">
                 <span className="text-muted-foreground">Bairro mais vendido:</span>
-                <span className="font-bold text-primary">{stats[0].name}</span>
-            </div>
-            <div className="flex justify-between text-[11px]">
-                <span className="text-muted-foreground">Foco de angariação:</span>
-                <span className="font-bold text-accent">{neighborhoods[Math.floor(Math.random() * neighborhoods.length)]}</span>
+                <span className="font-bold text-primary">{stats[0]?.name || "-"}</span>
             </div>
         </div>
       </CardContent>

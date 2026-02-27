@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState } from "react";
@@ -18,6 +19,15 @@ export function GoogleSheetsSync() {
   const { toast } = useToast();
   const { firestore } = useFirebase();
 
+  // Função auxiliar para tentar encontrar valores independente da capitalização das colunas
+  const getVal = (row: any, keys: string[]) => {
+    for (const key of keys) {
+      const found = Object.keys(row).find(k => k.toLowerCase().trim() === key.toLowerCase());
+      if (found) return row[found];
+    }
+    return undefined;
+  };
+
   const handleSync = async () => {
     if (!url) {
       toast({
@@ -37,23 +47,31 @@ export function GoogleSheetsSync() {
       if (result.success && result.data) {
         const salesCol = collection(firestore, "vendas_imoveis");
         
-        // Process records and save to Firestore
         result.data.forEach((row: any) => {
-          // Map CSV headers to SalesRecord schema
-          // Assuming common names from the request
-          if (row.id_imovel || row.propertyId) {
+          // Busca campos de forma flexível para aceitar variações de nomes de colunas
+          const propertyId = getVal(row, ["id_imovel", "propertyId", "imovel_id", "id"]);
+          const closedValue = getVal(row, ["valor_fechado", "closedValue", "valor", "preco"]);
+          const advertisedValue = getVal(row, ["valor_anuncio", "advertisedValue", "valor_original"]);
+          const originChannel = getVal(row, ["origem", "originChannel", "canal"]);
+          const sellingBrokerId = getVal(row, ["corretor", "sellingBrokerId", "nome_corretor"]);
+          const saleDate = getVal(row, ["data_venda", "saleDate", "data"]);
+          const neighborhood = getVal(row, ["bairro", "neighborhood"]);
+          const listingType = getVal(row, ["tipo", "listingType", "transacao"]);
+          const clientName = getVal(row, ["cliente", "clientName", "nome_cliente"]);
+
+          if (propertyId) {
             addDocumentNonBlocking(salesCol, {
-              propertyId: String(row.id_imovel || row.propertyId),
-              clientName: row.cliente || row.clientName || "Importado",
-              closedValue: Number(row.valor_fechado || row.closedValue || 0),
-              advertisedValue: Number(row.valor_anuncio || row.advertisedValue || 0),
-              originChannel: row.origem || row.originChannel || "Sincronização",
-              sellingBrokerId: row.corretor || row.sellingBrokerId || "Não Atribuído",
-              saleDate: row.data_venda || row.saleDate || new Date().toISOString().split('T')[0],
-              propertyCaptureDate: row.data_entrada || row.propertyCaptureDate || new Date().toISOString().split('T')[0],
+              propertyId: String(propertyId),
+              clientName: clientName || "Importado",
+              closedValue: Number(closedValue || 0),
+              advertisedValue: Number(advertisedValue || closedValue || 0),
+              originChannel: originChannel || "Sincronização",
+              sellingBrokerId: sellingBrokerId || "Não Atribuído",
+              saleDate: saleDate || new Date().toISOString().split('T')[0],
+              propertyCaptureDate: getVal(row, ["data_entrada", "captureDate"]) || new Date().toISOString().split('T')[0],
               status: "Vendido",
-              neighborhood: row.bairro || row.neighborhood || "Desconhecido",
-              listingType: row.tipo || row.listingType || "Venda",
+              neighborhood: neighborhood || "Desconhecido",
+              listingType: listingType || "Venda",
               importedAt: serverTimestamp(),
             });
           }
@@ -99,7 +117,7 @@ export function GoogleSheetsSync() {
           <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">URL do CSV (Publicado na Web)</Label>
           <div className="flex gap-2">
             <Input 
-              placeholder="https://docs.google.com/spreadsheets/d/.../export?format=csv" 
+              placeholder="Cole o link aqui..." 
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               className="bg-white/80"
@@ -113,29 +131,7 @@ export function GoogleSheetsSync() {
             </Button>
           </div>
         </div>
-
-        <div className="p-3 bg-emerald-50/50 rounded-lg border border-emerald-100 space-y-2">
-          <h4 className="text-xs font-bold text-emerald-800 flex items-center gap-1">
-            <CheckCircle2 className="h-3 w-3" /> Instruções de Configuração:
-          </h4>
-          <ol className="text-[10px] text-emerald-700/80 space-y-1 list-decimal pl-4">
-            <li>No Google Sheets, vá em <b>Arquivo</b> &gt; <b>Compartilhar</b> &gt; <b>Publicar na Web</b>.</li>
-            <li>Selecione "Valores separados por vírgula (.csv)" em vez de "Página da Web".</li>
-            <li>Copie o link gerado e cole acima.</li>
-            <li>O app irá mapear: <i>id_imovel, data_venda, corretor, valor_fechado</i>.</li>
-          </ol>
-        </div>
-
-        <div className="flex items-center justify-between pt-2">
-           <p className="text-[10px] text-muted-foreground italic flex items-center gap-1">
-             <AlertCircle className="h-3 w-3" /> Atualização quase instantânea após publicar.
-           </p>
-           <Button variant="link" className="text-emerald-600 p-0 h-auto text-[10px] font-bold" asChild>
-             <a href="https://docs.google.com/spreadsheets" target="_blank" rel="noopener noreferrer">
-               Abrir Planilhas <ExternalLink className="h-2 w-2 ml-1" />
-             </a>
-           </Button>
-        </div>
+        {/* ... restante do componente ... */}
       </CardContent>
     </Card>
   );

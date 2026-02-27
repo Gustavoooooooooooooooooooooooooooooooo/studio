@@ -1,52 +1,68 @@
 
 "use client"
 
+import { useMemo } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { SaleRecord, LeadRecord, VisitRecord, brokers } from "@/app/lib/mock-data";
 
 interface BrokerPerformanceGridProps {
-  sales: SaleRecord[];
-  leads: LeadRecord[];
-  visits: VisitRecord[];
+  sales: any[];
+  leads: any[];
+  visits: any[];
 }
 
 export function BrokerPerformanceGrid({ sales, leads, visits }: BrokerPerformanceGridProps) {
-  const stats = brokers.map(broker => {
-    const brokerSales = sales.filter(s => s.corretor === broker);
-    const brokerLeads = leads.filter(l => l.corretor === broker);
-    const brokerVisits = visits.filter(v => v.corretor === broker);
-    
-    const totalVgv = brokerSales.reduce((acc, s) => acc + s.valor_fechado, 0);
-    const totalComm = brokerSales.reduce((acc, s) => acc + (s.valor_fechado * (s.comissao_percentual / 100)), 0);
-    
-    const visitToSale = brokerVisits.length > 0 ? (brokerSales.length / brokerVisits.length) * 100 : 0;
-    const avgTicket = brokerSales.length > 0 ? totalVgv / brokerSales.length : 0;
-    
-    const participation = sales.length > 0 ? (brokerSales.length / sales.length) * 100 : 0;
+  const stats = useMemo(() => {
+    // Identifica todos os corretores únicos presentes nos dados reais
+    const uniqueBrokers = Array.from(new Set([
+      ...sales.map(s => s.corretor),
+      ...leads.map(l => l.corretor),
+      ...visits.map(v => v.corretor)
+    ])).filter(Boolean);
 
-    const avgTime = brokerSales.length > 0 
-      ? brokerSales.reduce((acc, s) => acc + (new Date(s.data_venda).getTime() - new Date(s.data_entrada).getTime()), 0) / (brokerSales.length * 86400000)
-      : 0;
+    return uniqueBrokers.map(broker => {
+      const brokerSales = sales.filter(s => s.corretor === broker);
+      const brokerLeads = leads.filter(l => l.corretor === broker);
+      const brokerVisits = visits.filter(v => v.corretor === broker);
+      
+      const totalVgv = brokerSales.reduce((acc, s) => acc + (Number(s.valor_fechado) || 0), 0);
+      const totalComm = brokerSales.reduce((acc, s) => acc + ((Number(s.valor_fechado) || 0) * ((Number(s.comissao_percentual) || 5.5) / 100)), 0);
+      
+      const visitToSale = brokerVisits.length > 0 ? (brokerSales.length / brokerVisits.length) * 100 : 0;
+      const avgTicket = brokerSales.length > 0 ? totalVgv / brokerSales.length : 0;
+      
+      const participation = sales.length > 0 ? (brokerSales.length / sales.length) * 100 : 0;
 
-    return {
-      name: broker,
-      leads: brokerLeads.length,
-      visits: brokerVisits.length,
-      sales: brokerSales.length,
-      vgv: totalVgv,
-      comm: totalComm,
-      visitToSale,
-      avgTicket,
-      participation,
-      avgTime
-    };
-  }).sort((a, b) => b.vgv - a.vgv);
+      const avgTime = brokerSales.length > 0 
+        ? brokerSales.reduce((acc, s) => {
+            const start = new Date(s.data_entrada).getTime();
+            const end = new Date(s.data_venda).getTime();
+            if (isNaN(start) || isNaN(end)) return acc;
+            return acc + (end - start);
+          }, 0) / (brokerSales.length * 86400000)
+        : 0;
+
+      return {
+        name: broker,
+        leads: brokerLeads.length,
+        visits: brokerVisits.length,
+        sales: brokerSales.length,
+        vgv: totalVgv,
+        comm: totalComm,
+        visitToSale,
+        avgTicket,
+        participation,
+        avgTime
+      };
+    }).sort((a, b) => b.vgv - a.vgv);
+  }, [sales, leads, visits]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
   };
+
+  if (stats.length === 0) return null;
 
   return (
     <Card className="border-none shadow-sm overflow-hidden">
