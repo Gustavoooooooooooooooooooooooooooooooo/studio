@@ -51,22 +51,33 @@ export function GoogleSheetsSync() {
   const parseCurrency = (val: any) => {
     if (val === undefined || val === null || val === "") return 0;
     if (typeof val === 'number') return val;
-    if (typeof val !== 'string') return 0;
+    let s = String(val).trim();
+    if (!s) return 0;
 
-    // Limpeza agressiva: mantém apenas números, vírgula e ponto
-    const raw = val.replace(/[^0-9,.]/g, "").trim();
-    if (!raw) return 0;
+    // Remove tudo que não é número, ponto ou vírgula
+    s = s.replace(/[^0-9,.]/g, "");
 
-    // Lógica para Formato BR (1.250,00 ou 1250,00)
-    // Se tem vírgula e ela é o separador decimal (geralmente no final)
-    if (raw.includes(',') && (!raw.includes('.') || raw.indexOf(',') > raw.indexOf('.'))) {
-      const cleaned = raw.replace(/\./g, "").replace(",", ".");
-      const num = parseFloat(cleaned);
-      return isNaN(num) ? 0 : num;
+    if (s.includes('.') && s.includes(',')) {
+      // Padrão BR: 1.250,00 -> remove ponto, troca vírgula por ponto
+      if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
+        s = s.replace(/\./g, "").replace(",", ".");
+      } else {
+        // Padrão US: 1,250.00 -> remove vírgula
+        s = s.replace(/,/g, "");
+      }
+    } else if (s.includes(',')) {
+      // Só tem vírgula: 1250,00 -> vira 1250.00
+      s = s.replace(",", ".");
+    } else if (s.includes('.')) {
+      // Só tem ponto: Pode ser milhar (BR) 1.250 ou decimal (US) 1250.00
+      const parts = s.split('.');
+      // Se a última parte tem 3 dígitos, tratamos como separador de milhar
+      if (parts[parts.length - 1].length === 3) {
+        s = s.replace(/\./g, "");
+      }
     }
 
-    // Lógica para Formato US ou Simples (1250.00)
-    const num = parseFloat(raw);
+    const num = parseFloat(s);
     return isNaN(num) ? 0 : num;
   };
 
@@ -76,25 +87,26 @@ export function GoogleSheetsSync() {
 
     setClearing(true);
     try {
-      const batch = writeBatch(firestore);
+      // Vamos apagar as coleções principais
+      const collectionsToClear = ["vendas_imoveis", "properties", "leads", "visits"];
       
-      const salesCol = await getDocs(collection(firestore, "vendas_imoveis"));
-      salesCol.docs.forEach((d) => batch.delete(d.ref));
-
-      const propCol = await getDocs(collection(firestore, "properties"));
-      propCol.docs.forEach((d) => batch.delete(d.ref));
-      
-      await batch.commit();
+      for (const colName of collectionsToClear) {
+        const snapshot = await getDocs(collection(firestore, colName));
+        const batch = writeBatch(firestore);
+        snapshot.docs.forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+      }
 
       toast({
         title: "Banco de Dados Limpo",
         description: "Todos os registros foram removidos com sucesso.",
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Erro ao limpar:", error);
       toast({
         variant: "destructive",
         title: "Erro ao limpar",
-        description: "Não foi possível remover os dados antigos.",
+        description: error.message || "Não foi possível remover os dados antigos.",
       });
     } finally {
       setClearing(false);
@@ -123,7 +135,7 @@ export function GoogleSheetsSync() {
         result.data.forEach((row: any) => {
           // 1. Identificação do Imóvel (Crucial)
           const propertyId = String(getVal(row, ["imovel", "codigo", "ref", "id", "unidade"]) || "");
-          if (!propertyId || propertyId === "undefined") return;
+          if (!propertyId || propertyId === "undefined" || propertyId === "") return;
 
           // 2. Identificação do Tipo (Venda ou Locação)
           let type = String(getVal(row, ["tipo", "transacao", "categoria", "operacao"]) || "");
@@ -187,7 +199,7 @@ export function GoogleSheetsSync() {
 
         toast({
           title: "Sincronização Concluída",
-          description: `${addedCount} imóveis processados. Se os valores continuarem zerados, verifique os nomes das colunas.`,
+          description: `${addedCount} imóveis processados. Os valores agora devem aparecer corretamente.`,
         });
       } else {
         toast({
@@ -259,10 +271,10 @@ export function GoogleSheetsSync() {
           <div className="text-[11px] text-muted-foreground leading-relaxed">
             <p className="font-bold text-emerald-800 mb-1">Como garantir que os valores apareçam:</p>
             <ul className="list-disc list-inside space-y-1">
-              <li>Sua planilha deve ter uma coluna chamada exatamente: <b>VALOR ANÚNCIO</b>, <b>VALOR VENDA</b> ou <b>VALOR LOCAÇÃO</b>.</li>
-              <li>O sistema ignora o "R$" e pontos de milhar, focando apenas nos números.</li>
-              <li>Para que o sistema diferencie Venda de Locação, tenha uma coluna <b>TIPO</b> ou <b>TRANSAÇÃO</b>.</li>
-              <li><b>Dica:</b> Se tiver abas separadas, sincronize o link de cada uma individualmente.</li>
+              <li>No Google Sheets: <b>Arquivo {'>'} Compartilhar {'>'} Publicar na Web</b></li>
+              <li>Escolha <b>Valores separados por vírgula (.csv)</b></li>
+              <li>Sua planilha deve ter uma coluna chamada: <b>VALOR ANÚNCIO</b> ou <b>VALOR VENDA</b>.</li>
+              <li>Clique em <b>Limpar Estoque</b> antes de importar novos dados reais para evitar duplicidade.</li>
             </ul>
           </div>
         </div>
