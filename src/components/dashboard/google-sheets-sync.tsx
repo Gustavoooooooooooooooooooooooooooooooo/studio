@@ -24,7 +24,7 @@ export function GoogleSheetsSync() {
   const normalize = (s: string) => 
     String(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "").trim();
 
-  // Função auxiliar ultra-robusta para encontrar valores em colunas com nomes variados
+  // Função auxiliar para encontrar valores em colunas com nomes variados
   const getVal = (row: any, keys: string[]) => {
     if (!row) return undefined;
     const rowKeys = Object.keys(row);
@@ -40,7 +40,7 @@ export function GoogleSheetsSync() {
     return undefined;
   };
 
-  // Conversor de data robusto (DD/MM/YYYY ou YYYY-MM-DD)
+  // Conversor de data robusto
   const parseDate = (val: any) => {
     if (!val) return null;
     const s = String(val).trim();
@@ -87,7 +87,7 @@ export function GoogleSheetsSync() {
 
     setClearing(true);
     try {
-      const collectionsToClear = ["vendas_imoveis", "properties", "leads", "visits"];
+      const collectionsToClear = ["vendas_imoveis", "properties"];
       for (const colName of collectionsToClear) {
         const snapshot = await getDocs(collection(firestore, colName));
         const batch = writeBatch(firestore);
@@ -118,65 +118,72 @@ export function GoogleSheetsSync() {
         let salesFound = 0;
         
         for (const row of result.data) {
-          // 1. Identificação
-          const propertyId = String(getVal(row, ["imovel", "codigo", "ref", "id", "unidade", "identificador", "p", "venda", "locacao"]) || "");
-          if (!propertyId || propertyId === "" || propertyId === "undefined") continue;
+          try {
+            // 1. Identificação - Melhorada para não pegar valores financeiros
+            const rawId = getVal(row, ["imovel", "codigo", "ref", "unidade", "identificador", "p id"]);
+            const propertyId = String(rawId || "").trim();
+            if (!propertyId || propertyId === "" || propertyId === "undefined") continue;
 
-          // 2. Tipo
-          let typeStr = String(getVal(row, ["tipo", "transacao", "categoria", "operacao", "negocio", "finalidade", "contrato"]) || "");
-          const isLocacao = typeStr.toLowerCase().includes("loc") || typeStr.toLowerCase().includes("alug") || typeStr.toLowerCase().includes("rent");
-          const type = isLocacao ? "Locação" : "Venda";
+            // Sanetização do ID para o Firestore (evita erro de barras)
+            const safePropertyId = propertyId.replace(/\//g, "-").replace(/\\/g, "-");
 
-          // 3. Valores
-          const advertisedValue = parseCurrency(getVal(row, ["valor anuncio", "valor imovel", "valor venda", "valor locacao", "preco", "pedida", "anuncio", "valor", "venda", "locacao"]));
-          const closedValue = parseCurrency(getVal(row, ["valor fechado", "valor fechamento", "fechado", "venda final", "venda real", "preco fechado", "venda_real"]));
+            // 2. Tipo
+            let typeStr = String(getVal(row, ["tipo", "transacao", "categoria", "operacao", "negocio", "finalidade", "contrato"]) || "");
+            const isLocacao = typeStr.toLowerCase().includes("loc") || typeStr.toLowerCase().includes("alug") || typeStr.toLowerCase().includes("rent");
+            const type = isLocacao ? "Locação" : "Venda";
 
-          // 4. Detalhes
-          const broker = String(getVal(row, ["corretor", "vendedor", "angariador", "responsavel", "consultor", "corretora", "captador"]) || "Não Identificado");
-          const neighborhood = String(getVal(row, ["bairro", "regiao", "localidade", "zona", "distrito", "setor", "b"]) || "Desconhecido");
-          const address = String(getVal(row, ["endereco", "logradouro", "rua", "avenida", "local", "rua"]) || "Endereço não informado");
-          
-          const captureDateStr = getVal(row, ["data entrada", "angariacao", "entrada", "data", "lancamento", "captacao", "inicio", "data_entrada"]);
-          const captureDate = parseDate(captureDateStr) || new Date().toISOString().split('T')[0];
-          
-          const saleDateStr = getVal(row, ["data venda", "fechamento", "venda em", "vendido", "data fechado", "venda data", "venda_em", "data_venda", "data"]);
-          const saleDate = parseDate(saleDateStr);
+            // 3. Valores
+            const advertisedValue = parseCurrency(getVal(row, ["valor anuncio", "valor imovel", "valor venda", "valor locacao", "preco", "pedida", "anuncio", "valor", "venda", "locacao"]));
+            const closedValue = parseCurrency(getVal(row, ["valor fechado", "valor fechamento", "fechado", "venda final", "venda real", "venda_real"]));
 
-          // REGISTRO 1: Angariação (Propriedades)
-          const propRef = doc(firestore, "properties", propertyId);
-          setDocumentNonBlocking(propRef, {
-            propertyCode: propertyId,
-            address,
-            neighborhood,
-            listingType: type,
-            listingValue: advertisedValue,
-            brokerId: broker,
-            captureDate,
-            status: saleDate ? "Vendido" : "Disponível",
-            importedAt: serverTimestamp(),
-          }, { merge: true });
+            // 4. Detalhes
+            const broker = String(getVal(row, ["corretor", "vendedor", "angariador", "responsavel", "consultor", "corretora", "captador"]) || "Não Identificado");
+            const neighborhood = String(getVal(row, ["bairro", "regiao", "localidade", "zona", "distrito", "setor"]) || "Desconhecido");
+            const address = String(getVal(row, ["endereco", "logradouro", "rua", "avenida", "local"]) || "Endereço não informado");
+            
+            const captureDateStr = getVal(row, ["data entrada", "angariacao", "entrada", "data", "lancamento", "captacao", "inicio", "data_entrada"]);
+            const captureDate = parseDate(captureDateStr) || new Date().toISOString().split('T')[0];
+            
+            const saleDateStr = getVal(row, ["data venda", "fechamento", "venda em", "vendido", "data fechado", "venda data", "venda_em", "data_venda", "data"]);
+            const saleDate = parseDate(saleDateStr);
 
-          // REGISTRO 2: Venda (Se houver data de venda E for um registro diferente de entrada)
-          // Se a planilha for exclusiva de vendas, a "saleDate" será detectada
-          if (saleDate) {
-            const saleRef = doc(firestore, "vendas_imoveis", `${propertyId}_sale`);
-            setDocumentNonBlocking(saleRef, {
-              propertyId,
-              clientName: String(getVal(row, ["cliente", "comprador", "locatario", "comprado por", "fechado com", "cliente_nome"]) || "Cliente"),
-              closedValue: closedValue || advertisedValue,
-              advertisedValue: advertisedValue,
-              originChannel: String(getVal(row, ["canal", "origem", "fonte", "meio", "marketing", "origem_lead"]) || "Google Sheets"),
-              sellingBrokerId: broker,
-              saleDate,
-              propertyCaptureDate: captureDate,
+            // REGISTRO 1: Angariação (Propriedades)
+            const propRef = doc(firestore, "properties", safePropertyId);
+            setDocumentNonBlocking(propRef, {
+              propertyCode: propertyId,
+              address,
               neighborhood,
               listingType: type,
-              status: "Vendido",
+              listingValue: advertisedValue,
+              brokerId: broker,
+              captureDate,
+              status: saleDate ? "Vendido" : "Disponível",
               importedAt: serverTimestamp(),
             }, { merge: true });
-            salesFound++;
+
+            // REGISTRO 2: Venda (Se houver data de venda)
+            if (saleDate) {
+              const saleRef = doc(firestore, "vendas_imoveis", `${safePropertyId}_sale`);
+              setDocumentNonBlocking(saleRef, {
+                propertyId,
+                clientName: String(getVal(row, ["cliente", "comprador", "locatario", "comprado por", "fechado com", "cliente_nome"]) || "Cliente"),
+                closedValue: closedValue || advertisedValue,
+                advertisedValue: advertisedValue,
+                originChannel: String(getVal(row, ["canal", "origem", "fonte", "meio", "marketing", "origem_lead"]) || "Google Sheets"),
+                sellingBrokerId: broker,
+                saleDate,
+                propertyCaptureDate: captureDate,
+                neighborhood,
+                listingType: type,
+                status: "Vendido",
+                importedAt: serverTimestamp(),
+              }, { merge: true });
+              salesFound++;
+            }
+            addedCount++;
+          } catch (rowError) {
+            console.error("Erro ao processar linha:", rowError);
           }
-          addedCount++;
         }
 
         toast({
@@ -187,7 +194,7 @@ export function GoogleSheetsSync() {
         throw new Error(result.message || "Planilha vazia ou link inválido.");
       }
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Erro", description: error.message });
+      toast({ variant: "destructive", title: "Erro na Sincronização", description: error.message });
     } finally {
       setSyncing(false);
     }
@@ -202,8 +209,8 @@ export function GoogleSheetsSync() {
               <RefreshCcw className={`h-5 w-5 ${syncing ? 'animate-spin' : ''}`} />
             </div>
             <div>
-              <CardTitle className="text-lg">Sincronização Google Sheets</CardTitle>
-              <CardDescription className="text-xs">Puxe estoque e vendas em tempo real</CardDescription>
+              <CardTitle className="text-lg">Sincronização Real</CardTitle>
+              <CardDescription className="text-xs">Estoque e Vendas da Planilha</CardDescription>
             </div>
           </div>
           <Button 
@@ -234,11 +241,18 @@ export function GoogleSheetsSync() {
           </div>
         </div>
         
-        <div className="bg-white/50 p-3 rounded-lg border border-emerald-100 flex items-start gap-3">
-          <AlertCircle className="h-4 w-4 text-emerald-600 mt-0.5" />
-          <div className="text-[11px] text-muted-foreground leading-relaxed">
-            Certifique-se que sua planilha está <b>Publicada na Web</b> como <b>CSV</b>. 
-            Vendas só aparecem se houver uma coluna de data reconhecível (ex: "Data Venda", "Fechamento").
+        <div className="bg-white/50 p-3 rounded-lg border border-emerald-100 space-y-2">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-4 w-4 text-emerald-600 mt-0.5" />
+            <div className="text-[11px] text-muted-foreground leading-relaxed">
+              <p className="font-bold text-emerald-800 mb-1">Como usar seus dados reais:</p>
+              <ol className="list-decimal list-inside space-y-1">
+                <li>No Google Sheets: <b>Arquivo &gt; Compartilhar &gt; Publicar na Web</b></li>
+                <li>Escolha <b>Valores separados por vírgula (.csv)</b></li>
+                <li>Copie o link gerado e cole acima</li>
+                <li>Clique em <b>Limpar Base Atual</b> se quiser remover os testes antigos</li>
+              </ol>
+            </div>
           </div>
         </div>
       </CardContent>
