@@ -29,18 +29,21 @@ export function GoogleSheetsSync() {
       const normalizedKey = key.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
       const found = rowKeys.find(k => {
         const normalizedK = k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-        return normalizedK === normalizedKey || normalizedK.includes(normalizedKey);
+        // Busca por correspondência exata ou se uma contém a outra (ex: "Bairro" em "Bairro do Imóvel")
+        return normalizedK === normalizedKey || normalizedK.includes(normalizedKey) || normalizedKey.includes(normalizedK);
       });
       if (found && row[found] !== undefined && row[found] !== null && row[found] !== "") return row[found];
     }
     return undefined;
   };
 
-  // Conversor de data robusto (suporta DD/MM/YYYY)
+  // Conversor de data robusto (suporta DD/MM/YYYY, MM/DD/YYYY e objetos Date)
   const parseDate = (val: any) => {
-    if (!val) return new Date().toISOString().split('T')[0];
+    if (!val) return null;
     const s = String(val).trim();
+    if (s === "" || s.toLowerCase() === "undefined" || s.toLowerCase() === "null") return null;
     
+    // Tenta formato brasileiro DD/MM/YYYY
     const dateMatch = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/);
     if (dateMatch) {
       const day = parseInt(dateMatch[1]);
@@ -52,31 +55,38 @@ export function GoogleSheetsSync() {
     }
     
     const d = new Date(val);
-    return isNaN(d.getTime()) ? new Date().toISOString().split('T')[0] : d.toISOString().split('T')[0];
+    return isNaN(d.getTime()) ? null : d.toISOString().split('T')[0];
   };
 
+  // Conversor de moeda robusto
   const parseCurrency = (val: any) => {
     if (val === undefined || val === null || val === "") return 0;
     if (typeof val === 'number') return val;
     let s = String(val).trim();
+    
+    // Remove R$, espaços e outros caracteres não numéricos, mantendo vírgula e ponto
     s = s.replace(/[^0-9,.]/g, "");
 
     if (s.includes('.') && s.includes(',')) {
+      // Formato brasileiro: 1.250,00 -> remove ponto, troca vírgula por ponto
       if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
         s = s.replace(/\./g, "").replace(",", ".");
       } else {
+        // Formato americano: 1,250.00 -> remove vírgula
         s = s.replace(/,/g, "");
       }
     } else if (s.includes(',')) {
+      // Apenas vírgula: 1250,00 -> troca por ponto
       s = s.replace(",", ".");
     }
+    
     const num = parseFloat(s);
     return isNaN(num) ? 0 : num;
   };
 
   const handleClearData = async () => {
     if (!firestore) return;
-    if (!confirm("Isso apagará todos os registros de angariação e vendas atuais. Deseja continuar?")) return;
+    if (!confirm("Isso apagará todos os registros de estoque e vendas atuais. Deseja continuar?")) return;
 
     setClearing(true);
     try {
@@ -87,7 +97,7 @@ export function GoogleSheetsSync() {
         snapshot.docs.forEach((d) => batch.delete(d.ref));
         await batch.commit();
       }
-      toast({ title: "Banco de Dados Limpo", description: "Todos os registros foram removidos." });
+      toast({ title: "Banco de Dados Limpo", description: "Todos os registros foram removidos com sucesso." });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao limpar", description: error.message });
     } finally {
@@ -97,7 +107,7 @@ export function GoogleSheetsSync() {
 
   const handleSync = async () => {
     if (!url) {
-      toast({ variant: "destructive", title: "URL ausente", description: "Insira a URL da planilha." });
+      toast({ variant: "destructive", title: "URL ausente", description: "Por favor, insira o link CSV da sua planilha." });
       return;
     }
     if (!firestore) return;
@@ -109,24 +119,33 @@ export function GoogleSheetsSync() {
       if (result.success && result.data && result.data.length > 0) {
         let addedCount = 0;
         
-        result.data.forEach((row: any) => {
-          const propertyId = String(getVal(row, ["imovel", "codigo", "ref", "id", "unidade"]) || "");
-          if (!propertyId || propertyId === "" || propertyId === "undefined") return;
+        for (const row of result.data) {
+          // Identificação do imóvel (obrigatório)
+          const propertyId = String(getVal(row, ["imovel", "codigo", "ref", "id", "unidade", "identificador"]) || "");
+          if (!propertyId || propertyId === "" || propertyId === "undefined") continue;
 
-          let type = String(getVal(row, ["tipo", "transacao", "categoria", "operacao"]) || "");
+          // Tipo de transação
+          let type = String(getVal(row, ["tipo", "transacao", "categoria", "operacao", "negocio"]) || "");
           type = (type.toLowerCase().includes("loc") || type.toLowerCase().includes("alug")) ? "Locação" : "Venda";
 
+          // Valores financeiros
           const advertisedValue = parseCurrency(getVal(row, ["valor anuncio", "valor imovel", "valor venda", "valor locacao", "preco", "pedida", "valor"]));
-          const closedValue = parseCurrency(getVal(row, ["valor fechado", "valor fechamento", "fechado"])) || advertisedValue;
+          const closedValue = parseCurrency(getVal(row, ["valor fechado", "valor fechamento", "fechado", "venda final"])) || advertisedValue;
 
-          const broker = String(getVal(row, ["corretor", "vendedor", "angariador", "responsavel"]) || "Não Identificado");
-          const captureDate = parseDate(getVal(row, ["data entrada", "angariacao", "entrada", "data", "lancamento"]));
-          const saleDate = getVal(row, ["data venda", "fechamento", "venda em"]);
-          const neighborhood = String(getVal(row, ["bairro", "regiao", "localidade", "zona"]) || "Desconhecido");
-          const address = String(getVal(row, ["endereco", "logradouro", "rua"]) || "Endereço não informado");
-          const clientName = String(getVal(row, ["cliente", "comprador", "locatario"]) || "Cliente");
-          const origin = String(getVal(row, ["canal", "origem", "fonte"]) || "Google Sheets");
+          // Pessoas e Datas
+          const broker = String(getVal(row, ["corretor", "vendedor", "angariador", "responsavel", "consultor"]) || "Não Identificado");
+          const captureDateStr = getVal(row, ["data entrada", "angariacao", "entrada", "data", "lancamento", "captacao"]);
+          const captureDate = parseDate(captureDateStr) || new Date().toISOString().split('T')[0];
+          
+          const saleDateStr = getVal(row, ["data venda", "fechamento", "venda em", "vendido", "data fechado", "data do fechamento"]);
+          const saleDate = parseDate(saleDateStr);
+          
+          const neighborhood = String(getVal(row, ["bairro", "regiao", "localidade", "zona", "distrito"]) || "Desconhecido");
+          const address = String(getVal(row, ["endereco", "logradouro", "rua", "avenida"]) || "Endereço não informado");
+          const clientName = String(getVal(row, ["cliente", "comprador", "locatario", "comprado por"]) || "Cliente");
+          const origin = String(getVal(row, ["canal", "origem", "fonte", "meio"]) || "Google Sheets");
 
+          // 1. Atualiza o Estoque (Properties)
           const propRef = doc(firestore, "properties", propertyId);
           setDocumentNonBlocking(propRef, {
             propertyCode: propertyId,
@@ -140,7 +159,8 @@ export function GoogleSheetsSync() {
             importedAt: serverTimestamp(),
           }, { merge: true });
 
-          if (saleDate && String(saleDate).length > 5) {
+          // 2. Se houver data de venda, registra o Fechamento (SalesRecord)
+          if (saleDate) {
             const saleRef = doc(firestore, "vendas_imoveis", `${propertyId}_sale`);
             setDocumentNonBlocking(saleRef, {
               propertyId,
@@ -149,7 +169,7 @@ export function GoogleSheetsSync() {
               advertisedValue,
               originChannel: origin,
               sellingBrokerId: broker,
-              saleDate: parseDate(saleDate),
+              saleDate,
               propertyCaptureDate: captureDate,
               neighborhood,
               listingType: type,
@@ -158,17 +178,26 @@ export function GoogleSheetsSync() {
             }, { merge: true });
           }
           addedCount++;
-        });
+        }
 
         toast({
           title: "Sincronização Concluída",
-          description: `${addedCount} registros processados.`,
+          description: `${addedCount} imóveis foram processados com sucesso.`,
         });
       } else {
-        toast({ variant: "destructive", title: "Nenhum dado", description: "Verifique se a planilha está publicada corretamente." });
+        toast({ 
+          variant: "destructive", 
+          title: "Nenhum dado encontrado", 
+          description: "A planilha parece estar vazia ou não está publicada corretamente como CSV." 
+        });
       }
     } catch (error) {
-      toast({ variant: "destructive", title: "Erro na sincronização", description: "Erro ao processar os dados da planilha." });
+      console.error("Sync Error:", error);
+      toast({ 
+        variant: "destructive", 
+        title: "Erro na sincronização", 
+        description: "Ocorreu um problema ao conectar com o Google Sheets." 
+      });
     } finally {
       setSyncing(false);
     }
@@ -183,8 +212,8 @@ export function GoogleSheetsSync() {
               <Table2 className="h-5 w-5" />
             </div>
             <div>
-              <CardTitle className="text-lg">Sincronização de Dados</CardTitle>
-              <CardDescription className="text-xs">Importe seus registros reais do Google Sheets</CardDescription>
+              <CardTitle className="text-lg">Sincronização Inteligente</CardTitle>
+              <CardDescription className="text-xs">Puxe seus dados de Angariação e Vendas em segundos</CardDescription>
             </div>
           </div>
           <Button 
@@ -195,16 +224,16 @@ export function GoogleSheetsSync() {
             className="text-xs text-destructive border-destructive/20 hover:bg-destructive/5"
           >
             {clearing ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Trash2 className="h-3 w-3 mr-2" />}
-            Limpar Banco de Dados
+            Limpar Base Atual
           </Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Link CSV da Planilha</Label>
+          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Link da Planilha (CSV Público)</Label>
           <div className="flex gap-2">
             <Input 
-              placeholder="Cole o link aqui..." 
+              placeholder="Cole o link de publicação CSV aqui..." 
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               className="bg-white/80"
@@ -224,11 +253,11 @@ export function GoogleSheetsSync() {
              <AlertCircle className="h-4 w-4 text-emerald-600" />
           </div>
           <div className="text-[11px] text-muted-foreground leading-relaxed">
-            <p className="font-bold text-emerald-800 mb-1">Dicas Importantes:</p>
+            <p className="font-bold text-emerald-800 mb-1">Dicas para Concluir a Sincronização:</p>
             <ul className="list-disc list-inside space-y-1">
-              <li><b>Publicação:</b> No Google Sheets, vá em Arquivo {' > '} Compartilhar {' > '} Publicar na Web.</li>
-              <li><b>Formato:</b> Escolha "Valores separados por vírgula (.csv)".</li>
-              <li><b>Sincronismo:</b> O Google pode demorar até 5 min para atualizar o link público.</li>
+              <li>Certifique-se que a coluna de data se chama <b>DATA VENDA</b> ou <b>FECHAMENTO</b>.</li>
+              <li>A coluna de valor deve ser <b>VALOR FECHADO</b> ou <b>VALOR VENDA</b>.</li>
+              <li>Sempre clique em <b>Limpar Base Atual</b> se os dados estiverem duplicados ou incorretos.</li>
             </ul>
           </div>
         </div>
