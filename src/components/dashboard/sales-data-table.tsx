@@ -6,14 +6,11 @@ import { collection, query, orderBy, limit } from "firebase/firestore";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, BadgeCheck, Calendar, User, TrendingUp, Tag } from "lucide-react";
+import { Loader2, BadgeCheck, Calendar, User, TrendingUp, Tag, MapPin } from "lucide-react";
 
 export function SalesDataTable() {
   const { firestore } = useFirebase();
   
-  // Busca em tempo real da coleção 'vendas_imoveis'
-  // Removi o orderBy saleDate para garantir que apareça mesmo que o campo esteja instável, 
-  // mas o ideal é manter por importedAt para ver o resultado da sincronização.
   const vendasQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(
@@ -51,10 +48,10 @@ export function SalesDataTable() {
         <div>
           <CardTitle className="text-lg flex items-center gap-2">
             <BadgeCheck className="h-5 w-5 text-emerald-600" />
-            Vendas e Fechamentos Reais
+            Vendas e Fechamentos Realizados
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Lista de fechamentos financeiros processados da sua planilha.
+            Visualização dos fechamentos financeiros importados da sua planilha de negócios.
           </p>
         </div>
         <Badge variant="outline" className="text-emerald-600 font-bold">
@@ -72,12 +69,12 @@ export function SalesDataTable() {
             <Table>
               <TableHeader className="bg-muted/30">
                 <TableRow>
-                  <TableHead className="text-[11px] font-bold uppercase">Imóvel</TableHead>
-                  <TableHead className="text-[11px] font-bold uppercase">Tipo</TableHead>
-                  <TableHead className="text-[11px] font-bold uppercase">Data Venda</TableHead>
-                  <TableHead className="text-[11px] font-bold uppercase">Cliente</TableHead>
-                  <TableHead className="text-[11px] font-bold uppercase">Corretor</TableHead>
-                  <TableHead className="text-right text-[11px] font-bold uppercase">Valor Fechado</TableHead>
+                  <TableHead className="text-[11px] font-bold uppercase text-emerald-900">Imóvel / Unidade</TableHead>
+                  <TableHead className="text-[11px] font-bold uppercase text-emerald-900">Empreendimento</TableHead>
+                  <TableHead className="text-[11px] font-bold uppercase text-emerald-900">Data Venda</TableHead>
+                  <TableHead className="text-[11px] font-bold uppercase text-emerald-900">Cliente</TableHead>
+                  <TableHead className="text-[11px] font-bold uppercase text-emerald-900">Vendedor</TableHead>
+                  <TableHead className="text-right text-[11px] font-bold uppercase text-emerald-900">Valor Fechado</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -86,8 +83,8 @@ export function SalesDataTable() {
                     <TableCell className="font-bold text-xs text-emerald-700">{venda.propertyId || "S/N"}</TableCell>
                     <TableCell className="text-xs">
                       <div className="flex items-center gap-1">
-                        <Tag className="h-3 w-3 text-muted-foreground" />
-                        <span className="font-medium text-muted-foreground">{venda.listingType || "Venda"}</span>
+                        <MapPin className="h-3 w-3 text-muted-foreground" />
+                        <span className="font-medium">{venda.neighborhood || "N/A"}</span>
                       </div>
                     </TableCell>
                     <TableCell className="text-xs">
@@ -122,7 +119,7 @@ export function SalesDataTable() {
             <div className="space-y-1">
               <p className="text-muted-foreground font-semibold">Nenhuma venda sincronizada ainda.</p>
               <p className="text-xs text-muted-foreground/60 max-w-xs mx-auto">
-                Certifique-se de que sua planilha tem uma coluna identificada como <b>Data Venda</b> ou <b>Fechamento</b> para os registros aparecerem aqui.
+                Publique a aba <b>Conclusão de negócios</b> como CSV e cole o link acima para ver os dados aqui.
               </p>
             </div>
           </div>

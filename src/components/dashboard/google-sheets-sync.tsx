@@ -24,7 +24,6 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
   const { toast } = useToast();
   const { firestore } = useFirebase();
 
-  // Função de normalização agressiva para comparação de nomes de colunas
   const normalize = (s: string) => 
     String(s || "").toLowerCase()
       .normalize("NFD")
@@ -32,13 +31,11 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       .replace(/[^a-z0-9]/g, "")
       .trim();
 
-  // Função para buscar valor em várias colunas possíveis (sinônimos)
   const getVal = (row: any, keys: string[]) => {
     if (!row) return undefined;
     const rowKeys = Object.keys(row);
     const normalizedSearchKeys = keys.map(normalize);
 
-    // Primeiro tenta busca exata normalizada
     for (const rowKey of rowKeys) {
       const normalizedRowKey = normalize(rowKey);
       if (normalizedSearchKeys.includes(normalizedRowKey)) {
@@ -47,7 +44,6 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       }
     }
 
-    // Se não achou, tenta busca por aproximação (contém)
     for (const rowKey of rowKeys) {
       const normalizedRowKey = normalize(rowKey);
       if (normalizedSearchKeys.some(sk => normalizedRowKey.includes(sk) || sk.includes(normalizedRowKey))) {
@@ -63,7 +59,6 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     const s = String(val).trim();
     if (s === "" || s.toLowerCase() === "undefined" || s.toLowerCase() === "null") return null;
     
-    // Suporte a DD/MM/YYYY
     const brDateMatch = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/);
     if (brDateMatch) {
       const day = parseInt(brDateMatch[1]);
@@ -83,7 +78,6 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     if (typeof val === 'number') return val;
     let s = String(val).trim();
     
-    // Remove R$, espaços e caracteres não numéricos, exceto separadores
     s = s.replace(/[^0-9,.]/g, "");
 
     if (s.includes('.') && s.includes(',')) {
@@ -116,10 +110,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       snapshot.docs.forEach((d) => batch.delete(d.ref));
       await batch.commit();
       
-      toast({ 
-        title: "Dados Limpos", 
-        description: "A base de dados foi reiniciada." 
-      });
+      toast({ title: "Dados Limpos", description: "A base de dados foi reiniciada." });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao limpar", description: error.message });
     } finally {
@@ -143,26 +134,24 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         
         for (const row of result.data) {
           try {
-            // Sinônimos ultra-abrangentes para o identificador do imóvel
             const rawId = getVal(row, [
-              "imovel", "codigo", "ref", "unidade", "identificador", "id", "p id", 
-              "referencia", "cod", "identificacao", "apto", "casa", "lote"
+              "codigo do imovel", "codigo", "imovel", "ref", "identificador", "id", "referencia", 
+              "unidade", "empreendimento", "unidades", "identificacao"
             ]);
             
-            // Se não tiver ID, usa o índice da linha como fallback para não perder o dado
             const propertyId = String(rawId || `LINHA-${processedCount}`).trim();
             const safePropertyId = propertyId.replace(/\//g, "-").replace(/\\/g, "-").replace(/\./g, "-");
 
             if (mode === 'inventory') {
-              let typeStr = String(getVal(row, ["tipo", "transacao", "categoria", "operacao", "negocio", "finalidade", "contrato"]) || "");
+              let typeStr = String(getVal(row, ["tipo de venda", "tipo", "transacao", "operacao", "negocio", "finalidade"]) || "");
               const isLocacao = typeStr.toLowerCase().includes("loc") || typeStr.toLowerCase().includes("alug") || typeStr.toLowerCase().includes("rent");
               const type = isLocacao ? "Locação" : "Venda";
 
-              const advertisedValue = parseCurrency(getVal(row, ["valor", "valor anuncio", "valor imovel", "venda", "locacao", "preco", "pedida", "total"]));
-              const broker = String(getVal(row, ["corretor", "vendedor", "angariador", "responsavel", "consultor", "captador"]) || "Não Identificado");
-              const neighborhood = String(getVal(row, ["bairro", "regiao", "localidade", "zona", "distrito"]) || "Desconhecido");
-              const address = String(getVal(row, ["endereco", "logradouro", "rua", "avenida", "local"]) || "Endereço não informado");
-              const captureDateStr = getVal(row, ["data", "entrada", "angariacao", "lancamento", "captacao", "inicio", "incluido"]);
+              const advertisedValue = parseCurrency(getVal(row, ["qual valor anunciado", "valor anuncio", "valor", "preco", "pedida"]));
+              const broker = String(getVal(row, ["angariador", "captador", "corretor", "responsavel", "vendedor"]) || "Não Identificado");
+              const neighborhood = String(getVal(row, ["empreendimento", "bairro", "regiao", "localidade", "distrito"]) || "Desconhecido");
+              const address = String(getVal(row, ["endereco", "logradouro", "rua", "local"]) || "Endereço não informado");
+              const captureDateStr = getVal(row, ["carimbo de data/hora", "data", "entrada", "captacao", "inicio"]);
               const captureDate = parseDate(captureDateStr) || new Date().toISOString().split('T')[0];
 
               const propRef = doc(firestore, "properties", safePropertyId);
@@ -179,34 +168,38 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else {
-              // Sinônimos ultra-abrangentes para valores de fechamento
               const closedValue = parseCurrency(getVal(row, [
-                "valor fechado", "valor fechamento", "fechado", "venda final", 
-                "venda real", "valor", "valor da venda", "valor do fechamento", "fechamento"
+                "qual valor final de venda", "valor fechado", "valor fechamento", "fechado", 
+                "venda final", "fechamento", "valor da venda"
               ]));
               
-              const advertisedValue = parseCurrency(getVal(row, ["valor anuncio", "valor inicial", "pedida", "valor imovel", "anuncio"]));
+              const advertisedValue = parseCurrency(getVal(row, ["qual valor anunciado", "valor anuncio", "valor inicial", "pedida"]));
               
-              // Sinônimos para data de venda
               const saleDateStr = getVal(row, [
-                "data venda", "fechamento", "venda em", "vendido", "data fechado", 
-                "data", "data do fechamento", "fechado em", "dia da venda", "conclusao"
+                "data do venda", "data venda", "fechamento", "venda em", "vendido", 
+                "data", "assinatura escritura", "assinatura", "conclusao"
               ]);
               
               const saleDate = parseDate(saleDateStr) || new Date().toISOString().split('T')[0];
-              
-              // Se tiver valor fechado > 0, consideramos uma venda válida para importar
-              if (closedValue > 0) {
+              const clientName = String(getVal(row, [
+                "qual o nome do cliente que entrou em contato com voce", 
+                "o contrato esta no nome de quem", "cliente", "comprador", "nome"
+              ]) || "Cliente");
+
+              const sellingBroker = String(getVal(row, ["vendedor", "corretor", "responsavel", "fechador"]) || "Não Identificado");
+              const origin = String(getVal(row, ["origem do lead", "canal", "origem", "fonte", "meio", "marketing"]) || "Google Sheets");
+
+              if (closedValue > 0 || saleDateStr) {
                 const saleRef = doc(firestore, "vendas_imoveis", `${safePropertyId}_${Date.now()}_${processedCount}`);
                 setDocumentNonBlocking(saleRef, {
                   propertyId,
-                  clientName: String(getVal(row, ["cliente", "comprador", "locatario", "fechado com", "nome"]) || "Cliente"),
-                  closedValue: closedValue,
+                  clientName,
+                  closedValue: closedValue || advertisedValue,
                   advertisedValue: advertisedValue || closedValue,
-                  originChannel: String(getVal(row, ["canal", "origem", "fonte", "meio", "marketing", "proveniencia"]) || "Google Sheets"),
-                  sellingBrokerId: String(getVal(row, ["corretor", "vendedor", "responsavel", "fechador"]) || "Não Identificado"),
+                  originChannel: origin,
+                  sellingBrokerId: sellingBroker,
                   saleDate,
-                  neighborhood: String(getVal(row, ["bairro", "regiao", "localidade"]) || "Desconhecido"),
+                  neighborhood: String(getVal(row, ["empreendimento", "bairro", "regiao"]) || "Desconhecido"),
                   listingType: "Venda",
                   status: "Vendido",
                   importedAt: serverTimestamp(),
@@ -287,9 +280,10 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
             <AlertCircle className={`h-4 w-4 mt-0.5 ${mode === 'inventory' ? 'text-primary' : 'text-emerald-600'}`} />
             <div className="text-[11px] text-muted-foreground leading-relaxed">
               <p className="font-bold mb-1 flex items-center gap-1">
-                <CheckCircle2 className="h-3 w-3" /> Como capturar 100% dos dados:
+                <CheckCircle2 className="h-3 w-3" /> Configuração da Aba:
               </p>
-              <p>O sistema busca colunas como <b>Data</b>, <b>Valor</b>, <b>Código</b> e <b>Bairro</b>. Garanta que o link seja do tipo <b>CSV</b> e da aba correta.</p>
+              <p>Certifique-se de que o link aponta para a aba correta da sua planilha.</p>
+              <p className="mt-1">Vá em <b>Arquivo &gt; Compartilhar &gt; Publicar na Web</b>, selecione a <b>Aba Específica</b> e escolha o formato <b>CSV</b>.</p>
             </div>
           </div>
         </div>
