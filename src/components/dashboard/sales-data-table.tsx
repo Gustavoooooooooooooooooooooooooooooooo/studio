@@ -17,7 +17,7 @@ export function SalesDataTable() {
     return query(
       collection(firestore, "vendas_imoveis"),
       orderBy("importedAt", "desc"),
-      limit(100)
+      limit(200)
     );
   }, [firestore]);
 
@@ -26,7 +26,6 @@ export function SalesDataTable() {
   const formatCurrency = (value: any) => {
     const num = Number(value);
     if (isNaN(num) || !num) return "R$ 0,00";
-    // Usamos Intl.NumberFormat para formatar moedas no padrão brasileiro corretamente
     return new Intl.NumberFormat('pt-BR', { 
       style: 'currency', 
       currency: 'BRL', 
@@ -42,7 +41,7 @@ export function SalesDataTable() {
             <BadgeCheck className="h-5 w-5 text-emerald-600" />
             Planilha de Conclusão de Negócios
           </CardTitle>
-          <p className="text-xs text-muted-foreground">Exibindo todas as colunas capturadas da planilha Google.</p>
+          <p className="text-xs text-muted-foreground">Exibindo todos os fechamentos registrados.</p>
         </div>
         <Badge variant="outline" className="text-emerald-600 font-bold">
           {vendas?.length || 0} Registros
@@ -52,7 +51,7 @@ export function SalesDataTable() {
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
             <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
-            <p className="text-sm text-muted-foreground">Lendo dados da planilha...</p>
+            <p className="text-sm text-muted-foreground">Lendo dados...</p>
           </div>
         ) : vendas && vendas.length > 0 ? (
           <ScrollArea className="w-full">
@@ -77,7 +76,7 @@ export function SalesDataTable() {
                     <TableHead className="text-[10px] font-bold uppercase min-w-[150px] text-right">Valor Anúncio</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[150px] text-right">Valor Venda</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[150px] text-right">Comissão Canto</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Carimbo</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Última Importação</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -100,7 +99,9 @@ export function SalesDataTable() {
                       <TableCell className="text-xs text-right text-muted-foreground">{formatCurrency(venda.advertisedValue)}</TableCell>
                       <TableCell className="text-xs text-right font-bold text-emerald-600">{formatCurrency(venda.closedValue)}</TableCell>
                       <TableCell className="text-xs text-right font-bold text-indigo-600">{formatCurrency(venda.commissionValue)}</TableCell>
-                      <TableCell className="text-[10px] text-muted-foreground">{venda.timestamp || "-"}</TableCell>
+                      <TableCell className="text-[10px] text-muted-foreground">
+                        {venda.importedAt ? new Date(venda.importedAt.seconds * 1000).toLocaleString('pt-BR') : "Processando..."}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -109,7 +110,7 @@ export function SalesDataTable() {
             <ScrollBar orientation="horizontal" />
           </ScrollArea>
         ) : (
-          <div className="py-20 text-center text-muted-foreground">Sincronize a aba Conclusão para ver os dados aqui.</div>
+          <div className="py-20 text-center text-muted-foreground">Sincronize os dados para visualizar a tabela completa.</div>
         )}
       </CardContent>
     </Card>

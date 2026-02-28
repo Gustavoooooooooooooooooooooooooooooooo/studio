@@ -3,15 +3,25 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { RefreshCcw, AlertCircle, Loader2, Trash2, CheckCircle2 } from "lucide-react";
+import { RefreshCcw, AlertCircle, Loader2, Trash2 } from "lucide-react";
 import { syncGoogleSheets } from "@/ai/flows/sync-sheets-flow";
 import { useToast } from "@/hooks/use-toast";
 import { useFirebase } from "@/firebase";
 import { collection, serverTimestamp, getDocs, writeBatch, doc } from "firebase/firestore";
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface GoogleSheetsSyncProps {
   mode: 'inventory' | 'sales';
@@ -50,23 +60,16 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     if (typeof val === 'number') return val;
     
     let s = String(val).trim();
-    
-    // Remove símbolos e espaços (R$, $, etc)
     s = s.replace(/[R$ ]/g, "");
     
-    // Caso 1: Tem ponto e vírgula (ex: 3.300.000,00) -> Ponto é milhar, Vírgula é decimal
     if (s.includes('.') && s.includes(',')) {
       s = s.replace(/\./g, "").replace(",", ".");
     } 
-    // Caso 2: Tem apenas vírgula (ex: 3300000,00) -> Vírgula é decimal
     else if (s.includes(',')) {
       s = s.replace(",", ".");
     }
-    // Caso 3: Tem apenas ponto (ex: 3.300.000) -> Padrão BR, Ponto é milhar
     else if (s.includes('.')) {
       const parts = s.split('.');
-      // Se tiver mais de um ponto OU se a última parte tiver exatamente 3 dígitos (milhar)
-      // Em valores de imóveis, 3.300.000 é sempre 3 milhões.
       if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
          s = s.replace(/\./g, "");
       }
@@ -78,14 +81,21 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
 
   const handleClearData = async () => {
     if (!firestore) return;
-    if (!confirm("Isso apagará os dados atuais para uma nova sincronização. Continuar?")) return;
     setClearing(true);
     try {
       const colName = mode === 'inventory' ? "properties" : "vendas_imoveis";
       const snapshot = await getDocs(collection(firestore, colName));
+      
+      if (snapshot.empty) {
+        toast({ title: "Base já está vazia", description: "Não há registros para remover." });
+        setClearing(false);
+        return;
+      }
+
       const batch = writeBatch(firestore);
       snapshot.docs.forEach((d) => batch.delete(d.ref));
       await batch.commit();
+      
       toast({ title: "Dados Limpos", description: "Base reiniciada com sucesso." });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao limpar", description: error.message });
@@ -132,13 +142,10 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
                 captureDate: timestamp,
                 status: "Disponível",
                 importedAt: serverTimestamp(),
-                // Campos extras da planilha de estoque
                 timestamp: timestamp,
-                fullRow: row // Guardamos tudo por segurança
               }, { merge: true });
 
             } else {
-              // MAPEAMENTO TOTAL DAS 19 COLUNAS (MODO CONCLUSAO)
               const dataVendaRaw = getVal(row, ["Data do venda", "assinatura", "fechamento", "data"]);
               const comissaoCantoVal = parseCurrency(getVal(row, ["Qual valor da comissao de venda? (total Canto)"]));
               const comissaoCantoPerc = parseCurrency(getVal(row, ["% para Canto Imoveis"]));
@@ -157,9 +164,6 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
                 construtora: String(getVal(row, ["Construtora/Incorporadora"]) || ""),
                 neighborhood: String(getVal(row, ["Empreendimento"]) || "N/A"),
                 unit: String(getVal(row, ["Unidade(s)"]) || "N/A"),
-                clienteContato: String(getVal(row, ["Qual o nome do cliente que entrou em contato"]) || ""),
-                telefone: String(getVal(row, ["telefone"]) || ""),
-                email: String(getVal(row, ["email"]) || ""),
                 clientName: String(getVal(row, ["O contrato esta no nome de quem?"]) || "N/A"),
                 originChannel: String(getVal(row, ["origem do lead?"]) || "Direto"),
                 advertisedValue: valorAnuncio,
@@ -204,9 +208,30 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               </CardTitle>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={handleClearData} disabled={clearing} className="text-xs text-destructive">
-            Limpar Base
-          </Button>
+          
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm" disabled={clearing} className="text-xs text-destructive hover:bg-destructive hover:text-white">
+                {clearing ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Trash2 className="h-3 w-3 mr-1" />}
+                Limpar Base
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta ação irá apagar todos os dados de {mode === 'inventory' ? 'Estoque' : 'Vendas'} salvos no aplicativo. 
+                  Você precisará sincronizar a planilha novamente para ver os dados.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleClearData} className="bg-destructive hover:bg-destructive/90">
+                  Confirmar e Limpar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -217,7 +242,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
             onChange={(e) => setUrl(e.target.value)}
           />
           <Button onClick={handleSync} disabled={syncing} className={mode === 'inventory' ? 'bg-primary' : 'bg-emerald-600'}>
-            {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sincronizar"}
+            {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sincronizar Agora"}
           </Button>
         </div>
         <div className="p-3 bg-white/50 border rounded-lg text-[10px] text-muted-foreground flex items-start gap-2">

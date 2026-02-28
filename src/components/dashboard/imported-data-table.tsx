@@ -7,18 +7,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { Loader2, Home, Calendar, User, Tag, MapPin, Table2 } from "lucide-react";
+import { Loader2, Home, Calendar, User, MapPin, Table2 } from "lucide-react";
 
 export function ImportedDataTable() {
   const { firestore } = useFirebase();
   
-  // Busca da coleção 'properties' que representa a Angariação/Estoque Real
   const angariacaoQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(
       collection(firestore, "properties"),
       orderBy("importedAt", "desc"),
-      limit(100)
+      limit(200)
     );
   }, [firestore]);
 
@@ -42,7 +41,7 @@ export function ImportedDataTable() {
             Planilha de Cadastro (Estoque)
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Exibindo todas as colunas capturadas da planilha de Angariação.
+            Exibindo os dados capturados da sua planilha de Angariação.
           </p>
         </div>
         <Badge variant="outline" className="font-bold text-primary">
@@ -111,7 +110,7 @@ export function ImportedDataTable() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-[10px] text-muted-foreground">
-                        {imovel.importedAt ? new Date(imovel.importedAt.seconds * 1000).toLocaleString('pt-BR') : "-"}
+                        {imovel.importedAt ? new Date(imovel.importedAt.seconds * 1000).toLocaleString('pt-BR') : "Processando..."}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -125,7 +124,7 @@ export function ImportedDataTable() {
             <Home className="h-12 w-12 text-muted-foreground/20 mx-auto" />
             <p className="text-muted-foreground font-medium">Estoque vazio.</p>
             <p className="text-xs text-muted-foreground/60 px-10">
-              Sincronize sua aba de **Cadastro de imóveis** para popular esta lista.
+              Clique em sincronizar para preencher esta lista.
             </p>
           </div>
         )}
