@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState } from "react";
@@ -40,7 +41,6 @@ export function GoogleSheetsSync() {
     if (!val) return new Date().toISOString().split('T')[0];
     const s = String(val).trim();
     
-    // Tenta detectar formatos como 31/12/2024 ou 31.12.2024 ou 31-12-2024
     const dateMatch = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/);
     if (dateMatch) {
       const day = parseInt(dateMatch[1]);
@@ -111,7 +111,7 @@ export function GoogleSheetsSync() {
         
         result.data.forEach((row: any) => {
           const propertyId = String(getVal(row, ["imovel", "codigo", "ref", "id", "unidade"]) || "");
-          if (!propertyId || propertyId === "undefined" || propertyId === "") return;
+          if (!propertyId || propertyId === "" || propertyId === "undefined") return;
 
           let type = String(getVal(row, ["tipo", "transacao", "categoria", "operacao"]) || "");
           type = (type.toLowerCase().includes("loc") || type.toLowerCase().includes("alug")) ? "Locação" : "Venda";
@@ -162,13 +162,13 @@ export function GoogleSheetsSync() {
 
         toast({
           title: "Sincronização Concluída",
-          description: `${addedCount} registros processados. Note que o Google pode levar até 5 minutos para atualizar o link público após mudanças na planilha.`,
+          description: `${addedCount} registros processados.`,
         });
       } else {
-        toast({ variant: "destructive", title: "Nenhum dado", description: "A planilha parece vazia ou não está publicada corretamente." });
+        toast({ variant: "destructive", title: "Nenhum dado", description: "Verifique se a planilha está publicada corretamente." });
       }
     } catch (error) {
-      toast({ variant: "destructive", title: "Erro na sincronização", description: "Verifique o link e se a planilha está publicada como CSV." });
+      toast({ variant: "destructive", title: "Erro na sincronização", description: "Erro ao processar os dados da planilha." });
     } finally {
       setSyncing(false);
     }
@@ -226,9 +226,9 @@ export function GoogleSheetsSync() {
           <div className="text-[11px] text-muted-foreground leading-relaxed">
             <p className="font-bold text-emerald-800 mb-1">Dicas Importantes:</p>
             <ul className="list-disc list-inside space-y-1">
-              <li><b>Atualização:</b> O Google Sheets pode levar até 5 minutos para refletir novos dados no link público.</li>
-              <li><b>Datas:</b> O sistema agora aceita formatos como <b>31/12/2024</b> corretamente.</li>
-              <li><b>Valores:</b> Certifique-se de que a coluna de valor contenha apenas números ou formato de moeda padrão.</li>
+              <li><b>Publicação:</b> No Google Sheets, vá em Arquivo {' > '} Compartilhar {' > '} Publicar na Web.</li>
+              <li><b>Formato:</b> Escolha "Valores separados por vírgula (.csv)".</li>
+              <li><b>Sincronismo:</b> O Google pode demorar até 5 min para atualizar o link público.</li>
             </ul>
           </div>
         </div>

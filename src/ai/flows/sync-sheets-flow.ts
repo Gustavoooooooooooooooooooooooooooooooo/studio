@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Genkit flow to sync Google Sheets CSV data to Firestore.
@@ -48,24 +49,20 @@ const syncSheetsFlow = ai.defineFlow(
       const urlWithNoCache = finalUrl.includes('?') ? `${finalUrl}${cacheBuster}` : `${finalUrl}?${cacheBuster}`;
 
       const response = await fetch(urlWithNoCache, {
-        cache: 'no-store', // Crucial para pegar dados novos
+        cache: 'no-store',
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'User-Agent': 'Mozilla/5.0',
         },
       });
 
       if (!response.ok) {
-        if (response.status === 404 || response.status === 401) {
-          throw new Error('Planilha não encontrada ou não publicada. Certifique-se de usar "Arquivo > Compartilhar > Publicar na Web" no Google Sheets.');
-        }
         throw new Error(`Erro ao acessar planilha: ${response.statusText}`);
       }
       
       const csvText = await response.text();
       
-      // Verifica se o que recebemos é HTML (provavelmente a página de login do Google)
       if (csvText.trim().startsWith('<!DOCTYPE html>') || csvText.includes('<html')) {
-        throw new Error('O link fornecido não aponta para um CSV público. Certifique-se de "Publicar na Web" como CSV.');
+        throw new Error('O link fornecido não aponta para um CSV público. Publique na Web como CSV.');
       }
 
       const parsed = Papa.parse(csvText, {
@@ -78,7 +75,7 @@ const syncSheetsFlow = ai.defineFlow(
         return {
           success: false,
           recordsProcessed: 0,
-          message: 'Erro ao processar o conteúdo do arquivo.',
+          message: 'Erro ao processar o conteúdo do CSV.',
           errors: parsed.errors.map(e => e.message),
         };
       }
