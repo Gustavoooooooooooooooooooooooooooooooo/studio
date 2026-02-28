@@ -6,7 +6,8 @@ import { collection, query, orderBy, limit } from "firebase/firestore";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, BadgeCheck, Calendar, User, TrendingUp, Share2, Building2 } from "lucide-react";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { Loader2, BadgeCheck } from "lucide-react";
 
 export function SalesDataTable() {
   const { firestore } = useFirebase();
@@ -22,24 +23,10 @@ export function SalesDataTable() {
 
   const { data: vendas, isLoading } = useCollection(vendasQuery);
 
-  const formatCurrency = (value: number) => {
-    if (!value) return "R$ 0,00";
-    return new Intl.NumberFormat('pt-BR', { 
-      style: 'currency', 
-      currency: 'BRL', 
-      maximumFractionDigits: 0 
-    }).format(value);
-  };
-
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return "N/D";
-    try {
-      const date = new Date(dateStr);
-      if (isNaN(date.getTime())) return dateStr;
-      return date.toLocaleDateString('pt-BR');
-    } catch {
-      return dateStr;
-    }
+  const formatCurrency = (value: any) => {
+    const num = Number(value);
+    if (isNaN(num) || !num) return "R$ 0,00";
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(num);
   };
 
   return (
@@ -48,11 +35,9 @@ export function SalesDataTable() {
         <div>
           <CardTitle className="text-lg flex items-center gap-2">
             <BadgeCheck className="h-5 w-5 text-emerald-600" />
-            Vendas Realizadas (Dados Sincronizados)
+            Planilha de Conclusão de Negócios
           </CardTitle>
-          <p className="text-xs text-muted-foreground mt-1">
-            Visualização dos últimos fechamentos importados da sua planilha.
-          </p>
+          <p className="text-xs text-muted-foreground">Exibindo todas as colunas capturadas da planilha Google.</p>
         </div>
         <Badge variant="outline" className="text-emerald-600 font-bold">
           {vendas?.length || 0} Registros
@@ -62,84 +47,64 @@ export function SalesDataTable() {
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
             <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
-            <p className="text-sm text-muted-foreground font-medium">Lendo registros de venda...</p>
+            <p className="text-sm text-muted-foreground">Lendo dados da planilha...</p>
           </div>
         ) : vendas && vendas.length > 0 ? (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-muted/30">
-                <TableRow>
-                  <TableHead className="text-[10px] font-bold uppercase text-emerald-900">Empreendimento / Unidade</TableHead>
-                  <TableHead className="text-[10px] font-bold uppercase text-emerald-900">Data Venda</TableHead>
-                  <TableHead className="text-[10px] font-bold uppercase text-emerald-900">Cliente (Contrato)</TableHead>
-                  <TableHead className="text-[10px] font-bold uppercase text-emerald-900">Origem</TableHead>
-                  <TableHead className="text-[10px] font-bold uppercase text-emerald-900">Vendedor</TableHead>
-                  <TableHead className="text-right text-[10px] font-bold uppercase text-emerald-900">Comissão (R$)</TableHead>
-                  <TableHead className="text-right text-[10px] font-bold uppercase text-emerald-900">Valor Fechado</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {vendas.map((venda) => (
-                  <TableRow key={venda.id} className="hover:bg-emerald-50/30 transition-colors">
-                    <TableCell className="text-xs">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-emerald-700 flex items-center gap-1">
-                          <Building2 className="h-3 w-3" />
-                          {venda.neighborhood || "N/A"}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground font-medium">
-                          Unidade: {venda.unit || "S/N"} | Cód: {venda.propertyCode || "N/A"}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3 text-muted-foreground" />
-                        {formatDate(venda.saleDate)}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs font-semibold">
-                      <div className="flex items-center gap-1">
-                        <User className="h-3 w-3 text-muted-foreground" />
-                        {venda.clientName || "N/A"}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs">
-                      <div className="flex items-center gap-1">
-                        <Share2 className="h-3 w-3 text-muted-foreground" />
-                        {venda.originChannel || "Direto"}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs font-medium">
-                      {venda.sellingBrokerId || "N/A"}
-                    </TableCell>
-                    <TableCell className="text-right text-xs">
-                      <div className="flex flex-col items-end">
-                        <span className="font-bold text-indigo-600">{formatCurrency(venda.commissionValue)}</span>
-                        <span className="text-[10px] text-muted-foreground">{venda.commissionPercent ? `${venda.commissionPercent}%` : ""}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right text-xs font-bold text-emerald-600">
-                      <div className="flex items-center justify-end gap-1">
-                        <TrendingUp className="h-3 w-3" />
-                        {formatCurrency(venda.closedValue)}
-                      </div>
-                    </TableCell>
+          <ScrollArea className="w-full">
+            <div className="min-w-[2500px]">
+              <Table>
+                <TableHeader className="bg-muted/30">
+                  <TableRow>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Data Venda</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Vendedor</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Tipo Venda</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Angariador</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[120px]">Cód Imóvel</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Imobiliária/Corretor</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[120px] text-right">% Canto</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Construtora</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[200px]">Empreendimento</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[100px]">Unidade</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[200px]">Nome Contrato</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Telefone</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">E-mail</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Origem Lead</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px] text-right">Valor Anúncio</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px] text-right">Valor Venda</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px] text-right">Comissão Canto</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Carimbo</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        ) : (
-          <div className="py-24 text-center space-y-3 bg-muted/5">
-            <BadgeCheck className="h-14 w-14 text-muted-foreground/10 mx-auto" />
-            <div className="space-y-1">
-              <p className="text-muted-foreground font-semibold">Nenhuma venda sincronizada ainda.</p>
-              <p className="text-xs text-muted-foreground/60 max-w-xs mx-auto">
-                Sincronize sua aba <b>Conclusão de negócios</b> para popular esta lista.
-              </p>
+                </TableHeader>
+                <TableBody>
+                  {vendas.map((venda) => (
+                    <TableRow key={venda.id} className="hover:bg-emerald-50/30 transition-colors">
+                      <TableCell className="text-xs font-bold text-emerald-700">{venda.saleDate || "N/A"}</TableCell>
+                      <TableCell className="text-xs">{venda.vendedor || "N/A"}</TableCell>
+                      <TableCell className="text-xs">{venda.tipoVenda || "N/A"}</TableCell>
+                      <TableCell className="text-xs">{venda.angariador || "N/A"}</TableCell>
+                      <TableCell className="text-xs font-mono">{venda.propertyCode || "N/A"}</TableCell>
+                      <TableCell className="text-xs">{venda.imobiliariaCorretor || "N/A"}</TableCell>
+                      <TableCell className="text-xs text-right font-medium">{venda.percentualCanto ? `${venda.percentualCanto}%` : "-"}</TableCell>
+                      <TableCell className="text-xs">{venda.construtora || "N/A"}</TableCell>
+                      <TableCell className="text-xs font-semibold">{venda.neighborhood || "N/A"}</TableCell>
+                      <TableCell className="text-xs">{venda.unit || "N/A"}</TableCell>
+                      <TableCell className="text-xs font-bold">{venda.clientName || "N/A"}</TableCell>
+                      <TableCell className="text-xs">{venda.telefone || "N/A"}</TableCell>
+                      <TableCell className="text-xs">{venda.email || "N/A"}</TableCell>
+                      <TableCell className="text-xs">{venda.originChannel || "N/A"}</TableCell>
+                      <TableCell className="text-xs text-right text-muted-foreground">{formatCurrency(venda.advertisedValue)}</TableCell>
+                      <TableCell className="text-xs text-right font-bold text-emerald-600">{formatCurrency(venda.closedValue)}</TableCell>
+                      <TableCell className="text-xs text-right font-bold text-indigo-600">{formatCurrency(venda.commissionValue)}</TableCell>
+                      <TableCell className="text-[10px] text-muted-foreground">{venda.timestamp || "-"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
-          </div>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
+        ) : (
+          <div className="py-20 text-center text-muted-foreground">Sincronize a aba Conclusão para ver os dados aqui.</div>
         )}
       </CardContent>
     </Card>
