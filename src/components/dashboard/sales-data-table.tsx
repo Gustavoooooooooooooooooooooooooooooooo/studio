@@ -6,7 +6,7 @@ import { collection, query, orderBy, limit } from "firebase/firestore";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, BadgeCheck, Calendar, User, TrendingUp, MapPin, Share2, Wallet } from "lucide-react";
+import { Loader2, BadgeCheck, Calendar, User, TrendingUp, MapPin, Share2, Wallet, Building2 } from "lucide-react";
 
 export function SalesDataTable() {
   const { firestore } = useFirebase();
@@ -51,7 +51,7 @@ export function SalesDataTable() {
             Vendas Realizadas (Dados Sincronizados)
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Visualização dos últimos 50 fechamentos importados da sua planilha.
+            Visualização dos últimos fechamentos importados da sua planilha.
           </p>
         </div>
         <Badge variant="outline" className="text-emerald-600 font-bold">
@@ -69,11 +69,10 @@ export function SalesDataTable() {
             <Table>
               <TableHeader className="bg-muted/30">
                 <TableRow>
-                  <TableHead className="text-[10px] font-bold uppercase text-emerald-900">Imóvel / Unidade</TableHead>
-                  <TableHead className="text-[10px] font-bold uppercase text-emerald-900">Empreendimento</TableHead>
+                  <TableHead className="text-[10px] font-bold uppercase text-emerald-900">Empreendimento / Unidade</TableHead>
                   <TableHead className="text-[10px] font-bold uppercase text-emerald-900">Data Venda</TableHead>
-                  <TableHead className="text-[10px] font-bold uppercase text-emerald-900">Cliente / Contrato</TableHead>
-                  <TableHead className="text-[10px] font-bold uppercase text-emerald-900">Origem Lead</TableHead>
+                  <TableHead className="text-[10px] font-bold uppercase text-emerald-900">Cliente (Contrato)</TableHead>
+                  <TableHead className="text-[10px] font-bold uppercase text-emerald-900">Origem</TableHead>
                   <TableHead className="text-[10px] font-bold uppercase text-emerald-900">Vendedor</TableHead>
                   <TableHead className="text-right text-[10px] font-bold uppercase text-emerald-900">Comissão (R$)</TableHead>
                   <TableHead className="text-right text-[10px] font-bold uppercase text-emerald-900">Valor Fechado</TableHead>
@@ -82,14 +81,15 @@ export function SalesDataTable() {
               <TableBody>
                 {vendas.map((venda) => (
                   <TableRow key={venda.id} className="hover:bg-emerald-50/30 transition-colors">
-                    <TableCell className="font-bold text-xs text-emerald-700">{venda.propertyId || "S/N"}</TableCell>
                     <TableCell className="text-xs">
                       <div className="flex flex-col">
-                        <span className="font-semibold flex items-center gap-1">
-                          <MapPin className="h-3 w-3 text-muted-foreground" />
+                        <span className="font-bold text-emerald-700 flex items-center gap-1">
+                          <Building2 className="h-3 w-3" />
                           {venda.neighborhood || "N/A"}
                         </span>
-                        <span className="text-[10px] text-muted-foreground">{venda.developer || ""}</span>
+                        <span className="text-[10px] text-muted-foreground font-medium">
+                          Unidade: {venda.unit || "S/N"} | Cód: {venda.propertyCode || "N/A"}
+                        </span>
                       </div>
                     </TableCell>
                     <TableCell className="text-xs">
@@ -99,7 +99,10 @@ export function SalesDataTable() {
                       </div>
                     </TableCell>
                     <TableCell className="text-xs font-semibold">
-                      {venda.clientName || "N/A"}
+                      <div className="flex items-center gap-1">
+                        <User className="h-3 w-3 text-muted-foreground" />
+                        {venda.clientName || "N/A"}
+                      </div>
                     </TableCell>
                     <TableCell className="text-xs">
                       <div className="flex items-center gap-1">
@@ -107,11 +110,8 @@ export function SalesDataTable() {
                         {venda.originChannel || "Direto"}
                       </div>
                     </TableCell>
-                    <TableCell className="text-xs">
-                      <div className="flex items-center gap-1">
-                        <User className="h-3 w-3 text-muted-foreground" />
-                        {venda.sellingBrokerId || "N/A"}
-                      </div>
+                    <TableCell className="text-xs font-medium">
+                      {venda.sellingBrokerId || "N/A"}
                     </TableCell>
                     <TableCell className="text-right text-xs">
                       <div className="flex flex-col items-end">
@@ -136,7 +136,7 @@ export function SalesDataTable() {
             <div className="space-y-1">
               <p className="text-muted-foreground font-semibold">Nenhuma venda sincronizada ainda.</p>
               <p className="text-xs text-muted-foreground/60 max-w-xs mx-auto">
-                Publique a aba <b>Conclusão de negócios</b> como CSV e cole o link acima para ver os dados detalhados.
+                Sincronize sua aba <b>Conclusão de negócios</b> para popular esta lista.
               </p>
             </div>
           </div>
