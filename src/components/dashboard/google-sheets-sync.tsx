@@ -24,6 +24,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
   const { toast } = useToast();
   const { firestore } = useFirebase();
 
+  // Função de normalização robusta para bater cabeçalhos
   const normalize = (s: string) => 
     String(s || "").toLowerCase()
       .normalize("NFD")
@@ -36,7 +37,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     const rowKeys = Object.keys(row);
     const normalizedSearchKeys = keys.map(normalize);
 
-    // Busca exata (normalizada)
+    // 1. Busca exata (normalizada)
     for (const rowKey of rowKeys) {
       const normalizedRowKey = normalize(rowKey);
       if (normalizedSearchKeys.includes(normalizedRowKey)) {
@@ -45,7 +46,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       }
     }
 
-    // Busca parcial
+    // 2. Busca parcial (o cabeçalho contém uma das palavras-chave ou vice-versa)
     for (const rowKey of rowKeys) {
       const normalizedRowKey = normalize(rowKey);
       if (normalizedSearchKeys.some(sk => normalizedRowKey.includes(sk) || sk.includes(normalizedRowKey))) {
@@ -81,8 +82,10 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     if (typeof val === 'number') return val;
     let s = String(val).trim();
     
+    // Remove R$, espaços e outros símbolos, mantendo apenas números, pontos e vírgulas
     s = s.replace(/[^0-9,.]/g, "");
 
+    // Trata formato brasileiro 1.250,00 -> 1250.00
     if (s.includes('.') && s.includes(',')) {
       if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
         s = s.replace(/\./g, "").replace(",", ".");
@@ -123,7 +126,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
 
   const handleSync = async () => {
     if (!url) {
-      toast({ variant: "destructive", title: "Link ausente", description: "Insira o link CSV da aba correta." });
+      toast({ variant: "destructive", title: "Link ausente", description: "Insira o link CSV da sua planilha." });
       return;
     }
     if (!firestore) return;
@@ -137,13 +140,15 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         
         for (const row of result.data) {
           try {
-            // Mapeamento Flexível e ID
-            const propertyCode = String(getVal(row, ["codigo do imovel", "unidade", "referencia", "unidades"]) || `REF-${processedCount}`).trim();
+            // Identificação do Imóvel - Mais robusta
+            const rawCode = getVal(row, ["codigo do imovel", "unidade", "referencia", "unidades", "imovel"]);
+            const propertyCode = String(rawCode || `REF-${processedCount}`).trim();
+            // IDs do Firestore não podem conter barras, substituímos por traços
             const safeId = propertyCode.replace(/[\/\.\#\$\/\[\]]/g, "-");
 
             if (mode === 'inventory') {
-              const advertisedValue = parseCurrency(getVal(row, ["valor anunciado", "valor", "preco"]));
-              const broker = String(getVal(row, ["angariador", "captador", "corretor"]) || "N/A");
+              const advertisedValue = parseCurrency(getVal(row, ["valor anunciado", "valor", "preco", "pedida"]));
+              const broker = String(getVal(row, ["angariador", "captador", "corretor", "vendedor"]) || "N/A");
               const neighborhood = String(getVal(row, ["empreendimento", "bairro", "regiao"]) || "Desconhecido");
               const address = String(getVal(row, ["endereco", "logradouro", "rua"]) || "N/A");
               const captureDate = parseDate(getVal(row, ["carimbo de data/hora", "data", "entrada"])) || new Date().toISOString().split('T')[0];
@@ -162,25 +167,26 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else {
-              // Conclusão de Negócios - Mapeamento das 19 colunas
+              // Conclusão de Negócios - Mapeamento com nomes reais da planilha
               const closedValue = parseCurrency(getVal(row, ["valor final de venda", "valor fechado", "venda final"]));
-              const advertisedValue = parseCurrency(getVal(row, ["valor anunciado", "valor anuncio"]));
-              const commissionValue = parseCurrency(getVal(row, ["valor da comissao de venda", "comissao total"]));
+              const advertisedValue = parseCurrency(getVal(row, ["valor anunciado", "valor anuncio", "valor inicial"]));
+              const commissionValue = parseCurrency(getVal(row, ["valor da comissao de venda", "comissao total", "valor comissao"]));
               const commissionPercent = parseCurrency(getVal(row, ["percentual para canto imoveis", "percentual comissao", "comissao %"]));
               
-              const saleDateRaw = getVal(row, ["data do venda", "assinatura", "escritura", "financiamento", "lancamento", "fechamento"]);
+              const saleDateRaw = getVal(row, ["data do venda", "assinatura", "escritura", "financiamento", "lancamento", "fechamento", "data"]);
               const saleDate = parseDate(saleDateRaw) || new Date().toISOString().split('T')[0];
               
+              // Mapeamento dos nomes de clientes (baseado na pergunta da planilha)
               const clientName = String(getVal(row, ["contrato esta no nome de quem", "nome do cliente", "cliente", "comprador"]) || "N/A");
-              const seller = String(getVal(row, ["vendedor", "responsavel"]) || "N/A");
+              const seller = String(getVal(row, ["vendedor", "responsavel", "quem vendeu"]) || "N/A");
               const broker = String(getVal(row, ["angariador", "captador"]) || "N/A");
               const origin = String(getVal(row, ["origem do lead", "canal", "marketing"]) || "Direto");
               const developer = String(getVal(row, ["construtora", "incorporadora"]) || "N/A");
-              const enterprise = String(getVal(row, ["empreendimento", "bairro"]) || "N/A");
-              const unit = String(getVal(row, ["unidade", "unidade(s)"]) || "N/A");
+              const enterprise = String(getVal(row, ["empreendimento", "bairro", "nome do predio"]) || "N/A");
+              const unit = String(getVal(row, ["unidade", "unidades"]) || "N/A");
               const type = String(getVal(row, ["tipo de venda"]) || "Venda");
 
-              const saleRef = doc(firestore, "vendas_imoveis", `${safeId}_${processedCount}`);
+              const saleRef = doc(firestore, "vendas_imoveis", `${safeId}-${processedCount}`);
               setDocumentNonBlocking(saleRef, {
                 propertyId: `${enterprise} - ${unit}`.trim(),
                 propertyCode,
@@ -193,7 +199,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
                 sellingBrokerId: seller,
                 listingBrokerId: broker,
                 saleDate,
-                neighborhood: enterprise,
+                neighborhood: enterprise !== "N/A" ? enterprise : "Desconhecido",
                 unit,
                 developer,
                 businessType: type,
@@ -278,7 +284,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
                 <CheckCircle2 className="h-3 w-3" /> Configuração da Aba:
               </p>
               <p>Certifique-se de que o link aponta para a aba correta (Cadastro ou Conclusão).</p>
-              <p className="mt-1">Vá em <b>Arquivo &gt; Compartilhar &gt; Publicar na Web</b>, selecione a <b>Aba Específica</b> e escolha o formato <b>CSV</b>.</p>
+              <p className="mt-1">No Google Sheets, vá em <b>Arquivo &gt; Compartilhar &gt; Publicar na Web</b>, selecione a <b>Aba específica</b> e escolha o formato <b>CSV</b>.</p>
             </div>
           </div>
         </div>

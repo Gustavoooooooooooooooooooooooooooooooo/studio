@@ -6,7 +6,7 @@ import { collection, query, orderBy, limit } from "firebase/firestore";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, BadgeCheck, Calendar, User, TrendingUp, MapPin, Share2, Wallet, Building2 } from "lucide-react";
+import { Loader2, BadgeCheck, Calendar, User, TrendingUp, Share2, Building2 } from "lucide-react";
 
 export function SalesDataTable() {
   const { firestore } = useFirebase();
