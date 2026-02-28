@@ -6,7 +6,7 @@ import { collection, query, orderBy, limit } from "firebase/firestore";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, BadgeCheck, Calendar, User, TrendingUp, Tag, MapPin } from "lucide-react";
+import { Loader2, BadgeCheck, Calendar, User, TrendingUp, MapPin, Share2, Wallet } from "lucide-react";
 
 export function SalesDataTable() {
   const { firestore } = useFirebase();
@@ -48,10 +48,10 @@ export function SalesDataTable() {
         <div>
           <CardTitle className="text-lg flex items-center gap-2">
             <BadgeCheck className="h-5 w-5 text-emerald-600" />
-            Vendas e Fechamentos Realizados
+            Vendas Realizadas (Dados Sincronizados)
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Visualização dos fechamentos financeiros importados da sua planilha de negócios.
+            Visualização dos últimos 50 fechamentos importados da sua planilha.
           </p>
         </div>
         <Badge variant="outline" className="text-emerald-600 font-bold">
@@ -69,12 +69,14 @@ export function SalesDataTable() {
             <Table>
               <TableHeader className="bg-muted/30">
                 <TableRow>
-                  <TableHead className="text-[11px] font-bold uppercase text-emerald-900">Imóvel / Unidade</TableHead>
-                  <TableHead className="text-[11px] font-bold uppercase text-emerald-900">Empreendimento</TableHead>
-                  <TableHead className="text-[11px] font-bold uppercase text-emerald-900">Data Venda</TableHead>
-                  <TableHead className="text-[11px] font-bold uppercase text-emerald-900">Cliente</TableHead>
-                  <TableHead className="text-[11px] font-bold uppercase text-emerald-900">Vendedor</TableHead>
-                  <TableHead className="text-right text-[11px] font-bold uppercase text-emerald-900">Valor Fechado</TableHead>
+                  <TableHead className="text-[10px] font-bold uppercase text-emerald-900">Imóvel / Unidade</TableHead>
+                  <TableHead className="text-[10px] font-bold uppercase text-emerald-900">Empreendimento</TableHead>
+                  <TableHead className="text-[10px] font-bold uppercase text-emerald-900">Data Venda</TableHead>
+                  <TableHead className="text-[10px] font-bold uppercase text-emerald-900">Cliente / Contrato</TableHead>
+                  <TableHead className="text-[10px] font-bold uppercase text-emerald-900">Origem Lead</TableHead>
+                  <TableHead className="text-[10px] font-bold uppercase text-emerald-900">Vendedor</TableHead>
+                  <TableHead className="text-right text-[10px] font-bold uppercase text-emerald-900">Comissão (R$)</TableHead>
+                  <TableHead className="text-right text-[10px] font-bold uppercase text-emerald-900">Valor Fechado</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -82,9 +84,12 @@ export function SalesDataTable() {
                   <TableRow key={venda.id} className="hover:bg-emerald-50/30 transition-colors">
                     <TableCell className="font-bold text-xs text-emerald-700">{venda.propertyId || "S/N"}</TableCell>
                     <TableCell className="text-xs">
-                      <div className="flex items-center gap-1">
-                        <MapPin className="h-3 w-3 text-muted-foreground" />
-                        <span className="font-medium">{venda.neighborhood || "N/A"}</span>
+                      <div className="flex flex-col">
+                        <span className="font-semibold flex items-center gap-1">
+                          <MapPin className="h-3 w-3 text-muted-foreground" />
+                          {venda.neighborhood || "N/A"}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">{venda.developer || ""}</span>
                       </div>
                     </TableCell>
                     <TableCell className="text-xs">
@@ -98,8 +103,20 @@ export function SalesDataTable() {
                     </TableCell>
                     <TableCell className="text-xs">
                       <div className="flex items-center gap-1">
+                        <Share2 className="h-3 w-3 text-muted-foreground" />
+                        {venda.originChannel || "Direto"}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      <div className="flex items-center gap-1">
                         <User className="h-3 w-3 text-muted-foreground" />
                         {venda.sellingBrokerId || "N/A"}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right text-xs">
+                      <div className="flex flex-col items-end">
+                        <span className="font-bold text-indigo-600">{formatCurrency(venda.commissionValue)}</span>
+                        <span className="text-[10px] text-muted-foreground">{venda.commissionPercent ? `${venda.commissionPercent}%` : ""}</span>
                       </div>
                     </TableCell>
                     <TableCell className="text-right text-xs font-bold text-emerald-600">
@@ -119,7 +136,7 @@ export function SalesDataTable() {
             <div className="space-y-1">
               <p className="text-muted-foreground font-semibold">Nenhuma venda sincronizada ainda.</p>
               <p className="text-xs text-muted-foreground/60 max-w-xs mx-auto">
-                Publique a aba <b>Conclusão de negócios</b> como CSV e cole o link acima para ver os dados aqui.
+                Publique a aba <b>Conclusão de negócios</b> como CSV e cole o link acima para ver os dados detalhados.
               </p>
             </div>
           </div>
