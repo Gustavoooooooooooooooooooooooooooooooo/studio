@@ -26,7 +26,12 @@ export function SalesDataTable() {
   const formatCurrency = (value: any) => {
     const num = Number(value);
     if (isNaN(num) || !num) return "R$ 0,00";
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(num);
+    // Usamos Intl.NumberFormat para formatar moedas no padrão brasileiro corretamente
+    return new Intl.NumberFormat('pt-BR', { 
+      style: 'currency', 
+      currency: 'BRL', 
+      maximumFractionDigits: 0 
+    }).format(num);
   };
 
   return (

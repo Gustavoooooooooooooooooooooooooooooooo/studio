@@ -48,12 +48,30 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
   const parseCurrency = (val: any) => {
     if (val === undefined || val === null || val === "") return 0;
     if (typeof val === 'number') return val;
-    let s = String(val).replace(/[^0-9,.]/g, "");
+    
+    let s = String(val).trim();
+    
+    // Remove símbolos e espaços (R$, $, etc)
+    s = s.replace(/[R$ ]/g, "");
+    
+    // Caso 1: Tem ponto e vírgula (ex: 3.300.000,00) -> Ponto é milhar, Vírgula é decimal
     if (s.includes('.') && s.includes(',')) {
       s = s.replace(/\./g, "").replace(",", ".");
-    } else if (s.includes(',')) {
+    } 
+    // Caso 2: Tem apenas vírgula (ex: 3300000,00) -> Vírgula é decimal
+    else if (s.includes(',')) {
       s = s.replace(",", ".");
     }
+    // Caso 3: Tem apenas ponto (ex: 3.300.000) -> Padrão BR, Ponto é milhar
+    else if (s.includes('.')) {
+      const parts = s.split('.');
+      // Se tiver mais de um ponto OU se a última parte tiver exatamente 3 dígitos (milhar)
+      // Em valores de imóveis, 3.300.000 é sempre 3 milhões.
+      if (parts.length > 2 || parts[parts.length - 1].length === 3) {
+         s = s.replace(/\./g, "");
+      }
+    }
+    
     const num = parseFloat(s);
     return isNaN(num) ? 0 : num;
   };
@@ -200,7 +218,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         </div>
         <div className="p-3 bg-white/50 border rounded-lg text-[10px] text-muted-foreground flex items-start gap-2">
           <AlertCircle className="h-3 w-3 mt-0.5" />
-          <p>Lembre-se: No Google Sheets, vá em Arquivo &gt; Compartilhar &gt; Publicar na Web, selecione a <b>Aba Específica</b> e escolha o formato <b>CSV</b>.</p>
+          <p>Lembre-se: No Google Sheets, vá em <b>Arquivo &gt; Compartilhar &gt; Publicar na Web</b>, selecione a <b>Aba Específica</b> e escolha o formato <b>CSV</b>.</p>
         </div>
       </CardContent>
     </Card>
