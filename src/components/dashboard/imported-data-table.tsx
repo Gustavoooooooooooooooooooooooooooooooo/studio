@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { Loader2, Home, Calendar, User, MapPin, Table2 } from "lucide-react";
+import { Loader2, Home, Calendar, User, MapPin, Table2, Info } from "lucide-react";
 
 export function ImportedDataTable() {
   const { firestore } = useFirebase();
@@ -24,7 +24,7 @@ export function ImportedDataTable() {
   const { data: imoveis, isLoading } = useCollection(angariacaoQuery);
 
   const formatCurrency = (value: number) => {
-    if (!value) return "R$ 0,00";
+    if (!value || isNaN(value)) return "R$ 0,00";
     return new Intl.NumberFormat('pt-BR', { 
       style: 'currency', 
       currency: 'BRL', 
@@ -38,49 +38,51 @@ export function ImportedDataTable() {
         <div>
           <CardTitle className="text-lg flex items-center gap-2 text-primary">
             <Table2 className="h-5 w-5" />
-            Planilha de Cadastro (Estoque)
+            Planilha de Cadastro (Estoque Completo)
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Exibindo os dados capturados da sua planilha de Angariação.
+            Exibindo todos os dados capturados da sua planilha de Cadastro de Imóveis.
           </p>
         </div>
-        <Badge variant="outline" className="font-bold text-primary">
-          {imoveis?.length || 0} Imóveis
+        <Badge variant="outline" className="font-bold text-primary bg-white">
+          {imoveis?.length || 0} Registros
         </Badge>
       </CardHeader>
       <CardContent className="p-0">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">Lendo banco de dados...</p>
+            <p className="text-sm text-muted-foreground font-medium">Lendo banco de dados...</p>
           </div>
         ) : imoveis && imoveis.length > 0 ? (
-          <ScrollArea className="w-full">
-            <div className="min-w-[1500px]">
+          <ScrollArea className="w-full h-[600px]">
+            <div className="min-w-[1800px]">
               <Table>
-                <TableHeader className="bg-muted/30">
+                <TableHeader className="bg-muted/50 sticky top-0 z-10">
                   <TableRow>
-                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Data Cadastro</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase min-w-[120px]">Código</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Angariador</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Data Entrada</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[120px]">Código/Unidade</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[180px]">Angariador</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Bairro</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase min-w-[300px]">Endereço</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase min-w-[120px]">Tipo</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[350px]">Endereço</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[120px]">Transação</TableHead>
                     <TableHead className="text-right text-[10px] font-bold uppercase min-w-[150px]">Valor Anúncio</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase min-w-[120px]">Status</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Última Importação</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[120px] text-center">Status</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[180px]">Última Importação</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {imoveis.map((imovel) => (
-                    <TableRow key={imovel.id} className="hover:bg-primary/5 transition-colors">
+                    <TableRow key={imovel.id} className="hover:bg-primary/5 transition-colors border-b">
                       <TableCell className="text-xs">
                         <div className="flex items-center gap-1">
                           <Calendar className="h-3 w-3 text-muted-foreground" />
-                          {imovel.captureDate || "S/D"}
+                          <span className="font-medium">{imovel.captureDate || "S/D"}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="font-bold text-xs text-primary">{imovel.propertyCode || "S/N"}</TableCell>
+                      <TableCell className="font-bold text-xs text-primary bg-primary/5">
+                        {imovel.propertyCode || "S/N"}
+                      </TableCell>
                       <TableCell className="text-xs">
                         <div className="flex items-center gap-1">
                           <User className="h-3 w-3 text-muted-foreground" />
@@ -92,25 +94,30 @@ export function ImportedDataTable() {
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground">
                         <div className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />
-                          {imovel.address || "N/A"}
+                          <MapPin className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{imovel.address || "N/A"}</span>
                         </div>
                       </TableCell>
                       <TableCell className="text-xs">
-                        <Badge variant="outline" className="text-[10px] border-primary/20 bg-primary/5">
+                        <Badge variant="outline" className="text-[10px] border-primary/20 bg-white">
                           {imovel.listingType || "Venda"}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right text-xs font-bold text-primary">
                         {formatCurrency(imovel.listingValue)}
                       </TableCell>
-                      <TableCell className="text-xs">
-                        <Badge className="text-[10px] bg-emerald-500 hover:bg-emerald-600">
+                      <TableCell className="text-center">
+                        <Badge className={`text-[10px] px-2 ${
+                          String(imovel.status).toLowerCase().includes('vend') ? 'bg-amber-500' : 'bg-emerald-500'
+                        }`}>
                           {imovel.status || "Disponível"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-[10px] text-muted-foreground">
-                        {imovel.importedAt ? new Date(imovel.importedAt.seconds * 1000).toLocaleString('pt-BR') : "Processando..."}
+                      <TableCell className="text-[10px] text-muted-foreground italic">
+                        <div className="flex items-center gap-1">
+                          <Info className="h-3 w-3" />
+                          {imovel.importedAt ? new Date(imovel.importedAt.seconds * 1000).toLocaleString('pt-BR') : "Processando..."}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -118,14 +125,19 @@ export function ImportedDataTable() {
               </Table>
             </div>
             <ScrollBar orientation="horizontal" />
+            <ScrollBar orientation="vertical" />
           </ScrollArea>
         ) : (
-          <div className="py-20 text-center space-y-2">
-            <Home className="h-12 w-12 text-muted-foreground/20 mx-auto" />
-            <p className="text-muted-foreground font-medium">Estoque vazio.</p>
-            <p className="text-xs text-muted-foreground/60 px-10">
-              Clique em sincronizar para preencher esta lista.
-            </p>
+          <div className="py-24 text-center space-y-4">
+            <div className="bg-muted/30 w-16 h-16 rounded-full flex items-center justify-center mx-auto">
+              <Home className="h-8 w-8 text-muted-foreground/30" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-muted-foreground font-bold">Base de Cadastro Vazia</p>
+              <p className="text-xs text-muted-foreground/60 max-w-xs mx-auto">
+                Insira o link da sua aba de estoque acima e clique em "Sincronizar Agora" para carregar seus dados.
+              </p>
+            </div>
           </div>
         )}
       </CardContent>
