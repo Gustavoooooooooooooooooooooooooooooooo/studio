@@ -12,11 +12,13 @@ export function SalesDataTable() {
   const { firestore } = useFirebase();
   
   // Busca em tempo real da coleção 'vendas_imoveis'
+  // Removi o orderBy saleDate para garantir que apareça mesmo que o campo esteja instável, 
+  // mas o ideal é manter por importedAt para ver o resultado da sincronização.
   const vendasQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(
       collection(firestore, "vendas_imoveis"),
-      orderBy("saleDate", "desc"),
+      orderBy("importedAt", "desc"),
       limit(100)
     );
   }, [firestore]);
@@ -36,6 +38,7 @@ export function SalesDataTable() {
     if (!dateStr) return "N/D";
     try {
       const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return dateStr;
       return date.toLocaleDateString('pt-BR');
     } catch {
       return dateStr;
@@ -54,11 +57,9 @@ export function SalesDataTable() {
             Lista de fechamentos financeiros processados da sua planilha.
           </p>
         </div>
-        {vendas && (
-          <Badge variant="outline" className="text-emerald-600 font-bold">
-            {vendas.length} Registros
-          </Badge>
-        )}
+        <Badge variant="outline" className="text-emerald-600 font-bold">
+          {vendas?.length || 0} Registros
+        </Badge>
       </CardHeader>
       <CardContent className="p-0">
         {isLoading ? (
@@ -121,7 +122,7 @@ export function SalesDataTable() {
             <div className="space-y-1">
               <p className="text-muted-foreground font-semibold">Nenhuma venda sincronizada ainda.</p>
               <p className="text-xs text-muted-foreground/60 max-w-xs mx-auto">
-                Vá na seção de sincronização acima e importe sua planilha contendo as datas de fechamento.
+                Certifique-se de que sua planilha tem uma coluna identificada como <b>Data Venda</b> ou <b>Fechamento</b> para os registros aparecerem aqui.
               </p>
             </div>
           </div>
