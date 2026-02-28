@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState } from "react";
@@ -5,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { RefreshCcw, AlertCircle, Loader2, Trash2 } from "lucide-react";
+import { RefreshCcw, AlertCircle, Loader2, Trash2, CheckCircle2 } from "lucide-react";
 import { syncGoogleSheets } from "@/ai/flows/sync-sheets-flow";
 import { useToast } from "@/hooks/use-toast";
 import { useFirebase } from "@/firebase";
@@ -23,9 +24,15 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
   const { toast } = useToast();
   const { firestore } = useFirebase();
 
+  // Função de normalização agressiva para comparação de nomes de colunas
   const normalize = (s: string) => 
-    String(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "").trim();
+    String(s || "").toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]/g, "")
+      .trim();
 
+  // Função para buscar valor em várias colunas possíveis (sinônimos)
   const getVal = (row: any, keys: string[]) => {
     if (!row) return undefined;
     const rowKeys = Object.keys(row);
@@ -33,6 +40,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
 
     for (const rowKey of rowKeys) {
       const normalizedRowKey = normalize(rowKey);
+      // Busca exata ou por inclusão
       if (normalizedSearchKeys.some(sk => normalizedRowKey === sk || normalizedRowKey.includes(sk) || sk.includes(normalizedRowKey))) {
         const val = row[rowKey];
         if (val !== undefined && val !== null && String(val).trim() !== "") return val;
@@ -46,7 +54,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     const s = String(val).trim();
     if (s === "" || s.toLowerCase() === "undefined" || s.toLowerCase() === "null") return null;
     
-    // Suporte a DD/MM/YYYY
+    // Suporte a DD/MM/YYYY, DD.MM.YYYY ou DD-MM-YYYY
     const brDateMatch = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/);
     if (brDateMatch) {
       const day = parseInt(brDateMatch[1]);
@@ -65,15 +73,20 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     if (val === undefined || val === null || val === "") return 0;
     if (typeof val === 'number') return val;
     let s = String(val).trim();
+    
+    // Remove R$, espaços e caracteres não numéricos, exceto separadores
     s = s.replace(/[^0-9,.]/g, "");
 
     if (s.includes('.') && s.includes(',')) {
+      // Formato brasileiro: 1.250,00 -> 1250.00
       if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
         s = s.replace(/\./g, "").replace(",", ".");
       } else {
+        // Formato americano: 1,250.00 -> 1250.00
         s = s.replace(/,/g, "");
       }
     } else if (s.includes(',')) {
+      // Somente vírgula: 1250,00 -> 1250.00
       s = s.replace(",", ".");
     }
     
@@ -124,22 +137,26 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         
         for (const row of result.data) {
           try {
-            const rawId = getVal(row, ["imovel", "codigo", "ref", "unidade", "identificador", "p id"]);
+            // Busca o ID do imóvel em várias colunas possíveis
+            const rawId = getVal(row, ["imovel", "codigo", "ref", "unidade", "identificador", "id", "p id", "referencia", "cod"]);
             const propertyId = String(rawId || "").trim();
             if (!propertyId || propertyId === "" || propertyId === "undefined") continue;
 
+            // Limpa o ID para o Firestore
             const safePropertyId = propertyId.replace(/\//g, "-").replace(/\\/g, "-");
 
             if (mode === 'inventory') {
-              let typeStr = String(getVal(row, ["tipo", "transacao", "categoria", "operacao", "negocio", "finalidade", "contrato"]) || "");
+              // Mapeamento de colunas para ESTOQUE (Angariação)
+              let typeStr = String(getVal(row, ["tipo", "transacao", "categoria", "operacao", "negocio", "finalidade", "contrato", "venda/locacao"]) || "");
               const isLocacao = typeStr.toLowerCase().includes("loc") || typeStr.toLowerCase().includes("alug") || typeStr.toLowerCase().includes("rent");
               const type = isLocacao ? "Locação" : "Venda";
 
-              const advertisedValue = parseCurrency(getVal(row, ["valor anuncio", "valor imovel", "valor venda", "valor locacao", "preco", "pedida", "anuncio", "valor"]));
-              const broker = String(getVal(row, ["corretor", "vendedor", "angariador", "responsavel", "consultor", "corretora", "captador"]) || "Não Identificado");
-              const neighborhood = String(getVal(row, ["bairro", "regiao", "localidade", "zona", "distrito", "setor"]) || "Desconhecido");
-              const address = String(getVal(row, ["endereco", "logradouro", "rua", "avenida", "local"]) || "Endereço não informado");
-              const captureDateStr = getVal(row, ["data entrada", "angariacao", "entrada", "data", "lancamento", "captacao", "inicio"]);
+              // Busca valor em VÁRIAS colunas possíveis
+              const advertisedValue = parseCurrency(getVal(row, ["valor anuncio", "valor imovel", "valor venda", "valor locacao", "preco", "pedida", "anuncio", "valor", "venda", "locacao", "total"]));
+              const broker = String(getVal(row, ["corretor", "vendedor", "angariador", "responsavel", "consultor", "corretora", "captador", "angariado por"]) || "Não Identificado");
+              const neighborhood = String(getVal(row, ["bairro", "regiao", "localidade", "zona", "distrito", "setor", "vizinhanca"]) || "Desconhecido");
+              const address = String(getVal(row, ["endereco", "logradouro", "rua", "avenida", "local", "casa", "apto"]) || "Endereço não informado");
+              const captureDateStr = getVal(row, ["data entrada", "angariacao", "entrada", "data", "lancamento", "captacao", "inicio", "incluido em"]);
               const captureDate = parseDate(captureDateStr) || new Date().toISOString().split('T')[0];
 
               const propRef = doc(firestore, "properties", safePropertyId);
@@ -156,9 +173,10 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else {
-              const closedValue = parseCurrency(getVal(row, ["valor fechado", "valor fechamento", "fechado", "venda final", "venda real", "valor"]));
-              const advertisedValue = parseCurrency(getVal(row, ["valor anuncio", "valor inicial", "pedida"]));
-              const saleDateStr = getVal(row, ["data venda", "fechamento", "venda em", "vendido", "data fechado", "data", "data do fechamento"]);
+              // Mapeamento de colunas para VENDAS (Fechamentos)
+              const closedValue = parseCurrency(getVal(row, ["valor fechado", "valor fechamento", "fechado", "venda final", "venda real", "valor", "valor da venda", "valor do fechamento"]));
+              const advertisedValue = parseCurrency(getVal(row, ["valor anuncio", "valor inicial", "pedida", "valor imovel"]));
+              const saleDateStr = getVal(row, ["data venda", "fechamento", "venda em", "vendido", "data fechado", "data", "data do fechamento", "fechado em"]);
               const saleDate = parseDate(saleDateStr);
               
               if (!saleDate) continue;
@@ -166,11 +184,11 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               const saleRef = doc(firestore, "vendas_imoveis", `${safePropertyId}_sale`);
               setDocumentNonBlocking(saleRef, {
                 propertyId,
-                clientName: String(getVal(row, ["cliente", "comprador", "locatario", "comprado por", "fechado com"]) || "Cliente"),
+                clientName: String(getVal(row, ["cliente", "comprador", "locatario", "comprado por", "fechado com", "nome do cliente"]) || "Cliente"),
                 closedValue: closedValue,
                 advertisedValue: advertisedValue || closedValue,
-                originChannel: String(getVal(row, ["canal", "origem", "fonte", "meio", "marketing"]) || "Google Sheets"),
-                sellingBrokerId: String(getVal(row, ["corretor", "vendedor", "responsavel"]) || "Não Identificado"),
+                originChannel: String(getVal(row, ["canal", "origem", "fonte", "meio", "marketing", "proveniencia"]) || "Google Sheets"),
+                sellingBrokerId: String(getVal(row, ["corretor", "vendedor", "responsavel", "corretora"]) || "Não Identificado"),
                 saleDate,
                 neighborhood: String(getVal(row, ["bairro", "regiao", "localidade"]) || "Desconhecido"),
                 listingType: "Venda",
@@ -187,8 +205,8 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         toast({
           title: "Sincronização Concluída!",
           description: mode === 'inventory' 
-            ? `${processedCount} imóveis adicionados ao estoque.` 
-            : `${processedCount} fechamentos registrados na base de vendas.`,
+            ? `${processedCount} imóveis sincronizados no Estoque.` 
+            : `${processedCount} vendas registradas com sucesso.`,
         });
       } else {
         throw new Error(result.message || "Planilha vazia ou link inválido.");
@@ -206,14 +224,14 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className={`p-2 rounded-lg ${mode === 'inventory' ? 'bg-primary/10 text-primary' : 'bg-emerald-100 text-emerald-600'}`}>
-              <RefreshCcw className={`h-5 w-5 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? <Loader2 className="h-5 w-5 animate-spin" /> : <RefreshCcw className="h-5 w-5" />}
             </div>
             <div>
               <CardTitle className="text-lg">
                 {mode === 'inventory' ? 'Sincronizar Angariação' : 'Sincronizar Vendas'}
               </CardTitle>
               <CardDescription className="text-xs">
-                {mode === 'inventory' ? 'Use o link da aba "Cadastro de imóveis"' : 'Use o link da aba "Conclusão de negócios"'}
+                {mode === 'inventory' ? 'Sincronize sua aba de cadastro de estoque' : 'Sincronize sua aba de fechamentos reais'}
               </CardDescription>
             </div>
           </div>
@@ -231,10 +249,10 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Link CSV da Aba Específica</Label>
+          <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Link CSV da Aba</Label>
           <div className="flex gap-2">
             <Input 
-              placeholder="Cole o link .csv aqui..." 
+              placeholder="Cole o link .csv da aba correspondente..." 
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               className="bg-white/80"
@@ -253,9 +271,11 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
           <div className="flex items-start gap-3">
             <AlertCircle className={`h-4 w-4 mt-0.5 ${mode === 'inventory' ? 'text-primary' : 'text-emerald-600'}`} />
             <div className="text-[11px] text-muted-foreground leading-relaxed">
-              <p className="font-bold mb-1">Atenção ao Link:</p>
-              <p>Certifique-se de que o link aponta para a aba correta da sua planilha do Google.</p>
-              <p className="mt-1">Vá em <b>Arquivo &gt; Compartilhar &gt; Publicar na Web</b>, selecione a <b>Aba Específica</b> e escolha o formato <b>CSV</b>.</p>
+              <p className="font-bold mb-1 flex items-center gap-1">
+                <CheckCircle2 className="h-3 w-3" /> Dica para capturar tudo:
+              </p>
+              <p>O sistema agora busca sinônimos. Garanta que suas colunas tenham nomes claros como "Código", "Bairro", "Valor", "Data" ou "Corretor".</p>
+              <p className="mt-1">Vá em <b>Arquivo &gt; Compartilhar &gt; Publicar na Web</b>, escolha a <b>Aba Específica</b> e o formato <b>CSV</b>.</p>
             </div>
           </div>
         </div>

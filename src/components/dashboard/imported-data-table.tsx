@@ -6,7 +6,7 @@ import { collection, query, orderBy, limit } from "firebase/firestore";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Home, Calendar, User, Tag } from "lucide-react";
+import { Loader2, Home, Calendar, User, Tag, MapPin } from "lucide-react";
 
 export function ImportedDataTable() {
   const { firestore } = useFirebase();
@@ -34,12 +34,15 @@ export function ImportedDataTable() {
         <div>
           <CardTitle className="text-lg flex items-center gap-2">
             <Home className="h-5 w-5 text-primary" />
-            Gestão de Angariação (Estoque Sincronizado)
+            Gestão de Angariação (Estoque)
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Exibindo os últimos 50 imóveis capturados via Google Sheets.
+            Exibindo os imóveis capturados via Google Sheets.
           </p>
         </div>
+        <Badge variant="outline" className="font-bold text-primary">
+          {imoveis?.length || 0} Imóveis
+        </Badge>
       </CardHeader>
       <CardContent className="p-0">
         {isLoading ? (
@@ -54,11 +57,11 @@ export function ImportedDataTable() {
                 <TableRow>
                   <TableHead className="text-[11px] font-bold uppercase">Código</TableHead>
                   <TableHead className="text-[11px] font-bold uppercase">Tipo</TableHead>
-                  <TableHead className="text-[11px] font-bold uppercase">Data Entrada</TableHead>
+                  <TableHead className="text-[11px] font-bold uppercase">Data</TableHead>
                   <TableHead className="text-[11px] font-bold uppercase">Bairro</TableHead>
+                  <TableHead className="text-[11px] font-bold uppercase">Endereço</TableHead>
                   <TableHead className="text-[11px] font-bold uppercase">Angariador</TableHead>
                   <TableHead className="text-right text-[11px] font-bold uppercase">Valor Anúncio</TableHead>
-                  <TableHead className="text-center text-[11px] font-bold uppercase">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -82,6 +85,12 @@ export function ImportedDataTable() {
                     <TableCell className="text-xs font-medium">
                       {imovel.neighborhood || "Desconhecido"}
                     </TableCell>
+                    <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">
+                      <div className="flex items-center gap-1">
+                        <MapPin className="h-3 w-3" />
+                        {imovel.address || "N/A"}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-xs">
                       <div className="flex items-center gap-1">
                         <User className="h-3 w-3 text-muted-foreground" />
@@ -90,14 +99,6 @@ export function ImportedDataTable() {
                     </TableCell>
                     <TableCell className="text-right text-xs font-bold text-primary">
                       {formatCurrency(imovel.listingValue)}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge 
-                        variant={imovel.status === 'Vendido' ? 'secondary' : 'default'} 
-                        className={`text-[9px] px-1.5 py-0 ${imovel.status === 'Vendido' ? 'bg-slate-100 text-slate-500' : 'bg-emerald-500 text-white'}`}
-                      >
-                        {imovel.status || "Disponível"}
-                      </Badge>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -109,7 +110,7 @@ export function ImportedDataTable() {
             <Home className="h-12 w-12 text-muted-foreground/20 mx-auto" />
             <p className="text-muted-foreground font-medium">Estoque vazio.</p>
             <p className="text-xs text-muted-foreground/60 px-10">
-              Sincronize sua planilha Google Sheets para popular o estoque de Venda e Locação.
+              Sincronize sua aba de Cadastro para popular esta lista.
             </p>
           </div>
         )}
