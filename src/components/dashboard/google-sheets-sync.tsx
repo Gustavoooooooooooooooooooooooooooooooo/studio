@@ -67,7 +67,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       const parts = s.split('.');
       // Se tiver mais de um ponto OU se a última parte tiver exatamente 3 dígitos (milhar)
       // Em valores de imóveis, 3.300.000 é sempre 3 milhões.
-      if (parts.length > 2 || parts[parts.length - 1].length === 3) {
+      if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
          s = s.replace(/\./g, "");
       }
     }
@@ -110,17 +110,18 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         
         for (const row of result.data) {
           try {
-            const rawCode = getVal(row, ["codigo do imovel", "unidade", "referencia", "imovel"]);
+            const rawCode = getVal(row, ["codigo do imovel", "unidade", "referencia", "imovel", "codigo"]);
             const propertyCode = String(rawCode || `REF-${processedCount}`).trim();
             const safeId = propertyCode.replace(/[\/\.\#\$\/\[\]]/g, "-") || `ID-${Date.now()}-${processedCount}`;
 
             if (mode === 'inventory') {
-              const advertisedValue = parseCurrency(getVal(row, ["valor anunciado", "valor", "preco"]));
-              const broker = String(getVal(row, ["angariador", "captador", "corretor"]) || "N/A");
-              const neighborhood = String(getVal(row, ["bairro", "empreendimento", "regiao"]) || "Desconhecido");
-              const address = String(getVal(row, ["endereco", "logradouro"]) || "N/A");
+              const advertisedValue = parseCurrency(getVal(row, ["valor anunciado", "valor", "preco", "anuncio"]));
+              const broker = String(getVal(row, ["angariador", "captador", "corretor", "nome"]) || "N/A");
+              const neighborhood = String(getVal(row, ["bairro", "empreendimento", "regiao", "localizacao"]) || "Desconhecido");
+              const address = String(getVal(row, ["endereco", "logradouro", "rua"]) || "N/A");
+              const timestamp = String(getVal(row, ["carimbo", "data", "hora"]) || "");
 
-              const propRef = doc(firestore, "properties", safeId);
+              const propRef = doc(firestore, "properties", `${safeId}-${processedCount}`);
               setDocumentNonBlocking(propRef, {
                 propertyCode,
                 address,
@@ -128,9 +129,12 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
                 listingType: "Venda",
                 listingValue: advertisedValue,
                 brokerId: broker,
-                captureDate: String(getVal(row, ["carimbo", "data"]) || ""),
+                captureDate: timestamp,
                 status: "Disponível",
                 importedAt: serverTimestamp(),
+                // Campos extras da planilha de estoque
+                timestamp: timestamp,
+                fullRow: row // Guardamos tudo por segurança
               }, { merge: true });
 
             } else {
@@ -218,7 +222,10 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         </div>
         <div className="p-3 bg-white/50 border rounded-lg text-[10px] text-muted-foreground flex items-start gap-2">
           <AlertCircle className="h-3 w-3 mt-0.5" />
-          <p>Lembre-se: No Google Sheets, vá em <b>Arquivo &gt; Compartilhar &gt; Publicar na Web</b>, selecione a <b>Aba Específica</b> e escolha o formato <b>CSV</b>.</p>
+          <div className="flex flex-col gap-1">
+            <p>Lembre-se: No Google Sheets, vá em <b>Arquivo &gt; Compartilhar &gt; Publicar na Web</b>.</p>
+            <p>Selecione a <b>Aba Específica</b> correspondente e escolha o formato <b>CSV</b>.</p>
+          </div>
         </div>
       </CardContent>
     </Card>
