@@ -34,7 +34,6 @@ export default function AppContainer() {
     }
   }, [auth]);
 
-  // Real data fetching from Firestore
   const salesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(collection(firestore, "vendas_imoveis"), orderBy("saleDate", "desc"));
@@ -54,7 +53,6 @@ export default function AppContainer() {
   const { data: rawLeads, isLoading: isLeadsLoading } = useCollection(leadsQuery);
   const { data: rawVisits, isLoading: isVisitsLoading } = useCollection(visitsQuery);
 
-  // Mapping Firestore data to the expected UI format
   const sales = useMemo(() => {
     if (!rawSales) return [];
     return rawSales.map(v => ({
@@ -239,14 +237,14 @@ export default function AppContainer() {
 
           <TabsContent value="cadastro" className="animate-in slide-in-from-bottom-4 duration-500">
             <div className="max-w-4xl mx-auto space-y-6">
-              <GoogleSheetsSync />
+              <GoogleSheetsSync mode="inventory" />
               <ImportedDataTable />
             </div>
           </TabsContent>
 
           <TabsContent value="conclusao" className="animate-in slide-in-from-bottom-4 duration-500">
             <div className="max-w-4xl mx-auto space-y-6">
-              <GoogleSheetsSync />
+              <GoogleSheetsSync mode="sales" />
               <SalesDataTable />
             </div>
           </TabsContent>
