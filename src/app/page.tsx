@@ -10,9 +10,9 @@ import { MonthlyTrends } from "@/components/dashboard/monthly-trends";
 import { SalesMatrix } from "@/components/dashboard/sales-matrix";
 import { BrokerPerformanceGrid } from "@/components/dashboard/broker-performance-grid";
 import { InventoryHealth } from "@/components/dashboard/inventory-health";
-import { SaleForm } from "@/components/forms/sale-form";
 import { GoogleSheetsSync } from "@/components/dashboard/google-sheets-sync";
 import { ImportedDataTable } from "@/components/dashboard/imported-data-table";
+import { SalesDataTable } from "@/components/dashboard/sales-data-table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LayoutDashboard, FilePlus, BadgeCheck, TrendingUp, Loader2, Table2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -245,8 +245,9 @@ export default function AppContainer() {
           </TabsContent>
 
           <TabsContent value="conclusao" className="animate-in slide-in-from-bottom-4 duration-500">
-            <div className="max-w-2xl mx-auto">
-              <SaleForm />
+            <div className="max-w-4xl mx-auto space-y-6">
+              <GoogleSheetsSync />
+              <SalesDataTable />
             </div>
           </TabsContent>
         </Tabs>

@@ -183,8 +183,8 @@ export function GoogleSheetsSync() {
               <Table2 className="h-5 w-5" />
             </div>
             <div>
-              <CardTitle className="text-lg">Sincronização de Angariação</CardTitle>
-              <CardDescription className="text-xs">Importe seu estoque real do Google Sheets</CardDescription>
+              <CardTitle className="text-lg">Sincronização de Dados</CardTitle>
+              <CardDescription className="text-xs">Importe seus registros reais do Google Sheets</CardDescription>
             </div>
           </div>
           <Button 
@@ -195,7 +195,7 @@ export function GoogleSheetsSync() {
             className="text-xs text-destructive border-destructive/20 hover:bg-destructive/5"
           >
             {clearing ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Trash2 className="h-3 w-3 mr-2" />}
-            Limpar Estoque
+            Limpar Banco de Dados
           </Button>
         </div>
       </CardHeader>
