@@ -52,10 +52,17 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
 
   const excelDateToJSDate = (serial: any) => {
     if (serial === undefined || serial === null || serial === "") return "";
+    
+    // Se já for uma string de data formatada DD/MM/AAAA, retorna ela
+    if (typeof serial === 'string' && serial.includes('/')) return serial;
+
+    // Limpa o valor para tentar converter número do Excel
     let s = String(serial).replace(/[\.,]/g, "").trim();
     const num = Number(s);
+    
     // Range de 2024 a 2030 (Excel serial dates: 45000 a 60000)
-    if (!isNaN(num) && num > 45000 && num < 60000) {
+    // O valor 46037 corresponde a 15/01/2026
+    if (!isNaN(num) && num > 44000 && num < 65000) {
       const date = new Date(Math.round((num - 25569) * 86400 * 1000));
       return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
     }
@@ -75,18 +82,20 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       }
     }
 
-    // 2. Busca Parcial com filtros inteligentes
+    // 2. Busca Parcial com filtros inteligentes (Evitar carimbos e valores)
     for (const rowKey of rowKeys) {
       const normRowKey = normalize(rowKey);
       
-      // Se estamos buscando DATA, ignoramos colunas financeiras ou carimbos de sistema
-      if (isDateSearch && (normRowKey.includes("valor") || normRowKey.includes("preco") || normRowKey.includes("carimbo") || normRowKey.includes("timestamp"))) {
-        continue;
-      }
-
-      // Se estamos buscando VALOR, ignoramos colunas de data
-      if (!isDateSearch && normRowKey.includes("data")) {
-        continue;
+      if (isDateSearch) {
+        // Ignora carimbo de data/hora do sistema e colunas financeiras
+        if (normRowKey.includes("carimbo") || normRowKey.includes("timestamp") || normRowKey.includes("valor") || normRowKey.includes("preco")) {
+          continue;
+        }
+      } else {
+        // Se busca valor, ignora colunas que são puramente data
+        if (normRowKey.includes("data") && !normRowKey.includes("valor")) {
+          continue;
+        }
       }
 
       if (normalizedSearchKeys.some(sk => normRowKey.includes(sk))) {
@@ -128,7 +137,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               const rentalValue = parseCurrency(getVal(row, ["valor locacao", "aluguel"]));
               const broker = String(getVal(row, ["angariador", "corretor"]) || "N/A");
               const neighborhood = String(getVal(row, ["bairro"]) || "N/A");
-              const timestamp = excelDateToJSDate(getVal(row, ["data entrada"], true));
+              const timestamp = excelDateToJSDate(getVal(row, ["data entrada", "entrada", "data"], true));
               const status = String(getVal(row, ["status"]) || "Disponível");
 
               const propRef = doc(firestore, "properties", `${safeId}-${processedCount}`);
@@ -138,23 +147,24 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              // MAPEAMENTO AMPLO PARA DATA VENDA (COLUNA S)
-              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "data da venda", "fechamento", "data do fechamento", "venda"], true));
-              const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "data da entrada", "entrada", "captura", "angariacao"], true));
+              // MAPEAMENTO ESPECÍFICO PARA COLUNA R (DATA VENDA)
+              // Ignora carimbos de data/hora
+              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "fechamento", "data fechamento", "data da venda"], true));
+              const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "entrada", "captura", "angariacao"], true));
               
               const valorAnuncio = parseCurrency(getVal(row, ["valor anuncio", "anuncio"]));
-              const valorVenda = parseCurrency(getVal(row, ["valor fechado", "valor venda", "venda"]));
+              const valorVenda = parseCurrency(getVal(row, ["valor fechado", "valor venda", "fechado"]));
 
               const saleRef = doc(firestore, "vendas_imoveis", `${safeId}-${processedCount}`);
               setDocumentNonBlocking(saleRef, {
-                vendedor: String(getVal(row, ["vendedor", "corretor", "corretor venda"]) || ""),
-                tipoVenda: String(getVal(row, ["tipo de venda", "tipo", "transacao"]) || ""),
-                angariador: String(getVal(row, ["angariador", "corretor angariador"]) || ""),
+                vendedor: String(getVal(row, ["vendedor", "corretor"]) || ""),
+                tipoVenda: String(getVal(row, ["tipo", "transacao"]) || ""),
+                angariador: String(getVal(row, ["angariador"]) || ""),
                 propertyCode,
-                neighborhood: String(getVal(row, ["bairro", "empreendimento", "localizacao"]) || "N/A"),
-                unit: String(getVal(row, ["unidade", "apto", "casa"]) || "N/A"),
-                clientName: String(getVal(row, ["cliente", "comprador", "nome contrato"]) || "N/A"),
-                originChannel: String(getVal(row, ["origem", "canal", "origem lead"]) || "Direto"),
+                neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
+                unit: String(getVal(row, ["unidade", "apto"]) || "N/A"),
+                clientName: String(getVal(row, ["cliente", "nome"]) || "N/A"),
+                originChannel: String(getVal(row, ["origem", "canal"]) || "Direto"),
                 advertisedValue: valorAnuncio,
                 closedValue: valorVenda,
                 saleDate: String(dataVendaRaw || ""),
@@ -281,10 +291,10 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         <div className="flex items-start gap-2 bg-white/40 p-3 rounded-lg border border-primary/5 text-[11px] text-muted-foreground">
           <div className="space-y-1">
             <p className="font-bold mb-1 flex items-center gap-1">
-               <Info className="h-3 w-3 text-primary" /> Dica de Precisão 2026:
+               <Info className="h-3 w-3 text-primary" /> Mapeamento Coluna R:
             </p>
-            <p>O sistema agora detecta o código <b>46037</b> como <b>15/01/2026</b>.</p>
-            <p className="mt-1">Clique em <b>Limpar Base Atual</b> se a data aparecer como N/A para forçar o novo mapeamento.</p>
+            <p>O sistema agora foca na <b>Coluna R</b> para Data Venda e converte o código <b>46037</b> para <b>15/01/2026</b>.</p>
+            <p className="mt-1">Use <b>Limpar Base Atual</b> se ainda estiver vendo dados antigos de 2025.</p>
           </div>
         </div>
       </CardContent>

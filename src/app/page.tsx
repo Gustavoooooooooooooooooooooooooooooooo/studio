@@ -21,7 +21,7 @@ import { collection, query, orderBy } from "firebase/firestore";
 
 export default function AppContainer() {
   const [mounted, setMounted] = useState(false);
-  // Fixando a data "hoje" como 02 de Março de 2026 para que 15/01/2026 resulte em 46 dias.
+  // Fixando hoje como 02 de Março de 2026 para que 15/01/2026 resulte em 46 dias.
   const [now] = useState<Date>(new Date(2026, 2, 2)); 
   const { auth, firestore } = useFirebase();
 
@@ -90,6 +90,7 @@ export default function AppContainer() {
 
     const diffDays = (d1: Date | null, d2: Date | null) => {
       if (!d1 || !d2 || isNaN(d1.getTime()) || isNaN(d2.getTime())) return null;
+      // Normaliza para o início do dia para evitar diferenças de horas
       const t1 = new Date(d1.getFullYear(), d1.getMonth(), d1.getDate()).getTime();
       const t2 = new Date(d2.getFullYear(), d2.getMonth(), d2.getDate()).getTime();
       return Math.floor((t1 - t2) / (1000 * 60 * 60 * 24));
