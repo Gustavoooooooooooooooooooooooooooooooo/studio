@@ -1,11 +1,10 @@
-
 "use client"
 
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { RefreshCcw, AlertCircle, Loader2, Trash2, Zap } from "lucide-react";
+import { RefreshCcw, AlertCircle, Loader2, Trash2, Zap, Info } from "lucide-react";
 import { syncGoogleSheets } from "@/ai/flows/sync-sheets-flow";
 import { useToast } from "@/hooks/use-toast";
 import { useFirebase } from "@/firebase";
@@ -124,7 +123,8 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              const dataVendaRaw = getVal(row, ["Data do venda", "assinatura", "fechamento"]);
+              const dataVendaRaw = getVal(row, ["Data do venda", "assinatura", "fechamento", "data venda"]);
+              const dataEntradaRaw = getVal(row, ["data entrada", "data de entrada", "entrada"]);
               const valorAnuncio = parseCurrency(getVal(row, ["Qual valor anunciado?", "anuncio"]));
               const valorVenda = parseCurrency(getVal(row, ["Qual valor final de venda?", "valor fechado", "valor venda"]));
 
@@ -141,6 +141,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
                 advertisedValue: valorAnuncio,
                 closedValue: valorVenda,
                 saleDate: String(dataVendaRaw || ""),
+                propertyCaptureDate: String(dataEntradaRaw || ""), // Adicionado para cálculo de Ciclo Médio
                 status: "Vendido",
                 importedAt: serverTimestamp(),
               }, { merge: true });
@@ -271,6 +272,15 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
           <Button onClick={() => handleSync()} disabled={syncing} className={mode === 'inventory' ? 'bg-primary' : mode === 'sales' ? 'bg-emerald-600' : 'bg-indigo-600'}>
             {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sincronizar Agora"}
           </Button>
+        </div>
+        
+        <div className="flex items-start gap-2 bg-white/40 p-3 rounded-lg border border-primary/5 text-[11px] text-muted-foreground">
+          <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="font-bold mb-1">Atenção ao Link:</p>
+            <p>Certifique-se de que o link aponta para a aba correta da sua planilha do Google.</p>
+            <p className="mt-1">Vá em <b>Arquivo &gt; Compartilhar &gt; Publicar na Web</b>, selecione a <b>Aba Específica</b> e escolha o formato <b>CSV</b>.</p>
+          </div>
         </div>
       </CardContent>
     </Card>

@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, useEffect } from "react";
@@ -61,31 +60,46 @@ export default function AppContainer() {
       if (!d) return null;
       if (typeof d === 'string') {
         const parts = d.split('/');
-        if (parts.length === 3) return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
-        return new Date(d);
+        if (parts.length === 3) {
+          const day = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10) - 1;
+          const year = parts[2].length === 2 ? 2000 + parseInt(parts[2], 10) : parseInt(parts[2], 10);
+          return new Date(year, month, day);
+        }
+        const isoDate = new Date(d);
+        if (!isNaN(isoDate.getTime())) return isoDate;
       }
       return null;
     };
 
     const diffDays = (d1: Date | null, d2: Date | null) => {
       if (!d1 || !d2 || isNaN(d1.getTime()) || isNaN(d2.getTime())) return null;
-      return Math.floor(Math.abs(d2.getTime() - d1.getTime()) / (1000 * 3600 * 24));
+      const diffTime = Math.abs(d2.getTime() - d1.getTime());
+      return Math.floor(diffTime / (1000 * 60 * 60 * 24));
     };
 
-    const salesOnly = sales.filter(s => normalizeKey(s.tipoVenda || "").includes("venda"));
-    const rentsOnly = sales.filter(s => normalizeKey(s.tipoVenda || "").includes("locacao") || normalizeKey(s.tipoVenda || "").includes("aluguel"));
+    const salesOnly = sales.filter(s => {
+      const type = normalizeKey(s.tipoVenda || "");
+      return type.includes("venda") || type === ""; // Se vazio, assume venda para não perder métricas se a coluna estiver incompleta
+    });
+    
+    const rentsOnly = sales.filter(s => {
+      const type = normalizeKey(s.tipoVenda || "");
+      return type.includes("locacao") || type.includes("aluguel");
+    });
 
     const calcAvgDays = (data: any[]) => {
       const validDiffs = data.map(s => {
         const start = parseDate(s.propertyCaptureDate);
         const end = parseDate(s.saleDate);
         return diffDays(start, end);
-      }).filter(d => d !== null) as number[];
+      }).filter(d => d !== null && d > 0) as number[];
       
       return validDiffs.length > 0 ? validDiffs.reduce((a, b) => a + b, 0) / validDiffs.length : 0;
     };
 
-    // Frequência de Vendas (A cada quantos dias um imóvel é vendido)
+    // Frequência de Vendas: (Período total / Quantidade de Vendas)
+    // Indica a cada quantos dias acontece uma venda na imobiliária.
     const sortedSalesDates = salesOnly
       .map(s => parseDate(s.saleDate))
       .filter(d => d !== null && !isNaN(d!.getTime()))
@@ -96,18 +110,17 @@ export default function AppContainer() {
       const first = sortedSalesDates[0]!;
       const last = sortedSalesDates[sortedSalesDates.length - 1]!;
       const totalDays = Math.floor((last.getTime() - first.getTime()) / (1000 * 3600 * 24));
-      // Evita divisão por zero ou números negativos
       if (totalDays > 0) {
         salesFrequency = totalDays / (sortedSalesDates.length - 1);
       }
+    } else if (sortedSalesDates.length === 1) {
+      // Se tiver apenas uma venda, comparamos com o dia de hoje
+      const first = sortedSalesDates[0]!;
+      const totalDays = Math.floor((new Date().getTime() - first.getTime()) / (1000 * 3600 * 24));
+      salesFrequency = totalDays || 0;
     }
 
-    const lastSale = sales.length > 0 
-      ? sales.reduce((latest, current) => {
-          const d = parseDate(current.saleDate);
-          return d && (!latest || d > latest) ? d : latest;
-        }, null as Date | null)
-      : null;
+    const lastSale = sortedSalesDates.length > 0 ? sortedSalesDates[sortedSalesDates.length - 1] : null;
 
     const daysSinceLastSale = lastSale 
       ? Math.floor((new Date().getTime() - lastSale.getTime()) / (1000 * 3600 * 24))
@@ -119,9 +132,9 @@ export default function AppContainer() {
       avgDaysToSell: calcAvgDays(salesOnly),
       avgDaysToRent: calcAvgDays(rentsOnly),
       totalValue: totalVgv,
-      lastSaleDisplay: daysSinceLastSale !== null 
+      lastSaleDisplay: daysSinceLastSale !== null && daysSinceLastSale >= 0
         ? `${daysSinceLastSale} Dias`
-        : "Nenhum",
+        : "0 Dias",
       totalLeads: leads.length,
       totalSales: sales.length,
       totalProperties: properties.length,
