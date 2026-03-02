@@ -55,7 +55,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     // Remove formatacao de pontos/virgulas para ler o numero bruto do excel (ex: 46037)
     let s = String(serial).replace(/[\.,]/g, "").trim();
     const num = Number(s);
-    // Jan 2025 ate Dez 2030 (aproximadamente)
+    // Jan 2026 ate Dez 2030 (aproximadamente)
     if (!isNaN(num) && num > 45000 && num < 60000) {
       const date = new Date(Math.round((num - 25569) * 86400 * 1000));
       return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
@@ -68,27 +68,31 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     const rowKeys = Object.keys(row);
     const normalizedSearchKeys = searchKeys.map(normalize);
 
-    // Primeira passada: Busca exata e ignora Carimbo explicitamente
+    // BLOQUEIO CRITICO: Nunca usar o Carimbo de Data/Hora para data de venda ou entrada
+    // Agora que foi removido, reforçamos para não pegar colunas erradas por proximidade
     for (const rowKey of rowKeys) {
       const normRowKey = normalize(rowKey);
       
-      // BLOQUEIO CRITICO: Nunca usar o Carimbo de Data/Hora para data de venda ou entrada
       if (isDateSearch && (normRowKey.includes("carimbo") || normRowKey.includes("timestamp"))) {
         continue;
       }
       
+      // Busca exata primeiro
       if (normalizedSearchKeys.includes(normRowKey)) {
         return row[rowKey];
       }
     }
 
-    // Segunda passada: Busca parcial
+    // Segunda passada: Busca parcial cuidadosa
     for (const rowKey of rowKeys) {
       const normRowKey = normalize(rowKey);
       if (isDateSearch && (normRowKey.includes("carimbo") || normRowKey.includes("timestamp"))) continue;
       
-      // Se for busca de data, ignorar colunas que parecem ser de valor financeiro
-      if (isDateSearch && (normRowKey.includes("valor") || normRowKey.includes("vgv") || normRowKey.includes("anuncio"))) continue;
+      // Se for busca de data, ignorar colunas que parecem ser de valor financeiro (VGV, Valor, etc)
+      if (isDateSearch && (normRowKey.includes("valor") || normRowKey.includes("vgv") || normRowKey.includes("anuncio") || normRowKey.includes("fechado"))) {
+        // Só aceita se a busca específica for por "valor"
+        if (!normalizedSearchKeys.some(sk => sk.includes("valor"))) continue;
+      }
 
       if (normalizedSearchKeys.some(sk => normRowKey.includes(sk))) {
         return row[rowKey];
@@ -139,20 +143,20 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              // BUSCA RIGOROSA PARA DATA VENDA (COLUNA S) - IGNORA CARIMBO
-              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "data da venda", "fechamento", "assinatura"], true));
-              const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "data de entrada", "entrada"], true));
+              // MAPEAMENTO RÍGIDO PARA EVITAR 223 DIAS (JULHO 2025)
+              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "fechamento", "assinatura"], true));
+              const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "entrada"], true));
               
               const valorAnuncio = parseCurrency(getVal(row, ["anuncio", "valor anunciado"]));
               const valorVenda = parseCurrency(getVal(row, ["valor fechado", "valor venda"]));
 
               const saleRef = doc(firestore, "vendas_imoveis", `${safeId}-${processedCount}`);
               setDocumentNonBlocking(saleRef, {
-                vendedor: String(getVal(row, ["vendedor"]) || ""),
-                tipoVenda: String(getVal(row, ["tipo de venda"]) || ""),
-                angariador: String(getVal(row, ["angariador"]) || ""),
+                vendedor: String(getVal(row, ["vendedor", "corretor"]) || ""),
+                tipoVenda: String(getVal(row, ["tipo de venda", "venda locacao"]) || ""),
+                angariador: String(getVal(row, ["angariador", "captador"]) || ""),
                 propertyCode,
-                neighborhood: String(getVal(row, ["empreendimento", "bairro"]) || "N/A"),
+                neighborhood: String(getVal(row, ["empreendimento", "bairro", "localizacao"]) || "N/A"),
                 unit: String(getVal(row, ["unidade"]) || "N/A"),
                 clientName: String(getVal(row, ["cliente", "nome contrato"]) || "N/A"),
                 originChannel: String(getVal(row, ["origem", "canal"]) || "Direto"),
@@ -284,8 +288,8 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
             <p className="font-bold mb-1 flex items-center gap-1">
                <Info className="h-3 w-3 text-primary" /> Dica de Precisão 2026:
             </p>
-            <p>O sistema agora foca exclusivamente na <b>Data Venda real</b> e ignora o Carimbo de Data.</p>
-            <p className="mt-1">Após colar o link, clique em <b>Sincronizar Agora</b> para recalcular os indicadores.</p>
+            <p>Com o Carimbo removido, o sistema mapeia automaticamente <b>Data Venda (Coluna S)</b> e <b>Data Entrada (Coluna R)</b>.</p>
+            <p className="mt-1">Clique em <b>Limpar Base Atual</b> antes de sincronizar para remover resíduos de 2025.</p>
           </div>
         </div>
       </CardContent>
