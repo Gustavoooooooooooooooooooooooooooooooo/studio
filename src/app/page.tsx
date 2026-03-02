@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo, useEffect } from "react";
@@ -20,10 +21,12 @@ import { collection, query, orderBy } from "firebase/firestore";
 
 export default function AppContainer() {
   const [mounted, setMounted] = useState(false);
+  const [now, setNow] = useState<Date | null>(null);
   const { auth, firestore } = useFirebase();
 
   useEffect(() => {
     setMounted(true);
+    setNow(new Date());
     if (auth) {
       initiateAnonymousSignIn(auth);
     }
@@ -59,28 +62,40 @@ export default function AppContainer() {
     const parseDate = (d: any) => {
       if (!d) return null;
       if (typeof d === 'string') {
-        const parts = d.split('/');
+        const cleanDate = d.trim();
+        // Tenta DD/MM/YYYY
+        const parts = cleanDate.split('/');
         if (parts.length === 3) {
           const day = parseInt(parts[0], 10);
           const month = parseInt(parts[1], 10) - 1;
           const year = parts[2].length === 2 ? 2000 + parseInt(parts[2], 10) : parseInt(parts[2], 10);
-          return new Date(year, month, day);
+          const date = new Date(year, month, day);
+          return isNaN(date.getTime()) ? null : date;
         }
-        const isoDate = new Date(d);
-        if (!isNaN(isoDate.getTime())) return isoDate;
+        // Tenta YYYY-MM-DD
+        const isoParts = cleanDate.split('-');
+        if (isoParts.length === 3 && isoParts[0].length === 4) {
+          const date = new Date(cleanDate);
+          return isNaN(date.getTime()) ? null : date;
+        }
+        // Fallback
+        const fallback = new Date(cleanDate);
+        return isNaN(fallback.getTime()) ? null : fallback;
       }
       return null;
     };
 
     const diffDays = (d1: Date | null, d2: Date | null) => {
       if (!d1 || !d2 || isNaN(d1.getTime()) || isNaN(d2.getTime())) return null;
-      const diffTime = Math.abs(d2.getTime() - d1.getTime());
+      const t1 = new Date(d1.getFullYear(), d1.getMonth(), d1.getDate()).getTime();
+      const t2 = new Date(d2.getFullYear(), d2.getMonth(), d2.getDate()).getTime();
+      const diffTime = Math.abs(t2 - t1);
       return Math.floor(diffTime / (1000 * 60 * 60 * 24));
     };
 
     const salesOnly = sales.filter(s => {
       const type = normalizeKey(s.tipoVenda || "");
-      return type.includes("venda") || type === ""; // Se vazio, assume venda para não perder métricas se a coluna estiver incompleta
+      return type.includes("venda") || type === ""; 
     });
     
     const rentsOnly = sales.filter(s => {
@@ -93,13 +108,11 @@ export default function AppContainer() {
         const start = parseDate(s.propertyCaptureDate);
         const end = parseDate(s.saleDate);
         return diffDays(start, end);
-      }).filter(d => d !== null && d > 0) as number[];
+      }).filter(d => d !== null && d >= 0) as number[];
       
       return validDiffs.length > 0 ? validDiffs.reduce((a, b) => a + b, 0) / validDiffs.length : 0;
     };
 
-    // Frequência de Vendas: (Período total / Quantidade de Vendas)
-    // Indica a cada quantos dias acontece uma venda na imobiliária.
     const sortedSalesDates = salesOnly
       .map(s => parseDate(s.saleDate))
       .filter(d => d !== null && !isNaN(d!.getTime()))
@@ -113,17 +126,13 @@ export default function AppContainer() {
       if (totalDays > 0) {
         salesFrequency = totalDays / (sortedSalesDates.length - 1);
       }
-    } else if (sortedSalesDates.length === 1) {
-      // Se tiver apenas uma venda, comparamos com o dia de hoje
-      const first = sortedSalesDates[0]!;
-      const totalDays = Math.floor((new Date().getTime() - first.getTime()) / (1000 * 3600 * 24));
-      salesFrequency = totalDays || 0;
     }
 
     const lastSale = sortedSalesDates.length > 0 ? sortedSalesDates[sortedSalesDates.length - 1] : null;
 
-    const daysSinceLastSale = lastSale 
-      ? Math.floor((new Date().getTime() - lastSale.getTime()) / (1000 * 3600 * 24))
+    const daysSinceLastSale = lastSale && now
+      ? Math.floor((new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() - 
+                    new Date(lastSale.getFullYear(), lastSale.getMonth(), lastSale.getDate()).getTime()) / (1000 * 3600 * 24))
       : null;
 
     const totalVgv = sales.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
@@ -141,7 +150,7 @@ export default function AppContainer() {
       avgTicket: sales.length > 0 ? totalVgv / sales.length : 0,
       salesFrequency: salesFrequency
     };
-  }, [rawSales, rawLeads, rawProperties]);
+  }, [rawSales, rawLeads, rawProperties, now]);
 
   if (!mounted || isSalesLoading || isLeadsLoading || isPropertiesLoading) {
     return (
