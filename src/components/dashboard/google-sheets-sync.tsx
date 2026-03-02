@@ -53,7 +53,6 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     if (!serial) return "";
     if (typeof serial === 'string' && serial.includes('/')) return serial;
     
-    // Tratamento robusto para números seriais (comum em Excel/Sheets)
     const s = String(serial).trim().replace(',', '.');
     const num = parseFloat(s);
     
@@ -69,19 +68,17 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     const rowKeys = Object.keys(row);
     const normalizedSearchKeys = searchKeys.map(normalize);
 
-    // Prioridade para busca exata de cabeçalho
     for (const rowKey of rowKeys) {
       if (normalizedSearchKeys.includes(normalize(rowKey))) {
         return row[rowKey];
       }
     }
 
-    // Fallback inteligente para Data Venda (Coluna R)
-    if (searchKeys.includes("data venda")) {
+    // Busca por inclusão para campos críticos de data e valor
+    if (normalizedSearchKeys.some(sk => sk.includes("data") && sk.includes("venda"))) {
       const targetKey = rowKeys.find(rk => {
         const n = normalize(rk);
-        return (n.includes("data") && n.includes("venda")) && 
-               !n.includes("vendedor") && !n.includes("corretor") && !n.includes("angariador");
+        return n.includes("data") && n.includes("venda") && !n.includes("vendedor");
       });
       if (targetKey) return row[targetKey];
     }
@@ -112,12 +109,12 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         
         for (const row of result.data) {
           try {
-            const rawCode = getVal(row, ["codigo", "referencia", "unidade", "id"]);
+            const rawCode = getVal(row, ["codigo", "referencia", "unidade", "id", "cod imovel", "codigo imovel"]);
             const propertyCode = String(rawCode || `REF-${processedCount}`).trim();
 
             if (mode === 'inventory') {
               const saleValue = parseCurrency(getVal(row, ["valor venda"]));
-              const broker = String(getVal(row, ["angariador", "corretor"]) || "N/A");
+              const broker = String(getVal(row, ["angariador", "corretor", "captador"]) || "N/A");
               const neighborhood = String(getVal(row, ["bairro"]) || "N/A");
               const timestamp = excelDateToJSDate(getVal(row, ["data entrada", "entrada"]));
               const status = String(getVal(row, ["status"]) || "Disponível");
@@ -130,24 +127,27 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "fechamento"]));
+              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "fechamento", "venda"]));
               const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "entrada"]));
               
-              // ID estável baseado no Código e Data para evitar duplicações no cálculo da média
               const safeSaleId = `sale-${propertyCode}-${String(dataVendaRaw).replace(/\//g, '-')}`.replace(/[\/\.\#\$\/\[\]]/g, "-");
               const saleRef = doc(firestore, "vendas_imoveis", safeSaleId);
               
               setDocumentNonBlocking(saleRef, {
-                vendedor: String(getVal(row, ["vendedor", "corretor"]) || ""),
+                vendedor: String(getVal(row, ["vendedor", "corretor", "responsavel"]) || ""),
+                angariador: String(getVal(row, ["angariador", "captador"]) || "N/A"),
+                tipoVenda: String(getVal(row, ["tipo venda", "tipo", "operacao"]) || "Venda"),
                 propertyCode,
-                neighborhood: String(getVal(row, ["bairro"]) || "N/A"),
-                clientName: String(getVal(row, ["cliente"]) || "N/A"),
-                closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda"])),
+                neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
+                clientName: String(getVal(row, ["cliente", "comprador"]) || "N/A"),
+                advertisedValue: parseCurrency(getVal(row, ["valor anuncio", "valor inicial", "anuncio"])),
+                closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda", "fechamento"])),
                 saleDate: String(dataVendaRaw || ""),
                 propertyCaptureDate: String(dataEntradaRaw || ""),
                 status: "Vendido",
                 importedAt: serverTimestamp(),
               }, { merge: true });
+
             } else if (mode === 'leads') {
               const leadRef = doc(firestore, "leads", `lead-${processedCount}`);
               setDocumentNonBlocking(leadRef, { ...row, importedAt: serverTimestamp() }, { merge: true });
