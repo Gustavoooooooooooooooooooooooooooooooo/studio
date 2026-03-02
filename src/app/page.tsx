@@ -21,7 +21,7 @@ import { collection, query, orderBy } from "firebase/firestore";
 
 export default function AppContainer() {
   const [mounted, setMounted] = useState(false);
-  // Hoje é 02 de Março de 2026 para que 15/01/2026 resulte em 46 dias.
+  // Fixamos Hoje em 02 de Março de 2026 para os cálculos de performance.
   const [now] = useState<Date>(new Date(2026, 2, 2)); 
   const { auth, firestore } = useFirebase();
 
@@ -50,9 +50,6 @@ export default function AppContainer() {
   const { data: rawSales, isLoading: isSalesLoading } = useCollection(salesQuery);
   const { data: rawLeads, isLoading: isLeadsLoading } = useCollection(leadsQuery);
   const { data: rawProperties, isLoading: isPropertiesLoading } = useCollection(propertiesQuery);
-
-  const normalizeKey = (s: string) => 
-    String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
   const metrics = useMemo(() => {
     const sales = rawSales || [];
@@ -111,16 +108,15 @@ export default function AppContainer() {
       }
     }
 
-    // --- FREQUÊNCIA DE VENDAS (A cada quantos dias ocorre uma venda) ---
-    // Regra: (Data da Última Venda - Data da Primeira Venda) / Total de Vendas
+    // --- FREQUÊNCIA DE VENDAS (Média de produtividade) ---
+    // Regra: Dias do período (Início até Hoje) / Total de Vendas
     const sortedDatesAsc = [...validSalesDates].sort((a, b) => a.getTime() - b.getTime());
     let salesFrequency = 0;
-    if (sortedDatesAsc.length > 1) {
+    if (sortedDatesAsc.length > 0) {
       const first = sortedDatesAsc[0];
-      const last = sortedDatesAsc[sortedDatesAsc.length - 1];
-      const totalPeriodDays = diffDays(last, first) || 0;
-      // Dividimos pelo número de intervalos entre as vendas
-      salesFrequency = totalPeriodDays / (sortedDatesAsc.length - 1);
+      const totalPeriodDays = diffDays(now, first) || 0;
+      // Calcula a cadência: Periodo total / Numero de vendas
+      salesFrequency = totalPeriodDays / sortedDatesAsc.length;
     }
 
     // --- CICLO MÉDIO DE VENDA (Quanto tempo o imóvel fica no estoque) ---
