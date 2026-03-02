@@ -87,8 +87,9 @@ export default function AppContainer() {
 
     const diffDays = (d1: Date | null, d2: Date | null) => {
       if (!d1 || !d2 || isNaN(d1.getTime()) || isNaN(d2.getTime())) return null;
-      const t1 = new Date(d1.getFullYear(), d1.getMonth(), d1.getDate()).getTime();
-      const t2 = new Date(d2.getFullYear(), d2.getMonth(), d2.getDate()).getTime();
+      // Normalizamos para o início do dia para evitar problemas de fuso/horas
+      const t1 = Date.UTC(d1.getFullYear(), d1.getMonth(), d1.getDate());
+      const t2 = Date.UTC(d2.getFullYear(), d2.getMonth(), d2.getDate());
       return Math.floor((t1 - t2) / (1000 * 60 * 60 * 24));
     };
 
@@ -109,19 +110,24 @@ export default function AppContainer() {
       }
     }
 
-    // --- FREQUÊNCIA DE VENDAS (Média de produtividade entre fechamentos) ---
-    // Lógica Corrigida: (Data da Última Venda - Data da Primeira Venda) / (Total de Vendas - 1)
+    // --- FREQUÊNCIA DE VENDAS (Média de Intervalo entre Vendas) ---
+    // Passo 1: Ordenação Cronológica
     const sortedDatesAsc = [...validSalesDates].sort((a, b) => a.getTime() - b.getTime());
+    
     let salesFrequency = 0;
     if (sortedDatesAsc.length > 1) {
-      const first = sortedDatesAsc[0];
-      const newest = sortedDatesAsc[sortedDatesAsc.length - 1];
-      const totalIntervalDays = diffDays(newest, first) || 0;
-      // Calcula o intervalo médio entre as vendas do histórico
-      salesFrequency = totalIntervalDays / (sortedDatesAsc.length - 1);
+      // Passo 2: Cálculo dos Intervalos (Data Última - Data Primeira)
+      const firstSaleDate = sortedDatesAsc[0];
+      const lastSaleDate = sortedDatesAsc[sortedDatesAsc.length - 1];
+      
+      const totalDaysPeriod = diffDays(lastSaleDate, firstSaleDate) || 0;
+      
+      // Passo 3: Soma e Divisão (Intervalos = Total Vendas - 1)
+      const totalIntervals = sortedDatesAsc.length - 1;
+      salesFrequency = totalDaysPeriod / totalIntervals;
     }
 
-    // --- CICLO MÉDIO DE VENDA (Tempo do imóvel no estoque: Captura -> Venda) ---
+    // --- CICLO MÉDIO DE VENDA (Captura -> Venda) ---
     const validDiffs = sales.map(s => {
       const start = parseDate(s.propertyCaptureDate);
       const end = parseDate(s.saleDate);
