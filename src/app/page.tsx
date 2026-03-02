@@ -67,7 +67,8 @@ export default function AppContainer() {
       if (!cleanStr || cleanStr === "N/A" || cleanStr === "undefined") return null;
 
       // Suporte para números seriais do Excel (Ex: 46037 para 15/01/2026)
-      const num = Number(cleanStr.replace(/[^0-9]/g, ''));
+      const numStr = cleanStr.replace(/[\.,]/g, '');
+      const num = Number(numStr);
       if (!isNaN(num) && num > 30000 && num < 60000 && !cleanStr.includes('/') && !cleanStr.includes('-')) {
         return new Date(Math.round((num - 25569) * 86400 * 1000));
       }

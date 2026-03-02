@@ -50,33 +50,42 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       .replace(/\s+/g, " ")
       .trim();
 
+  // Converte 46.037 ou 46037 para "15/01/2026"
   const excelDateToJSDate = (serial: any) => {
-    if (!serial || isNaN(Number(serial))) return serial;
-    const num = Number(serial);
-    if (num < 30000 || num > 60000) return serial; 
-    const date = new Date(Math.round((num - 25569) * 86400 * 1000));
-    return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+    if (serial === undefined || serial === null || serial === "") return serial;
+    
+    // Limpa pontos e vírgulas para tratar como número inteiro (Ex: 46.037 -> 46037)
+    let s = String(serial).replace(/[\.,]/g, "").trim();
+    const num = Number(s);
+    
+    // Serial do Excel para 2024-2030 fica entre 45000 e 55000
+    if (!isNaN(num) && num > 30000 && num < 60000) {
+      const date = new Date(Math.round((num - 25569) * 86400 * 1000));
+      return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+    }
+    return serial;
   };
 
-  const getVal = (row: any, searchKeys: string[], strict = false) => {
+  const getVal = (row: any, searchKeys: string[]) => {
     if (!row) return undefined;
     const rowKeys = Object.keys(row);
     const normalizedSearchKeys = searchKeys.map(normalize);
 
+    // 1. Tenta correspondência exata primeiro
     for (const rowKey of rowKeys) {
       const normRowKey = normalize(rowKey);
-      if (normalizedSearchKeys.some(sk => normRowKey === sk)) {
+      if (normalizedSearchKeys.includes(normRowKey)) {
         return row[rowKey];
       }
     }
 
-    if (strict) return undefined;
-
+    // 2. Tenta correspondência parcial inteligente (evitando confusão com colunas de valor)
     for (const rowKey of rowKeys) {
       const normRowKey = normalize(rowKey);
       
       const isSearchingDate = searchKeys.some(sk => normalize(sk).includes("data"));
       if (isSearchingDate) {
+        // Ignora colunas que claramente não são a data do evento
         if (normRowKey.includes("carimbo") || normRowKey.includes("timestamp") || normRowKey.includes("valor") || normRowKey.includes("vgv")) {
           continue;
         }
@@ -131,7 +140,8 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "data da venda", "fechamento", "assinatura"], true) || getVal(row, ["data venda", "fechamento"]));
+              // Busca específica para evitar conflito com Valor Venda
+              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "data da venda", "fechamento", "assinatura"]));
               const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "data de entrada", "entrada"]));
               
               const valorAnuncio = parseCurrency(getVal(row, ["anuncio", "valor anunciado"]));
