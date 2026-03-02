@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from "react";
@@ -34,7 +33,6 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
   const { toast } = useToast();
   const { firestore } = useFirebase();
 
-  // Função de normalização para bater cabeçalhos
   const normalize = (s: string) => 
     String(s || "").toLowerCase()
       .normalize("NFD")
@@ -48,7 +46,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
 
     for (const rowKey of rowKeys) {
       const normalizedRowKey = normalize(rowKey);
-      if (normalizedSearchKeys.some(sk => normalizedRowKey.includes(sk) || sk.includes(normalizedRowKey))) {
+      if (normalizedSearchKeys.some(sk => normalizedRowKey === sk || normalizedRowKey.includes(sk))) {
         return row[rowKey];
       }
     }
@@ -62,21 +60,16 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     let s = String(val).trim();
     s = s.replace(/[R$ ]/g, "");
     
-    // Se tiver ponto e vírgula (ex: 3.300.000,00)
     if (s.includes('.') && s.includes(',')) {
       s = s.replace(/\./g, "").replace(",", ".");
     } 
-    // Se tiver apenas vírgula (ex: 3300000,00 ou 3,3)
     else if (s.includes(',')) {
-      // Se tiver mais de uma vírgula, trata como separador de milhar (errado mas resiliente)
       const parts = s.split(',');
       if (parts.length > 2) s = s.replace(/,/g, "");
       else s = s.replace(",", ".");
     }
-    // Se tiver apenas pontos (ex: 3.300.000)
     else if (s.includes('.')) {
       const parts = s.split('.');
-      // Se o último grupo tiver 3 dígitos, provavelmente é milhar
       if (parts.length > 1 && parts[parts.length - 1].length === 3) {
          s = s.replace(/\./g, "");
       }
@@ -127,15 +120,16 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         
         for (const row of result.data) {
           try {
-            // Gera um ID baseado no código ou no timestamp
-            const rawCode = getVal(row, ["codigo do imovel", "unidade", "referencia", "imovel", "codigo", "unidade"]);
+            const rawCode = getVal(row, ["codigo do imovel", "unidade", "referencia", "imovel", "codigo"]);
             const propertyCode = String(rawCode || `REF-${Date.now()}-${processedCount}`).trim();
             const safeId = propertyCode.replace(/[\/\.\#\$\/\[\]]/g, "-") || `ID-${Date.now()}-${processedCount}`;
 
             if (mode === 'inventory') {
-              const advertisedValue = parseCurrency(getVal(row, ["valor anunciado", "valor", "preco", "anuncio", "pedida", "valor final"]));
-              const broker = String(getVal(row, ["angariador", "captador", "corretor", "nome", "quem angariou"]) || "N/A");
-              const neighborhood = String(getVal(row, ["bairro", "empreendimento", "regiao", "localizacao", "local"]) || "Desconhecido");
+              const advertisedValue = parseCurrency(getVal(row, ["valor anunciado", "valor", "preco", "anuncio"]));
+              const saleValue = parseCurrency(getVal(row, ["valor de venda", "venda", "valor venda"]));
+              const rentalValue = parseCurrency(getVal(row, ["valor de locacao", "locacao", "valor locacao", "aluguel"]));
+              const broker = String(getVal(row, ["angariador", "captador", "corretor", "nome"]) || "N/A");
+              const neighborhood = String(getVal(row, ["bairro", "empreendimento", "regiao"]) || "Desconhecido");
               const address = String(getVal(row, ["endereco", "logradouro", "rua"]) || "N/A");
               const timestamp = String(getVal(row, ["carimbo", "data", "hora", "data de entrada"]) || "");
               const listingType = String(getVal(row, ["tipo", "transacao", "tipo de imovel"]) || "Venda");
@@ -148,19 +142,19 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
                 neighborhood,
                 listingType,
                 listingValue: advertisedValue,
+                saleValue: saleValue,
+                rentalValue: rentalValue,
                 brokerId: broker,
                 captureDate: timestamp,
                 status,
                 importedAt: serverTimestamp(),
-                timestamp: timestamp,
               }, { merge: true });
 
             } else {
-              // Modo Vendas (Conclusão)
-              const dataVendaRaw = getVal(row, ["Data do venda", "assinatura", "fechamento", "data", "vendido em", "assinatura escritura"]);
-              const comissaoCantoVal = parseCurrency(getVal(row, ["Qual valor da comissao de venda? (total Canto)", "comissao total", "comissao valor"]));
-              const comissaoCantoPerc = parseCurrency(getVal(row, ["% para Canto Imoveis", "percentual canto", "comissao %"]));
-              const valorAnuncio = parseCurrency(getVal(row, ["Qual valor anunciado?", "anuncio", "valor pedida"]));
+              const dataVendaRaw = getVal(row, ["Data do venda", "assinatura", "fechamento", "data"]);
+              const comissaoCantoVal = parseCurrency(getVal(row, ["Qual valor da comissao de venda? (total Canto)", "comissao total"]));
+              const comissaoCantoPerc = parseCurrency(getVal(row, ["% para Canto Imoveis", "percentual canto"]));
+              const valorAnuncio = parseCurrency(getVal(row, ["Qual valor anunciado?", "anuncio"]));
               const valorVenda = parseCurrency(getVal(row, ["Qual valor final de venda?", "valor fechado", "valor venda"]));
 
               const saleRef = doc(firestore, "vendas_imoveis", `${safeId}-${processedCount}`);
@@ -172,11 +166,11 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
                 propertyCode: propertyCode,
                 imobiliariaCorretor: String(getVal(row, ["Qual imobiliaria/corretor"]) || ""),
                 percentualCanto: comissaoCantoPerc,
-                construtora: String(getVal(row, ["Construtora/Incorporadora", "construtora"]) || ""),
-                neighborhood: String(getVal(row, ["Empreendimento", "bairro", "local"]) || "N/A"),
-                unit: String(getVal(row, ["Unidade(s)", "apartamento", "sala"]) || "N/A"),
-                clientName: String(getVal(row, ["O contrato esta no nome de quem?", "cliente", "nome"]) || "N/A"),
-                originChannel: String(getVal(row, ["origem do lead?", "canal", "origem"]) || "Direto"),
+                construtora: String(getVal(row, ["Construtora/Incorporadora"]) || ""),
+                neighborhood: String(getVal(row, ["Empreendimento", "bairro"]) || "N/A"),
+                unit: String(getVal(row, ["Unidade(s)", "apartamento"]) || "N/A"),
+                clientName: String(getVal(row, ["O contrato esta no nome de quem?", "cliente"]) || "N/A"),
+                originChannel: String(getVal(row, ["origem do lead?", "canal"]) || "Direto"),
                 advertisedValue: valorAnuncio,
                 closedValue: valorVenda,
                 commissionValue: comissaoCantoVal,

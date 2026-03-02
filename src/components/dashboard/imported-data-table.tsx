@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useCollection, useMemoFirebase, useFirebase } from "@/firebase";
@@ -56,7 +55,7 @@ export function ImportedDataTable() {
           </div>
         ) : imoveis && imoveis.length > 0 ? (
           <ScrollArea className="w-full h-[600px]">
-            <div className="min-w-[1800px]">
+            <div className="min-w-[2200px]">
               <Table>
                 <TableHeader className="bg-muted/50 sticky top-0 z-10">
                   <TableRow>
@@ -67,6 +66,8 @@ export function ImportedDataTable() {
                     <TableHead className="text-[10px] font-bold uppercase min-w-[350px]">Endereço</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[120px]">Transação</TableHead>
                     <TableHead className="text-right text-[10px] font-bold uppercase min-w-[150px]">Valor Anúncio</TableHead>
+                    <TableHead className="text-right text-[10px] font-bold uppercase min-w-[150px]">Valor Venda</TableHead>
+                    <TableHead className="text-right text-[10px] font-bold uppercase min-w-[150px]">Valor Locação</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[120px] text-center">Status</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[180px]">Última Importação</TableHead>
                   </TableRow>
@@ -105,6 +106,12 @@ export function ImportedDataTable() {
                       </TableCell>
                       <TableCell className="text-right text-xs font-bold text-primary">
                         {formatCurrency(imovel.listingValue)}
+                      </TableCell>
+                      <TableCell className="text-right text-xs font-bold text-emerald-600">
+                        {formatCurrency(imovel.saleValue)}
+                      </TableCell>
+                      <TableCell className="text-right text-xs font-bold text-indigo-600">
+                        {formatCurrency(imovel.rentalValue)}
                       </TableCell>
                       <TableCell className="text-center">
                         <Badge className={`text-[10px] px-2 ${
