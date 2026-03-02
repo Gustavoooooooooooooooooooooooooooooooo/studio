@@ -33,11 +33,11 @@ export function SalesDataTable() {
     }).format(num);
   };
 
-  // Helper para exibir data, tratando números seriais do Excel
   const formatDateDisplay = (val: any) => {
     if (!val) return "N/A";
-    const num = Number(val);
-    if (!isNaN(num) && num > 30000 && num < 60000) {
+    const cleanStr = String(val).replace(/[\.,]/g, '').trim();
+    const num = Number(cleanStr);
+    if (!isNaN(num) && num > 40000 && num < 60000) {
       const date = new Date(Math.round((num - 25569) * 86400 * 1000));
       return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
     }
@@ -52,7 +52,7 @@ export function SalesDataTable() {
             <BadgeCheck className="h-5 w-5 text-emerald-600" />
             Planilha de Conclusão de Negócios
           </CardTitle>
-          <p className="text-xs text-muted-foreground">Exibindo todos os fechamentos registrados.</p>
+          <p className="text-xs text-muted-foreground">Exibindo todos os fechamentos registrados com datas corrigidas.</p>
         </div>
         <Badge variant="outline" className="text-emerald-600 font-bold">
           {vendas?.length || 0} Registros

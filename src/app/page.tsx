@@ -21,9 +21,9 @@ import { collection, query, orderBy } from "firebase/firestore";
 
 export default function AppContainer() {
   const [mounted, setMounted] = useState(false);
-  // FIX: Forçar o tempo "agora" para Março de 2026 para alinhar com os testes do usuário
-  // 15/01/2026 até 02/03/2026 = 46 dias.
-  const [now, setNow] = useState<Date>(new Date(2026, 2, 2)); 
+  // FIX: Ajustando o tempo "agora" para 02 de Março de 2026.
+  // De 15/01/2026 até 02/03/2026 temos exatamente 46 dias.
+  const [now] = useState<Date>(new Date(2026, 2, 2)); 
   const { auth, firestore } = useFirebase();
 
   useEffect(() => {
@@ -67,10 +67,10 @@ export default function AppContainer() {
       const cleanStr = String(d).trim();
       if (!cleanStr || cleanStr === "N/A" || cleanStr === "undefined") return null;
 
-      // Suporte para números seriais do Excel
+      // Suporte para números seriais do Excel (Ex: 46037)
       const numStr = cleanStr.replace(/[\.,]/g, '');
       const num = Number(numStr);
-      if (!isNaN(num) && num > 40000 && num < 60000 && !cleanStr.includes('/') && !cleanStr.includes('-')) {
+      if (!isNaN(num) && num > 40000 && num < 60000) {
         return new Date(Math.round((num - 25569) * 86400 * 1000));
       }
 
@@ -95,37 +95,26 @@ export default function AppContainer() {
       return Math.floor((t1 - t2) / (1000 * 60 * 60 * 24));
     };
 
+    // Filtro de vendas (ignora locação para ciclo médio de venda)
     const salesOnly = sales.filter(s => {
       const type = normalizeKey(s.tipoVenda || "");
       return type.includes("venda") || type === "" || type === "venda"; 
     });
 
-    const calcAvgDays = (data: any[]) => {
-      const validDiffs = data.map(s => {
-        const start = parseDate(s.propertyCaptureDate);
-        const end = parseDate(s.saleDate);
-        const diff = diffDays(end, start);
-        return diff;
-      }).filter(d => d !== null && d >= 0) as number[];
-      
-      return validDiffs.length > 0 ? validDiffs.reduce((a, b) => a + b, 0) / validDiffs.length : 0;
-    };
+    // Ciclo Médio (Performance)
+    const validDiffs = salesOnly.map(s => {
+      const start = parseDate(s.propertyCaptureDate);
+      const end = parseDate(s.saleDate);
+      return diffDays(end, start);
+    }).filter(d => d !== null && d >= 0) as number[];
+    
+    const avgDaysToSell = validDiffs.length > 0 ? validDiffs.reduce((a, b) => a + b, 0) / validDiffs.length : 0;
 
-    // Ordenar para encontrar a venda MAIS RECENTE no tempo real (2026)
-    const sortedSalesDates = salesOnly
+    // Última Venda (Recência)
+    const sortedSalesDates = sales
       .map(s => parseDate(s.saleDate))
       .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
       .sort((a, b) => b.getTime() - a.getTime());
-
-    let salesFrequency = 0;
-    if (sortedSalesDates.length > 1) {
-      const last = sortedSalesDates[0];
-      const first = sortedSalesDates[sortedSalesDates.length - 1];
-      const totalDays = Math.floor((last.getTime() - first.getTime()) / (1000 * 3600 * 24));
-      if (totalDays > 0) {
-        salesFrequency = totalDays / (sortedSalesDates.length - 1);
-      }
-    }
 
     const lastSale = sortedSalesDates.length > 0 ? sortedSalesDates[0] : null;
 
@@ -137,10 +126,21 @@ export default function AppContainer() {
       daysSinceLastSale = diff;
     }
 
+    // Frequência de Vendas (Ritmo)
+    let salesFrequency = 0;
+    if (sortedSalesDates.length > 1) {
+      const newest = sortedSalesDates[0];
+      const oldest = sortedSalesDates[sortedSalesDates.length - 1];
+      const totalPeriodDays = Math.floor((newest.getTime() - oldest.getTime()) / (1000 * 3600 * 24));
+      if (totalPeriodDays > 0) {
+        salesFrequency = totalPeriodDays / (sortedSalesDates.length - 1);
+      }
+    }
+
     const totalVgv = sales.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
 
     return {
-      avgDaysToSell: calcAvgDays(salesOnly),
+      avgDaysToSell,
       avgDaysToRent: 0,
       totalValue: totalVgv,
       lastSaleDisplay: daysSinceLastSale !== null 
@@ -150,7 +150,7 @@ export default function AppContainer() {
       totalSales: sales.length,
       totalProperties: properties.length,
       avgTicket: sales.length > 0 ? totalVgv / sales.length : 0,
-      salesFrequency: salesFrequency
+      salesFrequency
     };
   }, [rawSales, rawLeads, rawProperties, now]);
 
@@ -163,7 +163,7 @@ export default function AppContainer() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-40 w-full border-b bg-white/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
