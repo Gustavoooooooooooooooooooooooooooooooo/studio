@@ -95,10 +95,10 @@ export default function AppContainer() {
       return Math.floor((t1 - t2) / (1000 * 60 * 60 * 24));
     };
 
-    // Filtra e ordena todas as datas de venda válidas
+    // Filtra e ordena todas as datas de venda válidas (2026 em diante)
     const validSalesDates = sales
       .map(s => parseDate(s.saleDate))
-      .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
+      .filter((d): d is Date => d !== null && !isNaN(d.getTime()) && d.getFullYear() >= 2026)
       .sort((a, b) => b.getTime() - a.getTime());
 
     const lastSale = validSalesDates.length > 0 ? validSalesDates[0] : null;
@@ -111,13 +111,19 @@ export default function AppContainer() {
       }
     }
 
-    // Frequência de Vendas: Média de intervalo entre todas as vendas do período
+    // Frequência de Vendas: (Média de dias entre as vendas do período)
+    // Se houve 5 vendas em 20 dias, a frequência é de 1 venda a cada 4 dias.
     let salesFrequency = 0;
     if (validSalesDates.length > 1) {
-      const oldestSale = validSalesDates[validSalesDates.length - 1];
       const newestSale = validSalesDates[0];
-      const totalSpanDays = diffDays(newestSale, oldestSale) || 0;
-      salesFrequency = Math.round(totalSpanDays / (validSalesDates.length - 1));
+      const oldestSale = validSalesDates[validSalesDates.length - 1];
+      const totalPeriodDays = diffDays(newestSale, oldestSale) || 1;
+      salesFrequency = Math.round(totalPeriodDays / (validSalesDates.length - 1));
+    } else if (validSalesDates.length === 1 && lastSale) {
+      // Se tiver apenas uma venda, calculamos a frequência baseada no início do ano ou do período
+      const startOfYear = new Date(2026, 0, 1);
+      const daysSoFar = diffDays(now, startOfYear) || 1;
+      salesFrequency = Math.round(daysSoFar / 1);
     }
 
     const salesOnly = sales.filter(s => !normalizeKey(s.tipoVenda || "").includes("locacao"));
