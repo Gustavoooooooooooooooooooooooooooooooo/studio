@@ -46,6 +46,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
 
     for (const rowKey of rowKeys) {
       const normalizedRowKey = normalize(rowKey);
+      // Busca exata ou que contenha o termo, priorizando termos mais específicos
       if (normalizedSearchKeys.some(sk => normalizedRowKey === sk || normalizedRowKey.includes(sk))) {
         return row[rowKey];
       }
@@ -144,7 +145,9 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              const dataVendaRaw = getVal(row, ["Data do venda", "assinatura", "fechamento", "data"]);
+              // CRÍTICO: Para a Data de Venda (Coluna S), buscamos especificamente o termo que não conflita com "Carimbo" (Coluna A)
+              const dataVendaRaw = getVal(row, ["Data do venda", "assinatura", "fechamento"]);
+              
               const comissaoCantoVal = parseCurrency(getVal(row, ["Qual valor da comissao de venda? (total Canto)", "comissao total"]));
               const comissaoCantoPerc = parseCurrency(getVal(row, ["% para Canto Imoveis", "percentual canto"]));
               const valorAnuncio = parseCurrency(getVal(row, ["Qual valor anunciado?", "anuncio"]));
