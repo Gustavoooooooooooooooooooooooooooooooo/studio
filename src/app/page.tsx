@@ -108,7 +108,7 @@ export default function AppContainer() {
       avgDaysToRent: calcAvgDays(rentsOnly),
       totalValue: totalVgv,
       lastSaleDisplay: daysSinceLastSale !== null 
-        ? `${daysSinceLastSale} ${daysSinceLastSale === 1 ? 'dia' : 'dias'} desde a última venda`
+        ? `${daysSinceLastSale} ${daysSinceLastSale === 1 ? 'Dia' : 'Dias'}`
         : "Nenhum registro",
       totalLeads: leads.length,
       totalSales: sales.length,
