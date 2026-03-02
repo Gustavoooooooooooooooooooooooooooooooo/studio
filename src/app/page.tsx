@@ -92,12 +92,13 @@ export default function AppContainer() {
       return Math.floor((t1 - t2) / (1000 * 60 * 60 * 24));
     };
 
-    // --- ÚLTIMA VENDA ---
+    // --- FILTRAGEM DE DATAS VÁLIDAS ---
     const validSalesDates = sales
       .map(s => parseDate(s.saleDate))
       .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
       .sort((a, b) => b.getTime() - a.getTime());
 
+    // --- ÚLTIMA VENDA ---
     const lastSale = validSalesDates.length > 0 ? validSalesDates[0] : null;
 
     let daysSinceLastSaleDisplay = "0 Dias";
@@ -108,18 +109,19 @@ export default function AppContainer() {
       }
     }
 
-    // --- FREQUÊNCIA DE VENDAS (Média de produtividade) ---
-    // Regra: Dias do período (Início até Hoje) / Total de Vendas
+    // --- FREQUÊNCIA DE VENDAS (Média de produtividade entre fechamentos) ---
+    // Lógica Corrigida: (Data da Última Venda - Data da Primeira Venda) / (Total de Vendas - 1)
     const sortedDatesAsc = [...validSalesDates].sort((a, b) => a.getTime() - b.getTime());
     let salesFrequency = 0;
-    if (sortedDatesAsc.length > 0) {
+    if (sortedDatesAsc.length > 1) {
       const first = sortedDatesAsc[0];
-      const totalPeriodDays = diffDays(now, first) || 0;
-      // Calcula a cadência: Periodo total / Numero de vendas
-      salesFrequency = totalPeriodDays / sortedDatesAsc.length;
+      const newest = sortedDatesAsc[sortedDatesAsc.length - 1];
+      const totalIntervalDays = diffDays(newest, first) || 0;
+      // Calcula o intervalo médio entre as vendas do histórico
+      salesFrequency = totalIntervalDays / (sortedDatesAsc.length - 1);
     }
 
-    // --- CICLO MÉDIO DE VENDA (Quanto tempo o imóvel fica no estoque) ---
+    // --- CICLO MÉDIO DE VENDA (Tempo do imóvel no estoque: Captura -> Venda) ---
     const validDiffs = sales.map(s => {
       const start = parseDate(s.propertyCaptureDate);
       const end = parseDate(s.saleDate);
