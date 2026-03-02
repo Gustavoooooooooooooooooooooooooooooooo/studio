@@ -17,7 +17,7 @@ interface StatsCardsProps {
     avgDaysToSell: number;
     avgDaysToRent: number;
     totalValue: number;
-    lastSaleDate: string;
+    lastSaleDisplay: string;
     totalLeads: number;
     totalSales: number;
     totalProperties: number;
@@ -49,8 +49,8 @@ export function StatsCards({ metrics }: StatsCardsProps) {
     },
     {
       title: "Última Venda Realizada",
-      value: metrics.lastSaleDate,
-      description: "Data do fechamento mais recente",
+      value: metrics.lastSaleDisplay,
+      description: "Tempo desde o fechamento mais recente",
       icon: CheckCircle2,
       color: "text-orange-600",
       group: "Histórico"

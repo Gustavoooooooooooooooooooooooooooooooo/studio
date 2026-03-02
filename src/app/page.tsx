@@ -57,19 +57,6 @@ export default function AppContainer() {
   const normalizeKey = (s: string) => 
     String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-  const getValFromRow = (row: any, searchTerms: string[]) => {
-    if (!row) return undefined;
-    const keys = Object.keys(row);
-    const normalizedTerms = searchTerms.map(normalizeKey);
-    for (const key of keys) {
-      const normKey = normalizeKey(key);
-      if (normalizedTerms.some(term => normKey === term || normKey.includes(term))) {
-        return row[key];
-      }
-    }
-    return undefined;
-  };
-
   const metrics = useMemo(() => {
     const sales = rawSales || [];
     const leads = rawLeads || [];
@@ -110,13 +97,19 @@ export default function AppContainer() {
         }, null as Date | null)
       : null;
 
+    const daysSinceLastSale = lastSale 
+      ? Math.floor((new Date().getTime() - lastSale.getTime()) / (1000 * 3600 * 24))
+      : null;
+
     const totalVgv = sales.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
 
     return {
       avgDaysToSell: calcAvgDays(salesOnly),
       avgDaysToRent: calcAvgDays(rentsOnly),
       totalValue: totalVgv,
-      lastSaleDate: lastSale ? lastSale.toLocaleDateString('pt-BR') : "Nenhum registro",
+      lastSaleDisplay: daysSinceLastSale !== null 
+        ? `${daysSinceLastSale} ${daysSinceLastSale === 1 ? 'dia' : 'dias'} desde a última venda`
+        : "Nenhum registro",
       totalLeads: leads.length,
       totalSales: sales.length,
       totalProperties: properties.length,
