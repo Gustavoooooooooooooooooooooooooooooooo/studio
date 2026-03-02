@@ -95,10 +95,10 @@ export default function AppContainer() {
       return Math.floor((t1 - t2) / (1000 * 60 * 60 * 24));
     };
 
-    // Filtra e ordena todas as datas de venda válidas (2026 em diante)
+    // --- ÚLTIMA VENDA ---
     const validSalesDates = sales
       .map(s => parseDate(s.saleDate))
-      .filter((d): d is Date => d !== null && !isNaN(d.getTime()) && d.getFullYear() >= 2026)
+      .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
       .sort((a, b) => b.getTime() - a.getTime());
 
     const lastSale = validSalesDates.length > 0 ? validSalesDates[0] : null;
@@ -111,20 +111,20 @@ export default function AppContainer() {
       }
     }
 
-    // Frequência de Vendas (Solicitado: média de dias que leva para vender um imóvel)
-    // Calculamos a diferença entre Data de Venda e Data de Entrada para todos os imóveis vendidos
-    const saleDurations = sales.map(s => {
-      const start = parseDate(s.propertyCaptureDate);
-      const end = parseDate(s.saleDate);
-      return diffDays(end, start);
-    }).filter((d): d is number => d !== null && d >= 0);
+    // --- FREQUÊNCIA DE VENDAS (A cada quantos dias ocorre uma venda) ---
+    // Regra: (Data da Última Venda - Data da Primeira Venda) / Total de Vendas
+    const sortedDatesAsc = [...validSalesDates].sort((a, b) => a.getTime() - b.getTime());
+    let salesFrequency = 0;
+    if (sortedDatesAsc.length > 1) {
+      const first = sortedDatesAsc[0];
+      const last = sortedDatesAsc[sortedDatesAsc.length - 1];
+      const totalPeriodDays = diffDays(last, first) || 0;
+      // Dividimos pelo número de intervalos entre as vendas
+      salesFrequency = totalPeriodDays / (sortedDatesAsc.length - 1);
+    }
 
-    const salesFrequency = saleDurations.length > 0 
-      ? Math.round(saleDurations.reduce((a, b) => a + b, 0) / saleDurations.length) 
-      : 0;
-
-    const salesOnly = sales.filter(s => !normalizeKey(s.tipoVenda || "").includes("locacao"));
-    const validDiffs = salesOnly.map(s => {
+    // --- CICLO MÉDIO DE VENDA (Quanto tempo o imóvel fica no estoque) ---
+    const validDiffs = sales.map(s => {
       const start = parseDate(s.propertyCaptureDate);
       const end = parseDate(s.saleDate);
       return diffDays(end, start);
