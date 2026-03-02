@@ -64,9 +64,12 @@ export default function AppContainer() {
       if (!cleanStr || cleanStr === "N/A" || cleanStr === "undefined" || cleanStr === "") return null;
 
       // Suporte para números seriais do Excel (Ex: 46037 para 15/01/2026)
-      const numStr = cleanStr.replace(/[\.,]/g, '');
-      const num = Number(numStr);
+      // Ajustado para lidar com formatos brasileiros de milhares (ponto) e decimais (vírgula)
+      let val = cleanStr.replace(/\./g, '').replace(',', '.');
+      const num = parseFloat(val);
+      
       if (!isNaN(num) && num > 40000 && num < 60000) {
+        // Excel serial date to JS Date
         return new Date(Math.round((num - 25569) * 86400 * 1000));
       }
 
@@ -85,8 +88,7 @@ export default function AppContainer() {
       return isNaN(date.getTime()) ? null : date;
     };
 
-    const diffDays = (d1: Date | null, d2: Date | null) => {
-      if (!d1 || !d2 || isNaN(d1.getTime()) || isNaN(d2.getTime())) return null;
+    const diffDays = (d1: Date, d2: Date) => {
       // Normalizamos para o início do dia para evitar problemas de fuso/horas
       const t1 = Date.UTC(d1.getFullYear(), d1.getMonth(), d1.getDate());
       const t2 = Date.UTC(d2.getFullYear(), d2.getMonth(), d2.getDate());
@@ -96,45 +98,51 @@ export default function AppContainer() {
     // --- FILTRAGEM DE DATAS VÁLIDAS ---
     const validSalesDates = sales
       .map(s => parseDate(s.saleDate))
-      .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
-      .sort((a, b) => b.getTime() - a.getTime());
+      .filter((d): d is Date => d !== null && !isNaN(d.getTime()));
 
-    // --- ÚLTIMA VENDA ---
-    const lastSale = validSalesDates.length > 0 ? validSalesDates[0] : null;
+    // --- ÚLTIMA VENDA (Dias desde a última) ---
+    const sortedDatesDesc = [...validSalesDates].sort((a, b) => b.getTime() - a.getTime());
+    const lastSale = sortedDatesDesc.length > 0 ? sortedDatesDesc[0] : null;
 
     let daysSinceLastSaleDisplay = "0 Dias";
     if (lastSale && now) {
       const diff = diffDays(now, lastSale);
-      if (diff !== null) {
-        daysSinceLastSaleDisplay = `${Math.max(0, diff)} Dias`;
-      }
+      daysSinceLastSaleDisplay = `${Math.max(0, diff)} Dias`;
     }
 
-    // --- FREQUÊNCIA DE VENDAS (Média de Intervalo entre Vendas) ---
-    // Passo 1: Ordenação Cronológica
+    // --- FREQUÊNCIA DE VENDAS (PASSO A PASSO LÓGICO SOLICITADO) ---
+    // 1. Ordenação Cronológica (Mais antigo para mais novo)
     const sortedDatesAsc = [...validSalesDates].sort((a, b) => a.getTime() - b.getTime());
     
     let salesFrequency = 0;
     if (sortedDatesAsc.length > 1) {
-      // Passo 2: Cálculo dos Intervalos (Data Última - Data Primeira)
-      const firstSaleDate = sortedDatesAsc[0];
-      const lastSaleDate = sortedDatesAsc[sortedDatesAsc.length - 1];
+      // 2. Cálculo dos Intervalos: Subtrair data da primeira da segunda, segunda da terceira...
+      let sumIntervals = 0;
+      let countIntervals = 0;
+
+      for (let i = 0; i < sortedDatesAsc.length - 1; i++) {
+        const interval = diffDays(sortedDatesAsc[i+1], sortedDatesAsc[i]);
+        if (interval >= 0) {
+          sumIntervals += interval;
+          countIntervals++;
+        }
+      }
       
-      const totalDaysPeriod = diffDays(lastSaleDate, firstSaleDate) || 0;
-      
-      // Passo 3: Soma e Divisão (Intervalos = Total Vendas - 1)
-      const totalIntervals = sortedDatesAsc.length - 1;
-      salesFrequency = totalDaysPeriod / totalIntervals;
+      // 3. Soma e Divisão: Dividir pela quantidade de intervalos (vendas - 1)
+      if (countIntervals > 0) {
+        salesFrequency = sumIntervals / countIntervals;
+      }
     }
 
     // --- CICLO MÉDIO DE VENDA (Captura -> Venda) ---
-    const validDiffs = sales.map(s => {
+    const validCycles = sales.map(s => {
       const start = parseDate(s.propertyCaptureDate);
       const end = parseDate(s.saleDate);
-      return diffDays(end, start);
-    }).filter(d => d !== null && d >= 0) as number[];
+      if (start && end) return diffDays(end, start);
+      return null;
+    }).filter((d): d is number => d !== null && d >= 0);
     
-    const avgDaysToSell = validDiffs.length > 0 ? validDiffs.reduce((a, b) => a + b, 0) / validDiffs.length : 0;
+    const avgDaysToSell = validCycles.length > 0 ? validCycles.reduce((a, b) => a + b, 0) / validCycles.length : 0;
 
     const totalVgv = sales.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
 

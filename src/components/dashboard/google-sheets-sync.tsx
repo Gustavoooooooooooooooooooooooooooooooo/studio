@@ -55,8 +55,10 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     if (typeof serial === 'string' && serial.includes('/')) return serial;
     
     // Converte o número serial do Excel (Ex: 46037) para String de Data
-    let s = String(serial).replace(/[\.,]/g, "").trim();
-    const num = Number(s);
+    // Ajustado para lidar com formatos brasileiros de milhares (ponto) e decimais (vírgula)
+    let s = String(serial).trim().replace(/\./g, '').replace(',', '.');
+    const num = parseFloat(s);
+    
     if (!isNaN(num) && num > 40000 && num < 60000) {
       const date = new Date(Math.round((num - 25569) * 86400 * 1000));
       return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
@@ -76,17 +78,16 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       }
     }
 
-    // 2. Busca específica para Datas (Coluna R) - Ignora carimbos e nomes
+    // 2. Busca específica para Datas (Coluna R na aba Conclusão)
     if (searchKeys.includes("data venda")) {
       const targetKey = rowKeys.find(rk => {
         const n = normalize(rk);
-        // Deve ser especificamente Data Venda e não pode ser Vendedor, Angariador ou Carimbo
-        return (n === "data venda" || n === "datavenda" || (n.includes("data") && n.includes("venda"))) && 
+        // Deve conter "data" e "venda" mas NÃO pode conter termos de corretor ou valor
+        return (n.includes("data") && n.includes("venda")) && 
                !n.includes("vendedor") && 
                !n.includes("corretor") && 
                !n.includes("angariador") && 
-               !n.includes("valor") &&
-               !n.includes("carimbo");
+               !n.includes("valor");
       });
       if (targetKey) return row[targetKey];
     }
@@ -279,10 +280,10 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         <div className="flex items-start gap-2 bg-white/40 p-3 rounded-lg border border-primary/5 text-[11px] text-muted-foreground">
           <div className="space-y-1">
             <p className="font-bold mb-1 flex items-center gap-1">
-               <Info className="h-3 w-3 text-primary" /> Mapeamento Real:
+               <Info className="h-3 w-3 text-primary" /> Cálculo de Frequência Real:
             </p>
-            <p>O sistema agora foca estritamente na <b>Coluna R</b> (Data Venda) e calcula a média de frequência entre fechamentos.</p>
-            <p className="mt-1"><b>Dica:</b> O número 46037 será convertido para 15/01/2026.</p>
+            <p>O sistema agora calcula a média de dias entre cada venda (intervalos) para chegar ao indicador de produtividade.</p>
+            <p className="mt-1"><b>Exemplo:</b> Se você vendeu dias 10, 20 e 28, a média é (10+8)/2 = 9 dias.</p>
           </div>
         </div>
       </CardContent>
