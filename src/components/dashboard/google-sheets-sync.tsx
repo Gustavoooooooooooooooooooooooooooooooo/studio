@@ -47,16 +47,14 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     String(s || "").toLowerCase()
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
-      .replace(/\s+/g, " ")
       .trim();
 
   const excelDateToJSDate = (serial: any) => {
-    if (serial === undefined || serial === null || serial === "") return "";
+    if (!serial) return "";
     if (typeof serial === 'string' && serial.includes('/')) return serial;
     
-    // Converte o número serial do Excel (Ex: 46037) para String de Data
-    // Ajustado para lidar com formatos brasileiros de milhares (ponto) e decimais (vírgula)
-    let s = String(serial).trim().replace(/\./g, '').replace(',', '.');
+    // Tratamento robusto para números seriais (comum em Excel/Sheets)
+    const s = String(serial).trim().replace(',', '.');
     const num = parseFloat(s);
     
     if (!isNaN(num) && num > 40000 && num < 60000) {
@@ -71,23 +69,19 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     const rowKeys = Object.keys(row);
     const normalizedSearchKeys = searchKeys.map(normalize);
 
-    // 1. Busca por correspondência exata de termos normalizados
+    // Prioridade para busca exata de cabeçalho
     for (const rowKey of rowKeys) {
       if (normalizedSearchKeys.includes(normalize(rowKey))) {
         return row[rowKey];
       }
     }
 
-    // 2. Busca específica para Datas (Coluna R na aba Conclusão)
+    // Fallback inteligente para Data Venda (Coluna R)
     if (searchKeys.includes("data venda")) {
       const targetKey = rowKeys.find(rk => {
         const n = normalize(rk);
-        // Deve conter "data" e "venda" mas NÃO pode conter termos de corretor ou valor
         return (n.includes("data") && n.includes("venda")) && 
-               !n.includes("vendedor") && 
-               !n.includes("corretor") && 
-               !n.includes("angariador") && 
-               !n.includes("valor");
+               !n.includes("vendedor") && !n.includes("corretor") && !n.includes("angariador");
       });
       if (targetKey) return row[targetKey];
     }
@@ -96,7 +90,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
   };
 
   const parseCurrency = (val: any) => {
-    if (val === undefined || val === null || val === "") return 0;
+    if (!val) return 0;
     if (typeof val === 'number') return val;
     let s = String(val).trim().replace(/[R$ ]/g, "");
     if (s.includes('.') && s.includes(',')) s = s.replace(/\./g, "").replace(",", ".");
@@ -119,84 +113,54 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         for (const row of result.data) {
           try {
             const rawCode = getVal(row, ["codigo", "referencia", "unidade", "id"]);
-            const propertyCode = String(rawCode || `REF-${Date.now()}-${processedCount}`).trim();
-            const safeId = propertyCode.replace(/[\/\.\#\$\/\[\]]/g, "-");
+            const propertyCode = String(rawCode || `REF-${processedCount}`).trim();
 
             if (mode === 'inventory') {
               const saleValue = parseCurrency(getVal(row, ["valor venda"]));
-              const rentalValue = parseCurrency(getVal(row, ["valor locacao", "aluguel"]));
               const broker = String(getVal(row, ["angariador", "corretor"]) || "N/A");
               const neighborhood = String(getVal(row, ["bairro"]) || "N/A");
               const timestamp = excelDateToJSDate(getVal(row, ["data entrada", "entrada"]));
               const status = String(getVal(row, ["status"]) || "Disponível");
 
-              const propRef = doc(firestore, "properties", `${safeId}-${processedCount}`);
+              const safeId = `prop-${propertyCode}`.replace(/[\/\.\#\$\/\[\]]/g, "-");
+              const propRef = doc(firestore, "properties", safeId);
               setDocumentNonBlocking(propRef, {
-                propertyCode, neighborhood, saleValue, rentalValue,
+                propertyCode, neighborhood, saleValue,
                 brokerId: broker, captureDate: String(timestamp || ""), status, importedAt: serverTimestamp(),
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              // MAPEAMENTO RIGOROSO DA COLUNA R
-              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "data da venda", "data fechamento", "fechamento"]));
+              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "fechamento"]));
               const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "entrada"]));
               
-              const valorAnuncio = parseCurrency(getVal(row, ["valor anuncio"]));
-              const valorVenda = parseCurrency(getVal(row, ["valor fechado", "valor venda"]));
-
-              const saleRef = doc(firestore, "vendas_imoveis", `${safeId}-${processedCount}`);
+              // ID estável baseado no Código e Data para evitar duplicações no cálculo da média
+              const safeSaleId = `sale-${propertyCode}-${String(dataVendaRaw).replace(/\//g, '-')}`.replace(/[\/\.\#\$\/\[\]]/g, "-");
+              const saleRef = doc(firestore, "vendas_imoveis", safeSaleId);
+              
               setDocumentNonBlocking(saleRef, {
                 vendedor: String(getVal(row, ["vendedor", "corretor"]) || ""),
-                tipoVenda: String(getVal(row, ["tipo", "transacao"]) || ""),
-                angariador: String(getVal(row, ["angariador"]) || ""),
                 propertyCode,
                 neighborhood: String(getVal(row, ["bairro"]) || "N/A"),
-                unit: String(getVal(row, ["unidade"]) || "N/A"),
                 clientName: String(getVal(row, ["cliente"]) || "N/A"),
-                originChannel: String(getVal(row, ["origem"]) || "Direto"),
-                advertisedValue: valorAnuncio,
-                closedValue: valorVenda,
+                closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda"])),
                 saleDate: String(dataVendaRaw || ""),
                 propertyCaptureDate: String(dataEntradaRaw || ""),
                 status: "Vendido",
                 importedAt: serverTimestamp(),
               }, { merge: true });
             } else if (mode === 'leads') {
-              const leadData: any = { importedAt: serverTimestamp() };
-              Object.keys(row).forEach(key => { 
-                leadData[key] = key.toLowerCase().includes('data') ? excelDateToJSDate(row[key]) : row[key]; 
-              });
-              const leadRef = doc(firestore, "leads", `LEAD-${processedCount}-${safeId}`);
-              setDocumentNonBlocking(leadRef, leadData, { merge: true });
+              const leadRef = doc(firestore, "leads", `lead-${processedCount}`);
+              setDocumentNonBlocking(leadRef, { ...row, importedAt: serverTimestamp() }, { merge: true });
             }
             processedCount++;
-          } catch (rowError) {
-            console.error("Erro na linha:", rowError);
-          }
+          } catch (e) { console.error(e); }
         }
 
         setLastSync(new Date());
-        if (!silent) {
-          toast({
-            title: "Sincronização Concluída!",
-            description: `${processedCount} registros atualizados.`,
-          });
-        }
-      } else if (!silent) {
-        toast({
-          variant: "destructive",
-          title: "Erro na Planilha",
-          description: result.message || "Não foi possível ler os dados.",
-        });
+        if (!silent) toast({ title: "Sincronização Concluída", description: `${processedCount} registros atualizados.` });
       }
     } catch (error: any) {
-      if (!silent) {
-        toast({ 
-          variant: "destructive", 
-          title: "Erro na Sincronização", 
-          description: error.message || "Verifique o link da planilha."
-        });
-      }
+      if (!silent) toast({ variant: "destructive", title: "Erro na Sincronização", description: error.message });
     } finally {
       if (!silent) setSyncing(false);
     }
@@ -204,7 +168,6 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
 
   useEffect(() => {
     if (!autoSync || !url) return;
-    handleSync(true);
     const interval = setInterval(() => handleSync(true), 60000);
     return () => clearInterval(interval);
   }, [autoSync, url, handleSync]);
@@ -218,73 +181,38 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       const batch = writeBatch(firestore);
       snapshot.docs.forEach((d) => batch.delete(d.ref));
       await batch.commit();
-      toast({ title: "Base Limpa", description: "Todos os dados locais foram removidos." });
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Erro ao limpar", description: error.message });
-    } finally {
-      setClearing(false);
-    }
+      toast({ title: "Base Limpa", description: "Todos os dados foram removidos localmente." });
+    } catch (e: any) { toast({ variant: "destructive", title: "Erro ao limpar", description: e.message }); }
+    finally { setClearing(false); }
   };
 
   return (
-    <Card className={`border-none shadow-sm overflow-hidden bg-gradient-to-br ${mode === 'inventory' ? 'from-primary/5 to-white' : mode === 'sales' ? 'from-emerald-50 to-white' : 'from-indigo-50 to-white'}`}>
+    <Card className="border-none shadow-sm bg-white">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className={`p-2 rounded-lg ${mode === 'inventory' ? 'bg-primary/10 text-primary' : mode === 'sales' ? 'bg-emerald-100 text-emerald-600' : 'bg-indigo-100 text-indigo-600'}`}>
-              {syncing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Zap className={`h-5 w-5 ${autoSync ? 'animate-pulse' : ''}`} />}
-            </div>
+            <div className="p-2 bg-primary/10 rounded-lg"><Zap className="h-5 w-5 text-primary" /></div>
             <div>
-              <CardTitle className="text-lg">
-                {mode === 'inventory' ? 'Cadastro de Imóveis' : mode === 'sales' ? 'Conclusão de Negócios' : 'Base de Leads'}
-              </CardTitle>
-              {lastSync && <p className="text-[10px] text-muted-foreground">Última atualização: {lastSync.toLocaleTimeString()}</p>}
+              <CardTitle className="text-lg">Sincronização em Tempo Real</CardTitle>
+              {lastSync && <p className="text-[10px] text-muted-foreground">Último: {lastSync.toLocaleTimeString()}</p>}
             </div>
           </div>
-          
-          <div className="flex items-center gap-4">
-            <div className="flex items-center space-x-2 bg-white/50 px-3 py-1.5 rounded-full border border-primary/10">
-              <Switch id="auto-sync" checked={autoSync} onCheckedChange={setAutoSync} className="data-[state=checked]:bg-primary" />
-              <Label htmlFor="auto-sync" className="text-[10px] font-bold cursor-pointer uppercase">Tempo Real</Label>
-            </div>
-
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" size="sm" disabled={clearing} className="text-xs text-destructive border-destructive/20">
-                  {clearing ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Trash2 className="h-3 w-3 mr-1" />}
-                  Limpar Base Atual
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Limpar todos os dados?</AlertDialogTitle>
-                  <AlertDialogDescription>Essa ação remove os registros locais para forçar uma nova sincronização limpa da Coluna R.</AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleClearData} className="bg-destructive hover:bg-destructive/90 text-white">Confirmar</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
+          <Button variant="outline" size="sm" onClick={handleClearData} disabled={clearing} className="text-xs text-destructive">
+            {clearing ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Trash2 className="h-3 w-3 mr-1" />}
+            Limpar Base
+          </Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex gap-2">
-          <Input placeholder="Cole o link CSV da planilha (Publicada na Web)..." value={url} onChange={(e) => setUrl(e.target.value)} className="bg-white/50" />
-          <Button onClick={() => handleSync()} disabled={syncing} className={mode === 'inventory' ? 'bg-primary' : mode === 'sales' ? 'bg-emerald-600' : 'bg-indigo-600'}>
-            {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sincronizar Agora"}
+          <Input placeholder="Link CSV do Google Sheets..." value={url} onChange={(e) => setUrl(e.target.value)} />
+          <Button onClick={() => handleSync()} disabled={syncing}>
+            {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sincronizar"}
           </Button>
         </div>
-        
-        <div className="flex items-start gap-2 bg-white/40 p-3 rounded-lg border border-primary/5 text-[11px] text-muted-foreground">
-          <div className="space-y-1">
-            <p className="font-bold mb-1 flex items-center gap-1">
-               <Info className="h-3 w-3 text-primary" /> Cálculo de Frequência Real:
-            </p>
-            <p>O sistema agora calcula a média de dias entre cada venda (intervalos) para chegar ao indicador de produtividade.</p>
-            <p className="mt-1"><b>Exemplo:</b> Se você vendeu dias 10, 20 e 28, a média é (10+8)/2 = 9 dias.</p>
-          </div>
+        <div className="flex items-center space-x-2">
+          <Switch id="auto-sync" checked={autoSync} onCheckedChange={setAutoSync} />
+          <Label htmlFor="auto-sync" className="text-xs">Sincronização automática ligada</Label>
         </div>
       </CardContent>
     </Card>

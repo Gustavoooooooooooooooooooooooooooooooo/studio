@@ -63,16 +63,6 @@ export default function AppContainer() {
       const cleanStr = String(d).trim();
       if (!cleanStr || cleanStr === "N/A" || cleanStr === "undefined" || cleanStr === "") return null;
 
-      // Suporte para números seriais do Excel (Ex: 46037 para 15/01/2026)
-      // Ajustado para lidar com formatos brasileiros de milhares (ponto) e decimais (vírgula)
-      let val = cleanStr.replace(/\./g, '').replace(',', '.');
-      const num = parseFloat(val);
-      
-      if (!isNaN(num) && num > 40000 && num < 60000) {
-        // Excel serial date to JS Date
-        return new Date(Math.round((num - 25569) * 86400 * 1000));
-      }
-
       // Suporte para DD/MM/AAAA
       const parts = cleanStr.split('/');
       if (parts.length === 3) {
@@ -81,7 +71,13 @@ export default function AppContainer() {
         const yearPart = parts[2].trim();
         const year = yearPart.length === 2 ? 2000 + parseInt(yearPart, 10) : parseInt(yearPart, 10);
         const date = new Date(year, month, day);
-        return isNaN(date.getTime()) ? null : date;
+        if (!isNaN(date.getTime())) return date;
+      }
+
+      // Suporte para números seriais do Excel (Ex: 46037)
+      const num = parseFloat(cleanStr.replace(',', '.'));
+      if (!isNaN(num) && num > 40000 && num < 60000) {
+        return new Date(Math.round((num - 25569) * 86400 * 1000));
       }
 
       const date = new Date(cleanStr);
@@ -89,53 +85,56 @@ export default function AppContainer() {
     };
 
     const diffDays = (d1: Date, d2: Date) => {
-      // Normalizamos para o início do dia para evitar problemas de fuso/horas
       const t1 = Date.UTC(d1.getFullYear(), d1.getMonth(), d1.getDate());
       const t2 = Date.UTC(d2.getFullYear(), d2.getMonth(), d2.getDate());
       return Math.floor((t1 - t2) / (1000 * 60 * 60 * 24));
     };
 
-    // --- FILTRAGEM DE DATAS VÁLIDAS ---
-    const validSalesDates = sales
+    // --- FILTRAGEM E ORDENAÇÃO ---
+    // Removemos duplicatas de venda baseadas no código do imóvel + data para evitar poluir a média
+    const uniqueSalesMap = new Map();
+    sales.forEach(s => {
+      const key = `${s.propertyCode}-${s.saleDate}`;
+      if (!uniqueSalesMap.has(key)) uniqueSalesMap.set(key, s);
+    });
+    const uniqueSales = Array.from(uniqueSalesMap.values());
+
+    const validSalesDates = uniqueSales
       .map(s => parseDate(s.saleDate))
-      .filter((d): d is Date => d !== null && !isNaN(d.getTime()));
+      .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
+      .sort((a, b) => a.getTime() - b.getTime()); // Ordenação cronológica
 
     // --- ÚLTIMA VENDA (Dias desde a última) ---
-    const sortedDatesDesc = [...validSalesDates].sort((a, b) => b.getTime() - a.getTime());
-    const lastSale = sortedDatesDesc.length > 0 ? sortedDatesDesc[0] : null;
-
+    const lastSale = validSalesDates.length > 0 ? validSalesDates[validSalesDates.length - 1] : null;
     let daysSinceLastSaleDisplay = "0 Dias";
     if (lastSale && now) {
       const diff = diffDays(now, lastSale);
       daysSinceLastSaleDisplay = `${Math.max(0, diff)} Dias`;
     }
 
-    // --- FREQUÊNCIA DE VENDAS (PASSO A PASSO LÓGICO SOLICITADO) ---
-    // 1. Ordenação Cronológica (Mais antigo para mais novo)
-    const sortedDatesAsc = [...validSalesDates].sort((a, b) => a.getTime() - b.getTime());
-    
+    // --- FREQUÊNCIA DE VENDAS (Lógica Canto Imóveis) ---
     let salesFrequency = 0;
-    if (sortedDatesAsc.length > 1) {
-      // 2. Cálculo dos Intervalos: Subtrair data da primeira da segunda, segunda da terceira...
+    if (validSalesDates.length > 1) {
       let sumIntervals = 0;
       let countIntervals = 0;
 
-      for (let i = 0; i < sortedDatesAsc.length - 1; i++) {
-        const interval = diffDays(sortedDatesAsc[i+1], sortedDatesAsc[i]);
+      // Cálculo dos Intervalos: Subtrair a data da primeira da segunda, a segunda da terceira...
+      for (let i = 0; i < validSalesDates.length - 1; i++) {
+        const interval = diffDays(validSalesDates[i+1], validSalesDates[i]);
         if (interval >= 0) {
           sumIntervals += interval;
           countIntervals++;
         }
       }
       
-      // 3. Soma e Divisão: Dividir pela quantidade de intervalos (vendas - 1)
+      // Soma e Divisão: Dividir pelo número total de intervalos (Vendas - 1)
       if (countIntervals > 0) {
         salesFrequency = sumIntervals / countIntervals;
       }
     }
 
-    // --- CICLO MÉDIO DE VENDA (Captura -> Venda) ---
-    const validCycles = sales.map(s => {
+    // --- CICLO MÉDIO DE VENDA ---
+    const validCycles = uniqueSales.map(s => {
       const start = parseDate(s.propertyCaptureDate);
       const end = parseDate(s.saleDate);
       if (start && end) return diffDays(end, start);
@@ -143,8 +142,7 @@ export default function AppContainer() {
     }).filter((d): d is number => d !== null && d >= 0);
     
     const avgDaysToSell = validCycles.length > 0 ? validCycles.reduce((a, b) => a + b, 0) / validCycles.length : 0;
-
-    const totalVgv = sales.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
+    const totalVgv = uniqueSales.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
 
     return {
       avgDaysToSell,
@@ -152,9 +150,9 @@ export default function AppContainer() {
       totalValue: totalVgv,
       lastSaleDisplay: daysSinceLastSaleDisplay,
       totalLeads: leads.length,
-      totalSales: sales.length,
+      totalSales: uniqueSales.length,
       totalProperties: properties.length,
-      avgTicket: sales.length > 0 ? totalVgv / sales.length : 0,
+      avgTicket: uniqueSales.length > 0 ? totalVgv / uniqueSales.length : 0,
       salesFrequency
     };
   }, [rawSales, rawLeads, rawProperties, now]);
