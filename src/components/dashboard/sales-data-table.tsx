@@ -33,6 +33,17 @@ export function SalesDataTable() {
     }).format(num);
   };
 
+  // Helper para exibir data, tratando números seriais do Excel
+  const formatDateDisplay = (val: any) => {
+    if (!val) return "N/A";
+    const num = Number(val);
+    if (!isNaN(num) && num > 30000 && num < 60000) {
+      const date = new Date(Math.round((num - 25569) * 86400 * 1000));
+      return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+    }
+    return String(val);
+  };
+
   return (
     <Card className="border-none shadow-md overflow-hidden">
       <CardHeader className="bg-emerald-50/50 border-b flex flex-row items-center justify-between">
@@ -82,8 +93,8 @@ export function SalesDataTable() {
                 <TableBody>
                   {vendas.map((venda) => (
                     <TableRow key={venda.id} className="hover:bg-emerald-50/30 transition-colors">
-                      <TableCell className="text-xs text-muted-foreground">{venda.propertyCaptureDate || "N/A"}</TableCell>
-                      <TableCell className="text-xs font-bold text-emerald-700">{venda.saleDate || "N/A"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{formatDateDisplay(venda.propertyCaptureDate)}</TableCell>
+                      <TableCell className="text-xs font-bold text-emerald-700">{formatDateDisplay(venda.saleDate)}</TableCell>
                       <TableCell className="text-xs">{venda.vendedor || "N/A"}</TableCell>
                       <TableCell className="text-xs">{venda.tipoVenda || "N/A"}</TableCell>
                       <TableCell className="text-xs">{venda.angariador || "N/A"}</TableCell>

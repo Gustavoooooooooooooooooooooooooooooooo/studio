@@ -63,10 +63,17 @@ export default function AppContainer() {
       if (!d) return null;
       if (d instanceof Date) return d;
       
-      const cleanDate = String(d).trim();
-      if (!cleanDate) return null;
+      // Suporte para números seriais do Excel/Sheets
+      if (typeof d === 'number' || (!isNaN(Number(d)) && !String(d).includes('/') && !String(d).includes('-'))) {
+        const num = Number(d);
+        if (num > 30000 && num < 60000) {
+          return new Date(Math.round((num - 25569) * 86400 * 1000));
+        }
+      }
 
-      // Suporte para DD/MM/YYYY ou DD/MM/YY (Padrão Brasil)
+      const cleanDate = String(d).trim();
+      if (!cleanDate || cleanDate === "N/A" || cleanDate === "undefined") return null;
+
       const parts = cleanDate.split('/');
       if (parts.length === 3) {
         const day = parseInt(parts[0], 10);
@@ -77,7 +84,6 @@ export default function AppContainer() {
         return isNaN(date.getTime()) ? null : date;
       }
 
-      // Fallback para ISO YYYY-MM-DD
       const isoParts = cleanDate.split('-');
       if (isoParts.length === 3) {
         const date = new Date(cleanDate);
@@ -90,7 +96,6 @@ export default function AppContainer() {
 
     const diffDays = (d1: Date | null, d2: Date | null) => {
       if (!d1 || !d2 || isNaN(d1.getTime()) || isNaN(d2.getTime())) return null;
-      // Compara apenas as datas, zerando horas
       const t1 = new Date(d1.getFullYear(), d1.getMonth(), d1.getDate()).getTime();
       const t2 = new Date(d2.getFullYear(), d2.getMonth(), d2.getDate()).getTime();
       return Math.floor((t1 - t2) / (1000 * 60 * 60 * 24));
@@ -117,7 +122,6 @@ export default function AppContainer() {
       return validDiffs.length > 0 ? validDiffs.reduce((a, b) => a + b, 0) / validDiffs.length : 0;
     };
 
-    // Ordenação RIGOROSA para achar a data mais recente da Coluna S
     const sortedSalesDates = salesOnly
       .map(s => parseDate(s.saleDate))
       .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
@@ -139,7 +143,6 @@ export default function AppContainer() {
     if (lastSale && now) {
       const todayZero = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const saleZero = new Date(lastSale.getFullYear(), lastSale.getMonth(), lastSale.getDate());
-      // Diferença exata entre HOJE e a ÚLTIMA DATA DE VENDA (Coluna S)
       const diff = Math.floor((todayZero.getTime() - saleZero.getTime()) / (1000 * 3600 * 24));
       daysSinceLastSale = diff;
     }

@@ -49,12 +49,21 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       .replace(/[\u0300-\u036f]/g, "")
       .trim();
 
-  const getVal = (row: any, searchKeys: string[]) => {
+  // Função para converter número serial do Excel para string de data DD/MM/YYYY
+  const excelDateToJSDate = (serial: any) => {
+    if (!serial || isNaN(Number(serial))) return serial;
+    const num = Number(serial);
+    if (num < 30000 || num > 60000) return serial; // Proteção para não converter IDs numéricos
+    const date = new Date(Math.round((num - 25569) * 86400 * 1000));
+    return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+  };
+
+  const getVal = (row: any, searchKeys: string[], strict = false) => {
     if (!row) return undefined;
     const rowKeys = Object.keys(row);
     const normalizedSearchKeys = searchKeys.map(normalize);
 
-    // Prioridade 1: Correspondência Exata em todas as chaves
+    // Prioridade 1: Correspondência Exata
     for (const rowKey of rowKeys) {
       const normRowKey = normalize(rowKey);
       if (normalizedSearchKeys.some(sk => normRowKey === sk)) {
@@ -62,14 +71,18 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       }
     }
 
+    if (strict) return undefined;
+
     // Prioridade 2: Correspondência Parcial Inteligente
     for (const rowKey of rowKeys) {
       const normRowKey = normalize(rowKey);
       
-      // Se estamos procurando uma DATA específica (Venda ou Entrada), ignoramos o CARIMBO DE DATA/HORA
+      // Proteção: Se estamos buscando uma DATA, não podemos aceitar colunas de VALOR ou CARIMBO
       const isSearchingDate = searchKeys.some(sk => normalize(sk).includes("data"));
-      if (isSearchingDate && normRowKey.includes("carimbo")) {
-        continue;
+      if (isSearchingDate) {
+        if (normRowKey.includes("carimbo") || normRowKey.includes("valor") || normRowKey.includes("vgv")) {
+          continue;
+        }
       }
 
       if (normalizedSearchKeys.some(sk => normRowKey.includes(sk))) {
@@ -111,20 +124,19 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               const rentalValue = parseCurrency(getVal(row, ["locacao", "aluguel"]));
               const broker = String(getVal(row, ["angariador", "captador", "corretor"]) || "N/A");
               const neighborhood = String(getVal(row, ["bairro", "regiao"]) || "N/A");
-              const timestamp = String(getVal(row, ["data entrada", "entrada"]) || "");
+              const timestamp = excelDateToJSDate(getVal(row, ["data entrada", "entrada"]));
               const status = String(getVal(row, ["status", "situacao"]) || "Disponível");
 
               const propRef = doc(firestore, "properties", `${safeId}-${processedCount}`);
               setDocumentNonBlocking(propRef, {
                 propertyCode, neighborhood, saleValue, rentalValue,
-                brokerId: broker, captureDate: timestamp, status, importedAt: serverTimestamp(),
+                brokerId: broker, captureDate: String(timestamp || ""), status, importedAt: serverTimestamp(),
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              // Rigor total nas colunas específicas (Coluna S: Data Venda / Coluna ?: Data Entrada)
-              // Ignoramos "Carimbo" para não pegar a data de preenchimento do form
-              const dataVendaRaw = getVal(row, ["data do venda", "assinatura", "fechamento", "data venda"]);
-              const dataEntradaRaw = getVal(row, ["data de entrada", "data entrada", "entrada"]);
+              // Busca rigorosa pela Data da Venda (Coluna S)
+              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data do venda", "assinatura", "data venda", "fechamento"], true) || getVal(row, ["data do venda", "assinatura", "data venda"]));
+              const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data de entrada", "data entrada", "entrada"]));
               
               const valorAnuncio = parseCurrency(getVal(row, ["anuncio", "valor anunciado"]));
               const valorVenda = parseCurrency(getVal(row, ["valor fechado", "valor venda"]));
@@ -148,7 +160,9 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
             } else if (mode === 'leads') {
               const leadData: any = { importedAt: serverTimestamp() };
-              Object.keys(row).forEach(key => { leadData[key] = row[key]; });
+              Object.keys(row).forEach(key => { 
+                leadData[key] = key.toLowerCase().includes('data') ? excelDateToJSDate(row[key]) : row[key]; 
+              });
               const leadRef = doc(firestore, "leads", `LEAD-${processedCount}-${safeId}`);
               setDocumentNonBlocking(leadRef, leadData, { merge: true });
             }
@@ -162,7 +176,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         if (!silent) {
           toast({
             title: "Sincronização Concluída!",
-            description: `${processedCount} registros atualizados em tempo real.`,
+            description: `${processedCount} registros atualizados.`,
           });
         }
       }
@@ -251,8 +265,8 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         <div className="flex items-start gap-2 bg-white/40 p-3 rounded-lg border border-primary/5 text-[11px] text-muted-foreground">
           <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <p className="font-bold mb-1">Atenção ao Link:</p>
-            <p>Para o cálculo de dias estar correto, o sistema ignora a data de preenchimento (Coluna A) e usa a <b>Data da Venda (Coluna S)</b>.</p>
+            <p className="font-bold mb-1">Dica de Precisão:</p>
+            <p>O sistema agora converte automaticamente números (como 46.037) em datas reais (15/01/2026).</p>
             <p className="mt-1">Vá em <b>Arquivo &gt; Compartilhar &gt; Publicar na Web</b> e selecione o formato <b>CSV</b>.</p>
           </div>
         </div>
