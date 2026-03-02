@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 interface GoogleSheetsSyncProps {
-  mode: 'inventory' | 'sales';
+  mode: 'inventory' | 'sales' | 'leads';
 }
 
 export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
@@ -60,19 +60,15 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     let s = String(val).trim();
     s = s.replace(/[R$ ]/g, "");
     
+    // Suporte a milhões com pontos (Ex: 3.300.000)
     if (s.includes('.') && s.includes(',')) {
       s = s.replace(/\./g, "").replace(",", ".");
     } 
-    else if (s.includes(',')) {
-      const parts = s.split(',');
-      if (parts.length > 2) s = s.replace(/,/g, "");
-      else s = s.replace(",", ".");
+    else if (s.includes('.') && s.split('.').every((part, i) => i === 0 || part.length === 3)) {
+      s = s.replace(/\./g, "");
     }
-    else if (s.includes('.')) {
-      const parts = s.split('.');
-      if (parts.length > 1 && parts[parts.length - 1].length === 3) {
-         s = s.replace(/\./g, "");
-      }
+    else if (s.includes(',')) {
+      s = s.replace(",", ".");
     }
     
     const num = parseFloat(s);
@@ -83,7 +79,10 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     if (!firestore) return;
     setClearing(true);
     try {
-      const colName = mode === 'inventory' ? "properties" : "vendas_imoveis";
+      let colName = "properties";
+      if (mode === 'sales') colName = "vendas_imoveis";
+      if (mode === 'leads') colName = "leads";
+      
       const snapshot = await getDocs(collection(firestore, colName));
       
       if (snapshot.empty) {
@@ -96,7 +95,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       snapshot.docs.forEach((d) => batch.delete(d.ref));
       await batch.commit();
       
-      toast({ title: "Dados Limpos", description: "Base de " + (mode === 'inventory' ? 'Estoque' : 'Vendas') + " reiniciada com sucesso." });
+      toast({ title: "Dados Limpos", description: "Base de " + (mode === 'inventory' ? 'Estoque' : mode === 'sales' ? 'Vendas' : 'Leads') + " reiniciada com sucesso." });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao limpar", description: error.message });
     } finally {
@@ -120,37 +119,31 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         
         for (const row of result.data) {
           try {
-            const rawCode = getVal(row, ["codigo do imovel", "unidade", "referencia", "imovel", "codigo"]);
+            const rawCode = getVal(row, ["codigo", "referencia", "unidade", "id"]);
             const propertyCode = String(rawCode || `REF-${Date.now()}-${processedCount}`).trim();
             const safeId = propertyCode.replace(/[\/\.\#\$\/\[\]]/g, "-") || `ID-${Date.now()}-${processedCount}`;
 
             if (mode === 'inventory') {
-              const advertisedValue = parseCurrency(getVal(row, ["valor anunciado", "valor", "preco", "anuncio"]));
               const saleValue = parseCurrency(getVal(row, ["valor de venda", "venda", "valor venda"]));
               const rentalValue = parseCurrency(getVal(row, ["valor de locacao", "locacao", "valor locacao", "aluguel"]));
               const broker = String(getVal(row, ["angariador", "captador", "corretor", "nome"]) || "N/A");
-              const neighborhood = String(getVal(row, ["bairro", "empreendimento", "regiao"]) || "Desconhecido");
-              const address = String(getVal(row, ["endereco", "logradouro", "rua"]) || "N/A");
-              const timestamp = String(getVal(row, ["carimbo", "data", "hora", "data de entrada"]) || "");
-              const listingType = String(getVal(row, ["tipo", "transacao", "tipo de imovel"]) || "Venda");
-              const status = String(getVal(row, ["status", "situacao", "disponibilidade"]) || "Disponível");
+              const neighborhood = String(getVal(row, ["bairro", "regiao"]) || "Desconhecido");
+              const timestamp = String(getVal(row, ["carimbo", "data de entrada", "data"]) || "");
+              const status = String(getVal(row, ["status", "situacao"]) || "Disponível");
 
               const propRef = doc(firestore, "properties", `${safeId}-${processedCount}`);
               setDocumentNonBlocking(propRef, {
                 propertyCode,
-                address,
                 neighborhood,
-                listingType,
-                listingValue: advertisedValue,
-                saleValue: saleValue,
-                rentalValue: rentalValue,
+                saleValue,
+                rentalValue,
                 brokerId: broker,
                 captureDate: timestamp,
                 status,
                 importedAt: serverTimestamp(),
               }, { merge: true });
 
-            } else {
+            } else if (mode === 'sales') {
               const dataVendaRaw = getVal(row, ["Data do venda", "assinatura", "fechamento", "data"]);
               const comissaoCantoVal = parseCurrency(getVal(row, ["Qual valor da comissao de venda? (total Canto)", "comissao total"]));
               const comissaoCantoPerc = parseCurrency(getVal(row, ["% para Canto Imoveis", "percentual canto"]));
@@ -178,6 +171,17 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
                 status: "Vendido",
                 importedAt: serverTimestamp(),
               }, { merge: true });
+            } else if (mode === 'leads') {
+              const leadData: any = {
+                importedAt: serverTimestamp(),
+              };
+              
+              Object.keys(row).forEach(key => {
+                leadData[key] = row[key];
+              });
+
+              const leadRef = doc(firestore, "leads", `LEAD-${Date.now()}-${processedCount}`);
+              setDocumentNonBlocking(leadRef, leadData, { merge: true });
             }
             processedCount++;
           } catch (rowError) {
@@ -200,16 +204,16 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
   };
 
   return (
-    <Card className={`border-none shadow-sm overflow-hidden bg-gradient-to-br ${mode === 'inventory' ? 'from-primary/5 to-white' : 'from-emerald-50 to-white'}`}>
+    <Card className={`border-none shadow-sm overflow-hidden bg-gradient-to-br ${mode === 'inventory' ? 'from-primary/5 to-white' : mode === 'sales' ? 'from-emerald-50 to-white' : 'from-indigo-50 to-white'}`}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className={`p-2 rounded-lg ${mode === 'inventory' ? 'bg-primary/10 text-primary' : 'bg-emerald-100 text-emerald-600'}`}>
+            <div className={`p-2 rounded-lg ${mode === 'inventory' ? 'bg-primary/10 text-primary' : mode === 'sales' ? 'bg-emerald-100 text-emerald-600' : 'bg-indigo-100 text-indigo-600'}`}>
               {syncing ? <Loader2 className="h-5 w-5 animate-spin" /> : <RefreshCcw className="h-5 w-5" />}
             </div>
             <div>
               <CardTitle className="text-lg">
-                {mode === 'inventory' ? 'Importar Cadastro de Imóveis' : 'Importar Conclusão de Negócios'}
+                {mode === 'inventory' ? 'Importar Cadastro de Imóveis' : mode === 'sales' ? 'Importar Conclusão de Negócios' : 'Importar Base de Leads'}
               </CardTitle>
             </div>
           </div>
@@ -218,14 +222,14 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
             <AlertDialogTrigger asChild>
               <Button variant="outline" size="sm" disabled={clearing} className="text-xs text-destructive hover:bg-destructive hover:text-white border-destructive/20">
                 {clearing ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Trash2 className="h-3 w-3 mr-1" />}
-                Limpar Base Atual
+                Limpar Base
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Apagar todos os dados locais?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Esta ação irá remover todos os registros de {mode === 'inventory' ? 'Cadastro/Estoque' : 'Vendas'} que foram importados anteriormente. 
+                  Esta ação irá remover todos os registros de {mode === 'inventory' ? 'Cadastro' : mode === 'sales' ? 'Vendas' : 'Leads'} que foram importados. 
                   Isso não afeta sua planilha do Google, apenas limpa a visualização do App.
                 </AlertDialogDescription>
               </AlertDialogHeader>
@@ -247,7 +251,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
             onChange={(e) => setUrl(e.target.value)}
             className="bg-white/50"
           />
-          <Button onClick={handleSync} disabled={syncing} className={mode === 'inventory' ? 'bg-primary' : 'bg-emerald-600'}>
+          <Button onClick={handleSync} disabled={syncing} className={mode === 'inventory' ? 'bg-primary' : mode === 'sales' ? 'bg-emerald-600' : 'bg-indigo-600'}>
             {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sincronizar Agora"}
           </Button>
         </div>

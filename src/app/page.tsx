@@ -13,8 +13,9 @@ import { InventoryHealth } from "@/components/dashboard/inventory-health";
 import { GoogleSheetsSync } from "@/components/dashboard/google-sheets-sync";
 import { ImportedDataTable } from "@/components/dashboard/imported-data-table";
 import { SalesDataTable } from "@/components/dashboard/sales-data-table";
+import { LeadsDataTable } from "@/components/dashboard/leads-data-table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LayoutDashboard, FilePlus, BadgeCheck, TrendingUp, Loader2, Table2 } from "lucide-react";
+import { LayoutDashboard, FilePlus, BadgeCheck, TrendingUp, Loader2, Table2, Users } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth, initiateAnonymousSignIn, useCollection, useMemoFirebase, useFirebase } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
@@ -36,12 +37,12 @@ export default function AppContainer() {
 
   const salesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, "vendas_imoveis"), orderBy("saleDate", "desc"));
+    return query(collection(firestore, "vendas_imoveis"), orderBy("importedAt", "desc"));
   }, [firestore]);
 
   const leadsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, "leads"), orderBy("captureDate", "desc"));
+    return query(collection(firestore, "leads"), orderBy("importedAt", "desc"));
   }, [firestore]);
 
   const visitsQuery = useMemoFirebase(() => {
@@ -61,7 +62,7 @@ export default function AppContainer() {
       data_venda: v.saleDate,
       origem: v.originChannel || "Outros",
       cliente: v.clientName || "Cliente",
-      corretor: v.sellingBrokerId || "Não Definido",
+      corretor: v.vendedor || "Não Definido",
       valor_anuncio: Number(v.advertisedValue || v.closedValue || 0),
       valor_fechado: Number(v.closedValue || 0),
       status: v.status || 'Vendido',
@@ -74,13 +75,7 @@ export default function AppContainer() {
 
   const leads = useMemo(() => {
     if (!rawLeads) return [];
-    return rawLeads.map(l => ({
-      id: l.id,
-      data: l.captureDate,
-      origem: l.originChannel,
-      corretor: l.assignedBrokerId,
-      status: l.status
-    }));
+    return rawLeads;
   }, [rawLeads]);
 
   const visits = useMemo(() => {
@@ -190,7 +185,7 @@ export default function AppContainer() {
 
       <main className="container mx-auto px-4 py-6 max-w-7xl">
         <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="grid grid-cols-4 w-full max-w-3xl mx-auto h-12 p-1 bg-muted/50 rounded-xl">
+          <TabsList className="grid grid-cols-5 w-full max-w-4xl mx-auto h-12 p-1 bg-muted/50 rounded-xl">
             <TabsTrigger value="dashboard" className="rounded-lg">
               <LayoutDashboard className="h-4 w-4 mr-2" /> Dashboard
             </TabsTrigger>
@@ -199,6 +194,9 @@ export default function AppContainer() {
             </TabsTrigger>
             <TabsTrigger value="cadastro" className="rounded-lg">
               <FilePlus className="h-4 w-4 mr-2" /> Cadastro
+            </TabsTrigger>
+            <TabsTrigger value="leads" className="rounded-lg">
+              <Users className="h-4 w-4 mr-2" /> Leads
             </TabsTrigger>
             <TabsTrigger value="conclusao" className="rounded-lg">
               <BadgeCheck className="h-4 w-4 mr-2" /> Conclusão
@@ -236,14 +234,21 @@ export default function AppContainer() {
           </TabsContent>
 
           <TabsContent value="cadastro" className="animate-in slide-in-from-bottom-4 duration-500">
-            <div className="max-w-4xl mx-auto space-y-6">
+            <div className="max-w-6xl mx-auto space-y-6">
               <GoogleSheetsSync mode="inventory" />
               <ImportedDataTable />
             </div>
           </TabsContent>
 
+          <TabsContent value="leads" className="animate-in slide-in-from-bottom-4 duration-500">
+            <div className="max-w-6xl mx-auto space-y-6">
+              <GoogleSheetsSync mode="leads" />
+              <LeadsDataTable />
+            </div>
+          </TabsContent>
+
           <TabsContent value="conclusao" className="animate-in slide-in-from-bottom-4 duration-500">
-            <div className="max-w-4xl mx-auto space-y-6">
+            <div className="max-w-6xl mx-auto space-y-6">
               <GoogleSheetsSync mode="sales" />
               <SalesDataTable />
             </div>
