@@ -26,7 +26,7 @@ export default function AppContainer() {
 
   useEffect(() => {
     setMounted(true);
-    // FIX: Garantir que o sistema opere no ano real de 2026
+    // FIX: Garantir que o sistema opere no tempo real de 2026
     setNow(new Date());
     if (auth) {
       initiateAnonymousSignIn(auth);

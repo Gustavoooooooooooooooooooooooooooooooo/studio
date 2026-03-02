@@ -50,15 +50,10 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       .replace(/\s+/g, " ")
       .trim();
 
-  // Converte 46.037 ou 46037 para "15/01/2026"
   const excelDateToJSDate = (serial: any) => {
     if (serial === undefined || serial === null || serial === "") return serial;
-    
-    // Limpa pontos e vírgulas para tratar como número inteiro (Ex: 46.037 -> 46037)
     let s = String(serial).replace(/[\.,]/g, "").trim();
     const num = Number(s);
-    
-    // Serial do Excel para 2024-2030 fica entre 45000 e 55000
     if (!isNaN(num) && num > 30000 && num < 60000) {
       const date = new Date(Math.round((num - 25569) * 86400 * 1000));
       return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
@@ -66,33 +61,25 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     return serial;
   };
 
-  const getVal = (row: any, searchKeys: string[]) => {
+  const getVal = (row: any, searchKeys: string[], isDateSearch = false) => {
     if (!row) return undefined;
     const rowKeys = Object.keys(row);
     const normalizedSearchKeys = searchKeys.map(normalize);
 
-    // 1. Tenta correspondência exata primeiro (ignorando Carimbo)
     for (const rowKey of rowKeys) {
       const normRowKey = normalize(rowKey);
-      if (normRowKey.includes("carimbo") || normRowKey.includes("timestamp")) continue;
+      if (isDateSearch && (normRowKey.includes("carimbo") || normRowKey.includes("timestamp"))) continue;
       
       if (normalizedSearchKeys.includes(normRowKey)) {
         return row[rowKey];
       }
     }
 
-    // 2. Tenta correspondência parcial inteligente
     for (const rowKey of rowKeys) {
       const normRowKey = normalize(rowKey);
-      if (normRowKey.includes("carimbo") || normRowKey.includes("timestamp")) continue;
+      if (isDateSearch && (normRowKey.includes("carimbo") || normRowKey.includes("timestamp"))) continue;
       
-      const isSearchingDate = searchKeys.some(sk => normalize(sk).includes("data"));
-      if (isSearchingDate) {
-        // Ignora colunas que claramente não são a data do evento (evita Valor Venda)
-        if (normRowKey.includes("valor") || normRowKey.includes("vgv") || normRowKey.includes("anuncio")) {
-          continue;
-        }
-      }
+      if (isDateSearch && (normRowKey.includes("valor") || normRowKey.includes("vgv") || normRowKey.includes("anuncio"))) continue;
 
       if (normalizedSearchKeys.some(sk => normRowKey.includes(sk))) {
         return row[rowKey];
@@ -133,7 +120,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               const rentalValue = parseCurrency(getVal(row, ["locacao", "aluguel"]));
               const broker = String(getVal(row, ["angariador", "captador", "corretor"]) || "N/A");
               const neighborhood = String(getVal(row, ["bairro", "regiao"]) || "N/A");
-              const timestamp = excelDateToJSDate(getVal(row, ["data entrada", "entrada"]));
+              const timestamp = excelDateToJSDate(getVal(row, ["data entrada", "entrada"], true));
               const status = String(getVal(row, ["status", "situacao"]) || "Disponível");
 
               const propRef = doc(firestore, "properties", `${safeId}-${processedCount}`);
@@ -143,9 +130,9 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              // BUSCA RIGOROSA PARA DATA VENDA (COLUNA S)
-              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "data da venda", "fechamento", "assinatura"]));
-              const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "data de entrada", "entrada"]));
+              // BUSCA RIGOROSA PARA DATA VENDA (COLUNA S) - IGNORA CARIMBO
+              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "data da venda", "fechamento", "assinatura"], true));
+              const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "data de entrada", "entrada"], true));
               
               const valorAnuncio = parseCurrency(getVal(row, ["anuncio", "valor anunciado"]));
               const valorVenda = parseCurrency(getVal(row, ["valor fechado", "valor venda"]));
@@ -272,11 +259,12 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         </div>
         
         <div className="flex items-start gap-2 bg-white/40 p-3 rounded-lg border border-primary/5 text-[11px] text-muted-foreground">
-          <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <p className="font-bold mb-1">Dica de Precisão:</p>
-            <p>O sistema agora detecta automaticamente o <b>Carimbo de Data</b> e o ignora, focando na <b>Data Venda real</b> (Coluna S).</p>
-            <p className="mt-1">Vá em <b>Arquivo &gt; Compartilhar &gt; Publicar na Web</b> e selecione o formato <b>CSV</b>.</p>
+            <p className="font-bold mb-1 flex items-center gap-1">
+               <Info className="h-3 w-3 text-primary" /> Dica de Precisão 2026:
+            </p>
+            <p>O sistema agora foca exclusivamente na <b>Data Venda real</b> e ignora o Carimbo de Data.</p>
+            <p className="mt-1">Após colar o link, clique em <b>Sincronizar Agora</b> para recalcular os indicadores.</p>
           </div>
         </div>
       </CardContent>
