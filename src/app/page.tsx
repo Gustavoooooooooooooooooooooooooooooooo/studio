@@ -66,7 +66,7 @@ export default function AppContainer() {
       const cleanDate = String(d).trim();
       if (!cleanDate) return null;
 
-      // Prioridade máxima para formato DD/MM/YYYY (Coluna S)
+      // Suporte para DD/MM/YYYY ou DD/MM/YY (Padrão Brasil)
       const parts = cleanDate.split('/');
       if (parts.length === 3) {
         const day = parseInt(parts[0], 10);
@@ -90,6 +90,7 @@ export default function AppContainer() {
 
     const diffDays = (d1: Date | null, d2: Date | null) => {
       if (!d1 || !d2 || isNaN(d1.getTime()) || isNaN(d2.getTime())) return null;
+      // Compara apenas as datas, zerando horas
       const t1 = new Date(d1.getFullYear(), d1.getMonth(), d1.getDate()).getTime();
       const t2 = new Date(d2.getFullYear(), d2.getMonth(), d2.getDate()).getTime();
       return Math.floor((t1 - t2) / (1000 * 60 * 60 * 24));
@@ -99,7 +100,7 @@ export default function AppContainer() {
       const type = normalizeKey(s.tipoVenda || "");
       return type.includes("venda") || type === "" || type === "venda"; 
     });
-    
+
     const rentsOnly = sales.filter(s => {
       const type = normalizeKey(s.tipoVenda || "");
       return type.includes("locacao") || type.includes("aluguel");
@@ -116,7 +117,7 @@ export default function AppContainer() {
       return validDiffs.length > 0 ? validDiffs.reduce((a, b) => a + b, 0) / validDiffs.length : 0;
     };
 
-    // Pega TODAS as datas de venda válidas e ordena para achar a mais recente absoluta
+    // Ordenação RIGOROSA para achar a data mais recente da Coluna S
     const sortedSalesDates = salesOnly
       .map(s => parseDate(s.saleDate))
       .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
@@ -138,7 +139,7 @@ export default function AppContainer() {
     if (lastSale && now) {
       const todayZero = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const saleZero = new Date(lastSale.getFullYear(), lastSale.getMonth(), lastSale.getDate());
-      // Diferença de dias entre HOJE e a ÚLTIMA VENDA
+      // Diferença exata entre HOJE e a ÚLTIMA DATA DE VENDA (Coluna S)
       const diff = Math.floor((todayZero.getTime() - saleZero.getTime()) / (1000 * 3600 * 24));
       daysSinceLastSale = diff;
     }

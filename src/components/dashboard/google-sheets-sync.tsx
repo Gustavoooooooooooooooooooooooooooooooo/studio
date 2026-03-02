@@ -54,7 +54,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     const rowKeys = Object.keys(row);
     const normalizedSearchKeys = searchKeys.map(normalize);
 
-    // Prioridade 1: Correspondência Exata (Case-Insensitive)
+    // Prioridade 1: Correspondência Exata em todas as chaves
     for (const rowKey of rowKeys) {
       const normRowKey = normalize(rowKey);
       if (normalizedSearchKeys.some(sk => normRowKey === sk)) {
@@ -62,15 +62,17 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       }
     }
 
-    // Prioridade 2: Correspondência Parcial (Contém a palavra)
-    // Evita pegar colunas genéricas como "Carimbo de data" se buscamos "Data Venda"
+    // Prioridade 2: Correspondência Parcial Inteligente
     for (const rowKey of rowKeys) {
       const normRowKey = normalize(rowKey);
+      
+      // Se estamos procurando uma DATA específica (Venda ou Entrada), ignoramos o CARIMBO DE DATA/HORA
+      const isSearchingDate = searchKeys.some(sk => normalize(sk).includes("data"));
+      if (isSearchingDate && normRowKey.includes("carimbo")) {
+        continue;
+      }
+
       if (normalizedSearchKeys.some(sk => normRowKey.includes(sk))) {
-        // Se a busca for por "venda", ignoramos colunas que contenham "carimbo"
-        if (normRowKey.includes("carimbo") && !searchKeys.some(sk => normalize(sk).includes("carimbo"))) {
-          continue;
-        }
         return row[rowKey];
       }
     }
@@ -119,9 +121,11 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              // Rigor total nas colunas específicas da Coluna S em diante
+              // Rigor total nas colunas específicas (Coluna S: Data Venda / Coluna ?: Data Entrada)
+              // Ignoramos "Carimbo" para não pegar a data de preenchimento do form
               const dataVendaRaw = getVal(row, ["data do venda", "assinatura", "fechamento", "data venda"]);
               const dataEntradaRaw = getVal(row, ["data de entrada", "data entrada", "entrada"]);
+              
               const valorAnuncio = parseCurrency(getVal(row, ["anuncio", "valor anunciado"]));
               const valorVenda = parseCurrency(getVal(row, ["valor fechado", "valor venda"]));
 
@@ -225,7 +229,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>Limpar todos os dados?</AlertDialogTitle>
-                  <AlertDialogDescription>Essa ação remove os registros locais de {mode === 'inventory' ? 'Imóveis' : mode === 'Vendas' ? 'Vendas' : 'Leads'} para forçar uma nova sincronização limpa.</AlertDialogDescription>
+                  <AlertDialogDescription>Essa ação remove os registros locais de {mode === 'inventory' ? 'Imóveis' : mode === 'sales' ? 'Vendas' : 'Leads'} para forçar uma nova sincronização limpa.</AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
@@ -247,9 +251,9 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         <div className="flex items-start gap-2 bg-white/40 p-3 rounded-lg border border-primary/5 text-[11px] text-muted-foreground">
           <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <p className="font-bold mb-1">Dica de Sincronização:</p>
-            <p>Para o Ciclo Médio funcionar, sua aba de <b>Conclusão</b> deve ter as colunas "Data de entrada" e "Data do venda" (Coluna S).</p>
-            <p className="mt-1">Use <b>Arquivo &gt; Compartilhar &gt; Publicar na Web</b> para gerar o link CSV.</p>
+            <p className="font-bold mb-1">Atenção ao Link:</p>
+            <p>Para o cálculo de dias estar correto, o sistema ignora a data de preenchimento (Coluna A) e usa a <b>Data da Venda (Coluna S)</b>.</p>
+            <p className="mt-1">Vá em <b>Arquivo &gt; Compartilhar &gt; Publicar na Web</b> e selecione o formato <b>CSV</b>.</p>
           </div>
         </div>
       </CardContent>
