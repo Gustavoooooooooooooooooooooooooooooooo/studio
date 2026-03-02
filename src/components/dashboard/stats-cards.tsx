@@ -4,12 +4,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   TrendingUp, 
-  Users, 
-  Target, 
-  Percent, 
+  Calendar, 
   Clock, 
-  Smile, 
-  DollarSign,
+  Target, 
+  Home,
+  CheckCircle2,
   ArrowUpRight
 } from "lucide-react";
 
@@ -18,14 +17,11 @@ interface StatsCardsProps {
     avgDaysToSell: number;
     avgDaysToRent: number;
     totalValue: number;
+    lastSaleDate: string;
+    totalLeads: number;
+    totalSales: number;
+    totalProperties: number;
     avgTicket: number;
-    leadToVisitConv: number;
-    visitToSaleConv: number;
-    leadToSaleConv: number;
-    avgCommission: number;
-    avgDiscount: number;
-    avgNps: number;
-    cac: number;
   }
 }
 
@@ -36,50 +32,50 @@ export function StatsCards({ metrics }: StatsCardsProps) {
 
   const kpis = [
     {
-      title: "Ticket Médio",
-      value: formatCurrency(metrics.avgTicket),
-      description: "Valor médio de fechamento",
-      icon: DollarSign,
+      title: "Ciclo Médio de Venda",
+      value: `${Math.round(metrics.avgDaysToSell)} dias`,
+      description: "Média real (Entrada → Venda)",
+      icon: Clock,
       color: "text-blue-600",
-      group: "Financeiro"
+      group: "Performance"
     },
     {
-      title: "Conversão Lead → Visita",
-      value: `${metrics.leadToVisitConv.toFixed(1)}%`,
-      description: "Eficiência de agendamento",
-      icon: Users,
+      title: "Ciclo Médio de Locação",
+      value: `${Math.round(metrics.avgDaysToRent)} dias`,
+      description: "Um imóvel é locado em média",
+      icon: Calendar,
       color: "text-emerald-600",
-      group: "Conversão"
+      group: "Performance"
     },
     {
-      title: "Conversão Visita → Venda",
-      value: `${metrics.visitToSaleConv.toFixed(1)}%`,
-      description: "Eficiência de fechamento",
-      icon: Target,
+      title: "Última Venda Realizada",
+      value: metrics.lastSaleDate,
+      description: "Data do fechamento mais recente",
+      icon: CheckCircle2,
       color: "text-orange-600",
-      group: "Conversão"
+      group: "Histórico"
     },
     {
-      title: "Média de Comissão",
-      value: `${metrics.avgCommission.toFixed(1)}%`,
-      description: "Remuneração média",
-      icon: Percent,
+      title: "VGV Acumulado",
+      value: formatCurrency(metrics.totalValue),
+      description: "Volume total transacionado",
+      icon: TrendingUp,
       color: "text-indigo-600",
       group: "Financeiro"
     },
     {
-      title: "Tempo Médio Venda",
-      value: `${Math.round(metrics.avgDaysToSell)} dias`,
-      description: "Desde entrada no estoque",
-      icon: Clock,
+      title: "Ticket Médio",
+      value: formatCurrency(metrics.avgTicket),
+      description: "Média por fechamento",
+      icon: Target,
       color: "text-rose-600",
-      group: "Geral"
+      group: "Financeiro"
     },
     {
-      title: "NPS / Satisfação",
-      value: metrics.avgNps.toFixed(1),
-      description: "Média de satisfação",
-      icon: Smile,
+      title: "Total de Leads",
+      value: metrics.totalLeads,
+      description: "Leads capturados na base",
+      icon: Home,
       color: "text-purple-600",
       group: "Geral"
     }
@@ -88,13 +84,13 @@ export function StatsCards({ metrics }: StatsCardsProps) {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {kpis.map((kpi, index) => (
-        <Card key={index} className="border-none shadow-sm hover:shadow-md transition-all duration-300">
+        <Card key={index} className="border-none shadow-sm hover:shadow-md transition-all duration-300 bg-white">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{kpi.group}</p>
               <CardTitle className="text-sm font-semibold">{kpi.title}</CardTitle>
             </div>
-            <div className={`p-2 rounded-full bg-muted/50 ${kpi.color}`}>
+            <div className={`p-2 rounded-full bg-muted/30 ${kpi.color}`}>
               <kpi.icon className="h-4 w-4" />
             </div>
           </CardHeader>

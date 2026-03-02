@@ -9,77 +9,100 @@ import { Badge } from "@/components/ui/badge";
 interface BrokerPerformanceGridProps {
   sales: any[];
   leads: any[];
-  visits: any[];
+  properties: any[];
 }
 
-export function BrokerPerformanceGrid({ sales, leads, visits }: BrokerPerformanceGridProps) {
+export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerformanceGridProps) {
+  const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
   const stats = useMemo(() => {
-    // Identifica todos os corretores únicos presentes nos dados reais
-    const uniqueBrokers = Array.from(new Set([
-      ...sales.map(s => s.corretor),
-      ...leads.map(l => l.corretor),
-      ...visits.map(v => v.corretor)
-    ])).filter(Boolean);
+    // Busca nomes de corretores em todas as bases
+    const brokerNames = new Set<string>();
+    
+    sales.forEach(s => brokerNames.add(String(s.vendedor || s.angariador || "")));
+    leads.forEach(l => {
+      const keys = Object.keys(l);
+      const key = keys.find(k => normalize(k).includes("corretor"));
+      if (key) brokerNames.add(String(l[key]));
+    });
+    properties.forEach(p => brokerNames.add(String(p.brokerId || "")));
 
-    return uniqueBrokers.map(broker => {
-      const brokerSales = sales.filter(s => s.corretor === broker);
-      const brokerLeads = leads.filter(l => l.corretor === broker);
-      const brokerVisits = visits.filter(v => v.corretor === broker);
-      
-      const totalVgv = brokerSales.reduce((acc, s) => acc + (Number(s.valor_fechado) || 0), 0);
-      const totalComm = brokerSales.reduce((acc, s) => acc + ((Number(s.valor_fechado) || 0) * ((Number(s.comissao_percentual) || 5.5) / 100)), 0);
-      
-      const visitToSale = brokerVisits.length > 0 ? (brokerSales.length / brokerVisits.length) * 100 : 0;
-      const avgTicket = brokerSales.length > 0 ? totalVgv / brokerSales.length : 0;
-      
-      const participation = sales.length > 0 ? (brokerSales.length / sales.length) * 100 : 0;
+    const uniqueBrokers = Array.from(brokerNames).filter(b => b && b !== "undefined" && b !== "N/A" && b !== "null");
 
-      const avgTime = brokerSales.length > 0 
-        ? brokerSales.reduce((acc, s) => {
-            const start = new Date(s.data_entrada).getTime();
-            const end = new Date(s.data_venda).getTime();
-            if (isNaN(start) || isNaN(end)) return acc;
-            return acc + (end - start);
-          }, 0) / (brokerSales.length * 86400000)
-        : 0;
+    return uniqueBrokers.map(name => {
+      const normName = normalize(name);
+
+      // Métricas de Vendas/Locações
+      const bSalesRecords = sales.filter(s => normalize(s.vendedor) === normName);
+      const vSales = bSalesRecords.filter(s => normalize(s.tipoVenda).includes("venda"));
+      const rSales = bSalesRecords.filter(s => normalize(s.tipoVenda).includes("locacao") || normalize(s.tipoVenda).includes("aluguel"));
+
+      // Métricas de Cadastro (Angariação)
+      const bProps = properties.filter(p => normalize(p.brokerId) === normName);
+      const vProps = bProps.filter(p => Number(p.saleValue) > 0);
+      const rProps = bProps.filter(p => Number(p.rentalValue) > 0);
+
+      // Métricas de Leads
+      const bLeads = leads.filter(l => {
+        const keys = Object.keys(l);
+        const key = keys.find(k => normalize(k).includes("corretor"));
+        return key && normalize(l[key]) === normName;
+      });
+
+      const totalVgv = bSalesRecords.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
+      
+      const parseDate = (d: any) => {
+        if (!d) return null;
+        if (typeof d === 'string') {
+          const parts = d.split('/');
+          if (parts.length === 3) return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+          return new Date(d);
+        }
+        return null;
+      };
+
+      const validDiffs = bSalesRecords.map(s => {
+        const start = parseDate(s.propertyCaptureDate);
+        const end = parseDate(s.saleDate);
+        if (start && end && !isNaN(start.getTime()) && !isNaN(end.getTime())) {
+          return (end.getTime() - start.getTime()) / (1000 * 3600 * 24);
+        }
+        return null;
+      }).filter(d => d !== null) as number[];
+
+      const avgTime = validDiffs.length > 0 ? validDiffs.reduce((a, b) => a + b, 0) / validDiffs.length : 0;
 
       return {
-        name: broker,
-        leads: brokerLeads.length,
-        visits: brokerVisits.length,
-        sales: brokerSales.length,
+        name,
+        leads: bLeads.length,
+        vSales: vSales.length,
+        rSales: rSales.length,
+        vProps: vProps.length,
+        rProps: rProps.length,
         vgv: totalVgv,
-        comm: totalComm,
-        visitToSale,
-        avgTicket,
-        participation,
         avgTime
       };
     }).sort((a, b) => b.vgv - a.vgv);
-  }, [sales, leads, visits]);
+  }, [sales, leads, properties]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
   };
 
-  if (stats.length === 0) return null;
-
   return (
-    <Card className="border-none shadow-sm overflow-hidden">
+    <Card className="border-none shadow-sm overflow-hidden bg-white">
       <CardHeader className="bg-muted/10">
-        <CardTitle className="text-lg font-bold">Matriz de Performance por Corretor</CardTitle>
+        <CardTitle className="text-lg font-bold">Performance Real por Corretor</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/5">
               <TableHead className="font-bold">Corretor</TableHead>
-              <TableHead className="text-center">Volume (L/V)</TableHead>
-              <TableHead className="text-center">Participação</TableHead>
-              <TableHead className="text-center">Conversão V/V</TableHead>
-              <TableHead className="text-right">Ticket Médio</TableHead>
+              <TableHead className="text-center">Leads</TableHead>
+              <TableHead className="text-center">Fechamentos (V/L)</TableHead>
+              <TableHead className="text-center">Angariados (V/L)</TableHead>
               <TableHead className="text-right">Tempo Médio</TableHead>
-              <TableHead className="text-right">Comissão Acum.</TableHead>
               <TableHead className="text-right font-bold">VGV Total</TableHead>
             </TableRow>
           </TableHeader>
@@ -88,25 +111,31 @@ export function BrokerPerformanceGrid({ sales, leads, visits }: BrokerPerformanc
               <TableRow key={row.name} className="hover:bg-muted/5">
                 <TableCell className="font-semibold">{row.name}</TableCell>
                 <TableCell className="text-center">
-                  <div className="flex flex-col text-[10px]">
-                    <span className="text-blue-600 font-bold">{row.leads} Leads</span>
-                    <span className="text-emerald-600 font-bold">{row.visits} Visitas</span>
+                  <Badge variant="secondary" className="bg-indigo-50 text-indigo-700">{row.leads}</Badge>
+                </TableCell>
+                <TableCell className="text-center">
+                  <div className="flex items-center justify-center gap-2 text-xs">
+                    <span className="text-emerald-600 font-bold">{row.vSales}V</span>
+                    <span className="text-blue-600 font-bold">{row.rSales}L</span>
                   </div>
                 </TableCell>
                 <TableCell className="text-center">
-                  <Badge variant="outline" className="text-[10px]">{row.participation.toFixed(1)}%</Badge>
+                  <div className="flex items-center justify-center gap-2 text-xs">
+                    <span className="text-amber-600 font-bold">{row.vProps}V</span>
+                    <span className="text-purple-600 font-bold">{row.rProps}L</span>
+                  </div>
                 </TableCell>
-                <TableCell className="text-center">
-                  <span className={`font-bold text-xs ${row.visitToSale > 20 ? 'text-emerald-600' : 'text-orange-600'}`}>
-                    {row.visitToSale.toFixed(1)}%
-                  </span>
-                </TableCell>
-                <TableCell className="text-right text-xs">{formatCurrency(row.avgTicket)}</TableCell>
                 <TableCell className="text-right text-xs">{Math.round(row.avgTime)} dias</TableCell>
-                <TableCell className="text-right text-xs text-emerald-600 font-medium">{formatCurrency(row.comm)}</TableCell>
                 <TableCell className="text-right font-bold text-primary">{formatCurrency(row.vgv)}</TableCell>
               </TableRow>
             ))}
+            {stats.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
+                  Aguardando sincronização de dados reais...
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </CardContent>

@@ -45,109 +45,86 @@ export default function AppContainer() {
     return query(collection(firestore, "leads"), orderBy("importedAt", "desc"));
   }, [firestore]);
 
-  const visitsQuery = useMemoFirebase(() => {
+  const propertiesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, "visits"), orderBy("visitDate", "desc"));
+    return query(collection(firestore, "properties"), orderBy("importedAt", "desc"));
   }, [firestore]);
 
   const { data: rawSales, isLoading: isSalesLoading } = useCollection(salesQuery);
   const { data: rawLeads, isLoading: isLeadsLoading } = useCollection(leadsQuery);
-  const { data: rawVisits, isLoading: isVisitsLoading } = useCollection(visitsQuery);
+  const { data: rawProperties, isLoading: isPropertiesLoading } = useCollection(propertiesQuery);
 
-  const sales = useMemo(() => {
-    if (!rawSales) return [];
-    return rawSales.map(v => ({
-      id_imovel: v.propertyId || "N/A",
-      data_entrada: v.propertyCaptureDate || v.saleDate,
-      data_venda: v.saleDate,
-      origem: v.originChannel || "Outros",
-      cliente: v.clientName || "Cliente",
-      corretor: v.vendedor || "Não Definido",
-      valor_anuncio: Number(v.advertisedValue || v.closedValue || 0),
-      valor_fechado: Number(v.closedValue || 0),
-      status: v.status || 'Vendido',
-      tipo: v.listingType || 'Venda',
-      bairro: v.neighborhood || 'Desconhecido',
-      comissao_percentual: 5.5,
-      satisfacao_nps: 9
-    }));
-  }, [rawSales]);
+  const normalizeKey = (s: string) => 
+    String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-  const leads = useMemo(() => {
-    if (!rawLeads) return [];
-    return rawLeads;
-  }, [rawLeads]);
-
-  const visits = useMemo(() => {
-    if (!rawVisits) return [];
-    return rawVisits.map(v => ({
-      id: v.id,
-      data: v.visitDate,
-      tipo: v.visitType,
-      bairro: 'Vários',
-      corretor: v.brokerId,
-      concluida: true
-    }));
-  }, [rawVisits]);
-
-  const filteredSales = useMemo(() => {
-    return sales.filter(sale => {
-      const matchBroker = selectedBroker === "all" || sale.corretor === selectedBroker;
-      const saleDate = new Date(sale.data_venda);
-      const saleMonth = `${saleDate.getFullYear()}-${String(saleDate.getMonth() + 1).padStart(2, '0')}`;
-      const matchMonth = selectedMonth === "all" || saleMonth === selectedMonth;
-      const matchType = businessType === "all" || 
-                        (businessType === "venda" && sale.tipo === "Venda") || 
-                        (businessType === "locacao" && (sale.tipo === "Aluguel" || sale.tipo === "Locação"));
-      return matchBroker && matchMonth && matchType;
-    });
-  }, [sales, selectedBroker, selectedMonth, businessType]);
+  const getValFromRow = (row: any, searchTerms: string[]) => {
+    if (!row) return undefined;
+    const keys = Object.keys(row);
+    const normalizedTerms = searchTerms.map(normalizeKey);
+    for (const key of keys) {
+      const normKey = normalizeKey(key);
+      if (normalizedTerms.some(term => normKey === term || normKey.includes(term))) {
+        return row[key];
+      }
+    }
+    return undefined;
+  };
 
   const metrics = useMemo(() => {
-    const salesOnly = filteredSales.filter(s => s.tipo === 'Venda');
-    const rentsOnly = filteredSales.filter(s => s.tipo === 'Aluguel' || s.tipo === 'Locação');
+    const sales = rawSales || [];
+    const leads = rawLeads || [];
+    const properties = rawProperties || [];
 
-    const totalValue = filteredSales.reduce((acc, sale) => acc + sale.valor_fechado, 0);
-    const avgTicket = filteredSales.length > 0 ? totalValue / filteredSales.length : 0;
+    const parseDate = (d: any) => {
+      if (!d) return null;
+      if (typeof d === 'string') {
+        const parts = d.split('/');
+        if (parts.length === 3) return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+        return new Date(d);
+      }
+      return null;
+    };
+
+    const diffDays = (d1: Date | null, d2: Date | null) => {
+      if (!d1 || !d2 || isNaN(d1.getTime()) || isNaN(d2.getTime())) return null;
+      return Math.floor(Math.abs(d2.getTime() - d1.getTime()) / (1000 * 3600 * 24));
+    };
+
+    const salesOnly = sales.filter(s => normalizeKey(s.tipoVenda || "").includes("venda"));
+    const rentsOnly = sales.filter(s => normalizeKey(s.tipoVenda || "").includes("locacao") || normalizeKey(s.tipoVenda || "").includes("aluguel"));
 
     const calcAvgDays = (data: any[]) => {
-      if (data.length === 0) return 0;
-      const totalDays = data.reduce((acc, item) => {
-        const start = new Date(item.data_entrada).getTime();
-        const end = new Date(item.data_venda).getTime();
-        if (isNaN(start) || isNaN(end)) return acc;
-        return acc + (end - start) / 86400000;
-      }, 0);
-      return Math.max(0, totalDays / data.length);
+      const validDiffs = data.map(s => {
+        const start = parseDate(s.propertyCaptureDate);
+        const end = parseDate(s.saleDate);
+        return diffDays(start, end);
+      }).filter(d => d !== null) as number[];
+      
+      return validDiffs.length > 0 ? validDiffs.reduce((a, b) => a + b, 0) / validDiffs.length : 0;
     };
 
-    const lastSaleDate = filteredSales.length > 0 
-      ? new Date(Math.max(...filteredSales.map(s => new Date(s.data_venda).getTime())))
-      : new Date();
-    const recency = Math.floor((new Date().getTime() - lastSaleDate.getTime()) / 86400000);
+    const lastSale = sales.length > 0 
+      ? sales.reduce((latest, current) => {
+          const d = parseDate(current.saleDate);
+          return d && (!latest || d > latest) ? d : latest;
+        }, null as Date | null)
+      : null;
 
-    const contextLeads = Math.max(1, leads.length);
-    const contextVisits = visits.length;
+    const totalVgv = sales.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
 
-    return { 
-      avgDaysToSell: calcAvgDays(salesOnly), 
-      avgDaysToRent: calcAvgDays(rentsOnly), 
-      totalValue, 
-      avgTicket,
-      leadToVisitConv: (contextVisits / contextLeads) * 100,
-      visitToSaleConv: contextVisits > 0 ? (filteredSales.length / contextVisits) * 100 : 0,
-      leadToSaleConv: (filteredSales.length / contextLeads) * 100,
-      avgCommission: 5.5,
-      avgDiscount: filteredSales.length > 0
-        ? filteredSales.reduce((acc, s) => acc + ((s.valor_anuncio - s.valor_fechado) / (s.valor_anuncio || 1)), 0) / filteredSales.length * 100
-        : 0,
-      avgNps: 9,
-      recency,
-      cac: 450
+    return {
+      avgDaysToSell: calcAvgDays(salesOnly),
+      avgDaysToRent: calcAvgDays(rentsOnly),
+      totalValue: totalVgv,
+      lastSaleDate: lastSale ? lastSale.toLocaleDateString('pt-BR') : "Nenhum registro",
+      totalLeads: leads.length,
+      totalSales: sales.length,
+      totalProperties: properties.length,
+      avgTicket: sales.length > 0 ? totalVgv / sales.length : 0
     };
-  }, [filteredSales, leads, visits]);
+  }, [rawSales, rawLeads, rawProperties]);
 
-  if (!mounted || isSalesLoading) {
+  if (!mounted || isSalesLoading || isLeadsLoading || isPropertiesLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -167,98 +144,45 @@ export default function AppContainer() {
               ImmoSales <span className="text-accent">Insight</span>
             </h1>
           </div>
-
-          <div className="flex items-center gap-2">
-            <Select value={businessType} onValueChange={setBusinessType}>
-              <SelectTrigger className="w-[120px] h-8 text-xs">
-                <SelectValue placeholder="Tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos Tipos</SelectItem>
-                <SelectItem value="venda">Vendas</SelectItem>
-                <SelectItem value="locacao">Locação</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
         </div>
       </header>
 
       <main className="container mx-auto px-4 py-6 max-w-7xl">
         <Tabs defaultValue="dashboard" className="space-y-6">
           <TabsList className="grid grid-cols-5 w-full max-w-4xl mx-auto h-12 p-1 bg-muted/50 rounded-xl">
-            <TabsTrigger value="dashboard" className="rounded-lg">
-              <LayoutDashboard className="h-4 w-4 mr-2" /> Dashboard
-            </TabsTrigger>
-            <TabsTrigger value="base" className="rounded-lg">
-              <Table2 className="h-4 w-4 mr-2" /> Base
-            </TabsTrigger>
-            <TabsTrigger value="cadastro" className="rounded-lg">
-              <FilePlus className="h-4 w-4 mr-2" /> Cadastro
-            </TabsTrigger>
-            <TabsTrigger value="leads" className="rounded-lg">
-              <Users className="h-4 w-4 mr-2" /> Leads
-            </TabsTrigger>
-            <TabsTrigger value="conclusao" className="rounded-lg">
-              <BadgeCheck className="h-4 w-4 mr-2" /> Conclusão
-            </TabsTrigger>
+            <TabsTrigger value="dashboard" className="rounded-lg"><LayoutDashboard className="h-4 w-4 mr-2" /> Dashboard</TabsTrigger>
+            <TabsTrigger value="base" className="rounded-lg"><Table2 className="h-4 w-4 mr-2" /> Base</TabsTrigger>
+            <TabsTrigger value="cadastro" className="rounded-lg"><FilePlus className="h-4 w-4 mr-2" /> Cadastro</TabsTrigger>
+            <TabsTrigger value="leads" className="rounded-lg"><Users className="h-4 w-4 mr-2" /> Leads</TabsTrigger>
+            <TabsTrigger value="conclusao" className="rounded-lg"><BadgeCheck className="h-4 w-4 mr-2" /> Conclusão</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-8 animate-in fade-in duration-500">
             <StatsCards metrics={metrics} />
-            
             <InventoryHealth />
-
             <div className="grid lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 space-y-6">
-                <MonthlyTrends 
-                  sales={sales} 
-                  leads={leads} 
-                  visits={visits}
-                />
-                <BrokerPerformanceGrid 
-                  sales={filteredSales}
-                  leads={leads}
-                  visits={visits}
-                />
+                <MonthlyTrends sales={rawSales || []} leads={rawLeads || []} properties={rawProperties || []} />
+                <BrokerPerformanceGrid sales={rawSales || []} leads={rawLeads || []} properties={rawProperties || []} />
               </div>
               <div className="space-y-6">
-                <AIPerformanceSummary sales={filteredSales} />
-                <ChannelPerformance sales={filteredSales} />
-                <NeighborhoodAnalysis sales={filteredSales} />
+                <AIPerformanceSummary sales={rawSales || []} />
+                <ChannelPerformance leads={rawLeads || []} />
+                <NeighborhoodAnalysis sales={rawSales || []} />
               </div>
             </div>
           </TabsContent>
 
-          <TabsContent value="base" className="space-y-8 animate-in fade-in duration-500">
-            <SalesMatrix sales={sales} />
-          </TabsContent>
-
-          <TabsContent value="cadastro" className="animate-in slide-in-from-bottom-4 duration-500">
-            <div className="max-w-6xl mx-auto space-y-6">
-              <GoogleSheetsSync mode="inventory" />
-              <ImportedDataTable />
-            </div>
-          </TabsContent>
-
-          <TabsContent value="leads" className="animate-in slide-in-from-bottom-4 duration-500">
-            <div className="max-w-6xl mx-auto space-y-6">
-              <GoogleSheetsSync mode="leads" />
-              <LeadsDataTable />
-            </div>
-          </TabsContent>
-
-          <TabsContent value="conclusao" className="animate-in slide-in-from-bottom-4 duration-500">
-            <div className="max-w-6xl mx-auto space-y-6">
-              <GoogleSheetsSync mode="sales" />
-              <SalesDataTable />
-            </div>
-          </TabsContent>
+          <TabsContent value="base" className="space-y-8"><SalesMatrix sales={rawSales || []} /></TabsContent>
+          <TabsContent value="cadastro" className="space-y-6"><GoogleSheetsSync mode="inventory" /><ImportedDataTable /></TabsContent>
+          <TabsContent value="leads" className="space-y-6"><GoogleSheetsSync mode="leads" /><LeadsDataTable /></TabsContent>
+          <TabsContent value="conclusao" className="space-y-6"><GoogleSheetsSync mode="sales" /><SalesDataTable /></TabsContent>
         </Tabs>
       </main>
 
       <footer className="mt-12 py-8 border-t bg-white">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          © {new Date().getFullYear()} ImmoSales Insight. Inteligência em Gestão Imobiliária.
+          © {new Date().getFullYear()} ImmoSales Insight. Inteligência Real em Gestão Imobiliária.
         </div>
       </footer>
     </div>
