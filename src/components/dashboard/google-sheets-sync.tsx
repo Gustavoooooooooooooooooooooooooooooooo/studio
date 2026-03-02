@@ -52,15 +52,9 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
 
   const excelDateToJSDate = (serial: any) => {
     if (serial === undefined || serial === null || serial === "") return "";
-    
-    // Se já for uma string de data formatada DD/MM/AAAA, retorna ela
     if (typeof serial === 'string' && serial.includes('/')) return serial;
-
-    // Limpa o valor para tentar converter número do Excel (Ex: 46.037 ou 46037)
     let s = String(serial).replace(/[\.,]/g, "").trim();
     const num = Number(s);
-    
-    // O valor 46037 corresponde a 15/01/2026 no Excel
     if (!isNaN(num) && num > 44000 && num < 65000) {
       const date = new Date(Math.round((num - 25569) * 86400 * 1000));
       return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
@@ -68,12 +62,12 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     return String(serial);
   };
 
-  const getVal = (row: any, searchKeys: string[], isDateSearch = false) => {
+  const getVal = (row: any, searchKeys: string[]) => {
     if (!row) return undefined;
     const rowKeys = Object.keys(row);
     const normalizedSearchKeys = searchKeys.map(normalize);
 
-    // 1. Busca Exata
+    // BUSCA EXATA (Ponto mais importante para não pegar "vendedor" em vez de "venda")
     for (const rowKey of rowKeys) {
       const normRowKey = normalize(rowKey);
       if (normalizedSearchKeys.includes(normRowKey)) {
@@ -81,18 +75,14 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       }
     }
 
-    // 2. Busca Parcial mais agressiva para Datas
+    // BUSCA POR TERMOS ESPECÍFICOS PARA COLUNA R
     for (const rowKey of rowKeys) {
       const normRowKey = normalize(rowKey);
-      
-      if (isDateSearch) {
-        // Ignora carimbo de data/hora do sistema (Coluna A removida mas por precaução)
-        if (normRowKey.includes("carimbo") || normRowKey.includes("timestamp")) {
-          continue;
-        }
+      // Se estamos procurando data e o cabeçalho contém nomes de pessoas, ignoramos
+      if (searchKeys.includes("data venda") && (normRowKey.includes("corretor") || normRowKey.includes("vendedor") || normRowKey.includes("angariador"))) {
+        continue;
       }
-
-      if (normalizedSearchKeys.some(sk => normRowKey.includes(sk))) {
+      if (normalizedSearchKeys.some(sk => normRowKey === sk)) {
         return row[rowKey];
       }
     }
@@ -131,7 +121,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               const rentalValue = parseCurrency(getVal(row, ["valor locacao", "aluguel"]));
               const broker = String(getVal(row, ["angariador", "corretor"]) || "N/A");
               const neighborhood = String(getVal(row, ["bairro"]) || "N/A");
-              const timestamp = excelDateToJSDate(getVal(row, ["data entrada", "entrada", "data"], true));
+              const timestamp = excelDateToJSDate(getVal(row, ["data entrada", "entrada"]));
               const status = String(getVal(row, ["status"]) || "Disponível");
 
               const propRef = doc(firestore, "properties", `${safeId}-${processedCount}`);
@@ -141,12 +131,12 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              // MAPEAMENTO ULTRA RÍGIDO PARA COLUNA R (DATA VENDA)
-              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "data da venda", "venda", "data_venda", "fechamento"], true));
-              const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "entrada", "captura", "angariacao"], true));
+              // MAPEAMENTO RÍGIDO PARA COLUNA R
+              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "data da venda"]));
+              const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "entrada"]));
               
-              const valorAnuncio = parseCurrency(getVal(row, ["valor anuncio", "anuncio"]));
-              const valorVenda = parseCurrency(getVal(row, ["valor fechado", "valor venda", "fechado"]));
+              const valorAnuncio = parseCurrency(getVal(row, ["valor anuncio"]));
+              const valorVenda = parseCurrency(getVal(row, ["valor fechado", "valor venda"]));
 
               const saleRef = doc(firestore, "vendas_imoveis", `${safeId}-${processedCount}`);
               setDocumentNonBlocking(saleRef, {
@@ -154,10 +144,10 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
                 tipoVenda: String(getVal(row, ["tipo", "transacao"]) || ""),
                 angariador: String(getVal(row, ["angariador"]) || ""),
                 propertyCode,
-                neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
-                unit: String(getVal(row, ["unidade", "apto"]) || "N/A"),
-                clientName: String(getVal(row, ["cliente", "nome"]) || "N/A"),
-                originChannel: String(getVal(row, ["origem", "canal"]) || "Direto"),
+                neighborhood: String(getVal(row, ["bairro"]) || "N/A"),
+                unit: String(getVal(row, ["unidade"]) || "N/A"),
+                clientName: String(getVal(row, ["cliente"]) || "N/A"),
+                originChannel: String(getVal(row, ["origem"]) || "Direto"),
                 advertisedValue: valorAnuncio,
                 closedValue: valorVenda,
                 saleDate: String(dataVendaRaw || ""),
@@ -286,8 +276,8 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
             <p className="font-bold mb-1 flex items-center gap-1">
                <Info className="h-3 w-3 text-primary" /> Mapeamento Coluna R:
             </p>
-            <p>O sistema agora foca na <b>Coluna R</b> para Data Venda e converte o código <b>46037</b> para <b>15/01/2026</b>.</p>
-            <p className="mt-1">Use <b>Limpar Base Atual</b> se ainda estiver vendo dados antigos de 2025.</p>
+            <p>O sistema agora foca estritamente na <b>Coluna R</b> e ignora qualquer nome de corretor que apareça no lugar da data.</p>
+            <p className="mt-1">Use <b>Limpar Base Atual</b> se ainda estiver vendo nomes em vez de datas.</p>
           </div>
         </div>
       </CardContent>

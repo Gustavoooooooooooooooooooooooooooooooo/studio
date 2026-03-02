@@ -90,13 +90,11 @@ export default function AppContainer() {
 
     const diffDays = (d1: Date | null, d2: Date | null) => {
       if (!d1 || !d2 || isNaN(d1.getTime()) || isNaN(d2.getTime())) return null;
-      // Normaliza para o início do dia para evitar diferenças de horas
       const t1 = new Date(d1.getFullYear(), d1.getMonth(), d1.getDate()).getTime();
       const t2 = new Date(d2.getFullYear(), d2.getMonth(), d2.getDate()).getTime();
       return Math.floor((t1 - t2) / (1000 * 60 * 60 * 24));
     };
 
-    // Última Venda (Recência) - Ordena por data real
     const sortedSalesDates = sales
       .map(s => parseDate(s.saleDate))
       .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
@@ -112,7 +110,6 @@ export default function AppContainer() {
       }
     }
 
-    // Ciclo Médio
     const salesOnly = sales.filter(s => !normalizeKey(s.tipoVenda || "").includes("locacao"));
     const validDiffs = salesOnly.map(s => {
       const start = parseDate(s.propertyCaptureDate);
