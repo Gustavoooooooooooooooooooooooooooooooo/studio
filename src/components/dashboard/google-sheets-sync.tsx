@@ -51,15 +51,15 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       .trim();
 
   const excelDateToJSDate = (serial: any) => {
-    if (serial === undefined || serial === null || serial === "") return serial;
+    if (serial === undefined || serial === null || serial === "") return "";
     let s = String(serial).replace(/[\.,]/g, "").trim();
     const num = Number(s);
-    // Range de 2024 a 2030 (Excel serial dates)
+    // Range de 2024 a 2030 (Excel serial dates: 45000 a 60000)
     if (!isNaN(num) && num > 45000 && num < 60000) {
       const date = new Date(Math.round((num - 25569) * 86400 * 1000));
       return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
     }
-    return serial;
+    return String(serial);
   };
 
   const getVal = (row: any, searchKeys: string[], isDateSearch = false) => {
@@ -75,16 +75,16 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       }
     }
 
-    // 2. Busca Parcial com filtros de segurança
+    // 2. Busca Parcial com filtros inteligentes
     for (const rowKey of rowKeys) {
       const normRowKey = normalize(rowKey);
       
-      // Se estamos buscando DATA, ignoramos colunas que mencionam "valor", "preco" ou "carimbo"
+      // Se estamos buscando DATA, ignoramos colunas financeiras ou carimbos de sistema
       if (isDateSearch && (normRowKey.includes("valor") || normRowKey.includes("preco") || normRowKey.includes("carimbo") || normRowKey.includes("timestamp"))) {
         continue;
       }
 
-      // Se estamos buscando VALOR, ignoramos colunas que mencionam "data"
+      // Se estamos buscando VALOR, ignoramos colunas de data
       if (!isDateSearch && normRowKey.includes("data")) {
         continue;
       }
@@ -138,23 +138,23 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              // MAPEAMENTO RÍGIDO PARA EVITAR CONFUSÃO COM VALORES
-              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda"], true));
-              const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada"], true));
+              // MAPEAMENTO AMPLO PARA DATA VENDA (COLUNA S)
+              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "data da venda", "fechamento", "data do fechamento", "venda"], true));
+              const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "data da entrada", "entrada", "captura", "angariacao"], true));
               
-              const valorAnuncio = parseCurrency(getVal(row, ["valor anuncio"]));
-              const valorVenda = parseCurrency(getVal(row, ["valor fechado", "valor venda"]));
+              const valorAnuncio = parseCurrency(getVal(row, ["valor anuncio", "anuncio"]));
+              const valorVenda = parseCurrency(getVal(row, ["valor fechado", "valor venda", "venda"]));
 
               const saleRef = doc(firestore, "vendas_imoveis", `${safeId}-${processedCount}`);
               setDocumentNonBlocking(saleRef, {
-                vendedor: String(getVal(row, ["vendedor", "corretor"]) || ""),
-                tipoVenda: String(getVal(row, ["tipo de venda"]) || ""),
-                angariador: String(getVal(row, ["angariador"]) || ""),
+                vendedor: String(getVal(row, ["vendedor", "corretor", "corretor venda"]) || ""),
+                tipoVenda: String(getVal(row, ["tipo de venda", "tipo", "transacao"]) || ""),
+                angariador: String(getVal(row, ["angariador", "corretor angariador"]) || ""),
                 propertyCode,
-                neighborhood: String(getVal(row, ["bairro", "empreendimento"]) || "N/A"),
-                unit: String(getVal(row, ["unidade"]) || "N/A"),
-                clientName: String(getVal(row, ["cliente"]) || "N/A"),
-                originChannel: String(getVal(row, ["origem"]) || "Direto"),
+                neighborhood: String(getVal(row, ["bairro", "empreendimento", "localizacao"]) || "N/A"),
+                unit: String(getVal(row, ["unidade", "apto", "casa"]) || "N/A"),
+                clientName: String(getVal(row, ["cliente", "comprador", "nome contrato"]) || "N/A"),
+                originChannel: String(getVal(row, ["origem", "canal", "origem lead"]) || "Direto"),
                 advertisedValue: valorAnuncio,
                 closedValue: valorVenda,
                 saleDate: String(dataVendaRaw || ""),
@@ -283,8 +283,8 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
             <p className="font-bold mb-1 flex items-center gap-1">
                <Info className="h-3 w-3 text-primary" /> Dica de Precisão 2026:
             </p>
-            <p>O sistema agora detecta automaticamente o código <b>46037</b> como <b>15/01/2026</b>.</p>
-            <p className="mt-1">Use <b>Limpar Base Atual</b> se as colunas estiverem trocadas para forçar o novo mapeamento.</p>
+            <p>O sistema agora detecta o código <b>46037</b> como <b>15/01/2026</b>.</p>
+            <p className="mt-1">Clique em <b>Limpar Base Atual</b> se a data aparecer como N/A para forçar o novo mapeamento.</p>
           </div>
         </div>
       </CardContent>

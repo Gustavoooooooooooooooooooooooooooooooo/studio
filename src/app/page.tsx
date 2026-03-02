@@ -15,14 +15,13 @@ import { ImportedDataTable } from "@/components/dashboard/imported-data-table";
 import { SalesDataTable } from "@/components/dashboard/sales-data-table";
 import { LeadsDataTable } from "@/components/dashboard/leads-data-table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LayoutDashboard, FilePlus, BadgeCheck, TrendingUp, Loader2, Table2, Users } from "lucide-react";
+import { LayoutDashboard, TrendingUp, Loader2, Table2, Users, BadgeCheck } from "lucide-react";
 import { useMemoFirebase, useCollection, useFirebase, initiateAnonymousSignIn } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
 
 export default function AppContainer() {
   const [mounted, setMounted] = useState(false);
-  // FIX: Ajustando o tempo "agora" para 02 de Março de 2026.
-  // De 15/01/2026 até 02/03/2026 temos exatamente 46 dias.
+  // Fixando a data "hoje" como 02 de Março de 2026 para que 15/01/2026 resulte em 46 dias.
   const [now] = useState<Date>(new Date(2026, 2, 2)); 
   const { auth, firestore } = useFirebase();
 
@@ -65,7 +64,7 @@ export default function AppContainer() {
       if (d instanceof Date) return d;
       
       const cleanStr = String(d).trim();
-      if (!cleanStr || cleanStr === "N/A" || cleanStr === "undefined") return null;
+      if (!cleanStr || cleanStr === "N/A" || cleanStr === "undefined" || cleanStr === "") return null;
 
       // Suporte para números seriais do Excel (Ex: 46037)
       const numStr = cleanStr.replace(/[\.,]/g, '');
@@ -74,6 +73,7 @@ export default function AppContainer() {
         return new Date(Math.round((num - 25569) * 86400 * 1000));
       }
 
+      // Suporte para DD/MM/AAAA
       const parts = cleanStr.split('/');
       if (parts.length === 3) {
         const day = parseInt(parts[0], 10);
@@ -95,13 +95,24 @@ export default function AppContainer() {
       return Math.floor((t1 - t2) / (1000 * 60 * 60 * 24));
     };
 
-    // Filtro de vendas (ignora locação para ciclo médio de venda)
-    const salesOnly = sales.filter(s => {
-      const type = normalizeKey(s.tipoVenda || "");
-      return type.includes("venda") || type === "" || type === "venda"; 
-    });
+    // Última Venda (Recência) - Ordena por data real
+    const sortedSalesDates = sales
+      .map(s => parseDate(s.saleDate))
+      .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
+      .sort((a, b) => b.getTime() - a.getTime());
 
-    // Ciclo Médio (Performance)
+    const lastSale = sortedSalesDates.length > 0 ? sortedSalesDates[0] : null;
+
+    let daysSinceLastSaleDisplay = "0 Dias";
+    if (lastSale && now) {
+      const diff = diffDays(now, lastSale);
+      if (diff !== null) {
+        daysSinceLastSaleDisplay = `${Math.max(0, diff)} Dias`;
+      }
+    }
+
+    // Ciclo Médio
+    const salesOnly = sales.filter(s => !normalizeKey(s.tipoVenda || "").includes("locacao"));
     const validDiffs = salesOnly.map(s => {
       const start = parseDate(s.propertyCaptureDate);
       const end = parseDate(s.saleDate);
@@ -110,47 +121,20 @@ export default function AppContainer() {
     
     const avgDaysToSell = validDiffs.length > 0 ? validDiffs.reduce((a, b) => a + b, 0) / validDiffs.length : 0;
 
-    // Última Venda (Recência)
-    const sortedSalesDates = sales
-      .map(s => parseDate(s.saleDate))
-      .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
-      .sort((a, b) => b.getTime() - a.getTime());
-
-    const lastSale = sortedSalesDates.length > 0 ? sortedSalesDates[0] : null;
-
-    let daysSinceLastSale = null;
-    if (lastSale && now) {
-      const todayZero = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const saleZero = new Date(lastSale.getFullYear(), lastSale.getMonth(), lastSale.getDate());
-      const diff = Math.floor((todayZero.getTime() - saleZero.getTime()) / (1000 * 3600 * 24));
-      daysSinceLastSale = diff;
-    }
-
-    // Frequência de Vendas (Ritmo)
-    let salesFrequency = 0;
-    if (sortedSalesDates.length > 1) {
-      const newest = sortedSalesDates[0];
-      const oldest = sortedSalesDates[sortedSalesDates.length - 1];
-      const totalPeriodDays = Math.floor((newest.getTime() - oldest.getTime()) / (1000 * 3600 * 24));
-      if (totalPeriodDays > 0) {
-        salesFrequency = totalPeriodDays / (sortedSalesDates.length - 1);
-      }
-    }
-
     const totalVgv = sales.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
 
     return {
       avgDaysToSell,
       avgDaysToRent: 0,
       totalValue: totalVgv,
-      lastSaleDisplay: daysSinceLastSale !== null 
-        ? `${Math.max(0, daysSinceLastSale)} Dias`
-        : "0 Dias",
+      lastSaleDisplay: daysSinceLastSaleDisplay,
       totalLeads: leads.length,
       totalSales: sales.length,
       totalProperties: properties.length,
       avgTicket: sales.length > 0 ? totalVgv / sales.length : 0,
-      salesFrequency
+      salesFrequency: sortedSalesDates.length > 1 ? 
+        Math.floor((sortedSalesDates[0].getTime() - sortedSalesDates[sortedSalesDates.length - 1].getTime()) / (1000 * 3600 * 24)) / (sortedSalesDates.length - 1) 
+        : 0
     };
   }, [rawSales, rawLeads, rawProperties, now]);
 
