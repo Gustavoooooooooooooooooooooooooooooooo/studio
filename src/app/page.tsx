@@ -61,41 +61,44 @@ export default function AppContainer() {
 
     const parseDate = (d: any) => {
       if (!d) return null;
-      if (typeof d === 'string') {
-        const cleanDate = d.trim();
-        // Tenta DD/MM/YYYY
-        const parts = cleanDate.split('/');
-        if (parts.length === 3) {
-          const day = parseInt(parts[0], 10);
-          const month = parseInt(parts[1], 10) - 1;
-          const year = parts[2].length === 2 ? 2000 + parseInt(parts[2], 10) : parseInt(parts[2], 10);
-          const date = new Date(year, month, day);
-          return isNaN(date.getTime()) ? null : date;
-        }
-        // Tenta YYYY-MM-DD
-        const isoParts = cleanDate.split('-');
-        if (isoParts.length === 3 && isoParts[0].length === 4) {
-          const date = new Date(cleanDate);
-          return isNaN(date.getTime()) ? null : date;
-        }
-        // Fallback
-        const fallback = new Date(cleanDate);
-        return isNaN(fallback.getTime()) ? null : fallback;
+      if (d instanceof Date) return d;
+      
+      const cleanDate = String(d).trim();
+      if (!cleanDate) return null;
+
+      // Tenta DD/MM/YYYY
+      const parts = cleanDate.split('/');
+      if (parts.length === 3) {
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const yearPart = parts[2].trim();
+        const year = yearPart.length === 2 ? 2000 + parseInt(yearPart, 10) : parseInt(yearPart, 10);
+        const date = new Date(year, month, day);
+        return isNaN(date.getTime()) ? null : date;
       }
-      return null;
+
+      // Tenta YYYY-MM-DD
+      const isoParts = cleanDate.split('-');
+      if (isoParts.length === 3) {
+        const date = new Date(cleanDate);
+        return isNaN(date.getTime()) ? null : date;
+      }
+
+      const fallback = new Date(cleanDate);
+      return isNaN(fallback.getTime()) ? null : fallback;
     };
 
     const diffDays = (d1: Date | null, d2: Date | null) => {
       if (!d1 || !d2 || isNaN(d1.getTime()) || isNaN(d2.getTime())) return null;
       const t1 = new Date(d1.getFullYear(), d1.getMonth(), d1.getDate()).getTime();
       const t2 = new Date(d2.getFullYear(), d2.getMonth(), d2.getDate()).getTime();
-      const diffTime = Math.abs(t2 - t1);
-      return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      return Math.floor((t1 - t2) / (1000 * 60 * 60 * 24));
     };
 
     const salesOnly = sales.filter(s => {
       const type = normalizeKey(s.tipoVenda || "");
-      return type.includes("venda") || type === ""; 
+      // Considera venda se o tipo contiver "venda" ou for vazio (fallback para registros de venda)
+      return type.includes("venda") || type === "" || type === "venda"; 
     });
     
     const rentsOnly = sales.filter(s => {
@@ -107,21 +110,24 @@ export default function AppContainer() {
       const validDiffs = data.map(s => {
         const start = parseDate(s.propertyCaptureDate);
         const end = parseDate(s.saleDate);
-        return diffDays(start, end);
+        // Ciclo médio = Data Venda - Data Entrada
+        const diff = diffDays(end, start);
+        return diff;
       }).filter(d => d !== null && d >= 0) as number[];
       
       return validDiffs.length > 0 ? validDiffs.reduce((a, b) => a + b, 0) / validDiffs.length : 0;
     };
 
+    // Ordena vendas da mais antiga para a mais recente para calcular frequência e pegar a última
     const sortedSalesDates = salesOnly
       .map(s => parseDate(s.saleDate))
-      .filter(d => d !== null && !isNaN(d!.getTime()))
-      .sort((a, b) => a!.getTime() - b!.getTime());
+      .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
+      .sort((a, b) => a.getTime() - b.getTime());
 
     let salesFrequency = 0;
     if (sortedSalesDates.length > 1) {
-      const first = sortedSalesDates[0]!;
-      const last = sortedSalesDates[sortedSalesDates.length - 1]!;
+      const first = sortedSalesDates[0];
+      const last = sortedSalesDates[sortedSalesDates.length - 1];
       const totalDays = Math.floor((last.getTime() - first.getTime()) / (1000 * 3600 * 24));
       if (totalDays > 0) {
         salesFrequency = totalDays / (sortedSalesDates.length - 1);
@@ -130,10 +136,16 @@ export default function AppContainer() {
 
     const lastSale = sortedSalesDates.length > 0 ? sortedSalesDates[sortedSalesDates.length - 1] : null;
 
-    const daysSinceLastSale = lastSale && now
-      ? Math.floor((new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() - 
-                    new Date(lastSale.getFullYear(), lastSale.getMonth(), lastSale.getDate()).getTime()) / (1000 * 3600 * 24))
-      : null;
+    // Cálculo de dias desde a última venda (Hoje - Data da Última Venda)
+    let daysSinceLastSale = null;
+    if (lastSale && now) {
+      const todayZero = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const saleZero = new Date(lastSale.getFullYear(), lastSale.getMonth(), lastSale.getDate());
+      // Se a data for futura, tratamos como 0 dias ou diferença absoluta se desejar, 
+      // mas para "última venda" geralmente usamos diferença positiva
+      const diff = Math.floor((todayZero.getTime() - saleZero.getTime()) / (1000 * 3600 * 24));
+      daysSinceLastSale = diff;
+    }
 
     const totalVgv = sales.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
 
@@ -141,8 +153,8 @@ export default function AppContainer() {
       avgDaysToSell: calcAvgDays(salesOnly),
       avgDaysToRent: calcAvgDays(rentsOnly),
       totalValue: totalVgv,
-      lastSaleDisplay: daysSinceLastSale !== null && daysSinceLastSale >= 0
-        ? `${daysSinceLastSale} Dias`
+      lastSaleDisplay: daysSinceLastSale !== null 
+        ? `${Math.max(0, daysSinceLastSale)} Dias`
         : "0 Dias",
       totalLeads: leads.length,
       totalSales: sales.length,
@@ -180,7 +192,7 @@ export default function AppContainer() {
           <TabsList className="grid grid-cols-5 w-full max-w-4xl mx-auto h-12 p-1 bg-muted/50 rounded-xl">
             <TabsTrigger value="dashboard" className="rounded-lg"><LayoutDashboard className="h-4 w-4 mr-2" /> Dashboard</TabsTrigger>
             <TabsTrigger value="base" className="rounded-lg"><Table2 className="h-4 w-4 mr-2" /> Base</TabsTrigger>
-            <TabsTrigger value="cadastro" className="rounded-lg"><FilePlus className="h-4 w-4 mr-2" /> Cadastro</TabsTrigger>
+            <TabsTrigger value="cadastro" className="rounded-lg"><Table2 className="h-4 w-4 mr-2" /> Cadastro</TabsTrigger>
             <TabsTrigger value="leads" className="rounded-lg"><Users className="h-4 w-4 mr-2" /> Leads</TabsTrigger>
             <TabsTrigger value="conclusao" className="rounded-lg"><BadgeCheck className="h-4 w-4 mr-2" /> Conclusão</TabsTrigger>
           </TabsList>
