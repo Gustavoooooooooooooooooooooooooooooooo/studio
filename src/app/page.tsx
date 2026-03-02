@@ -111,20 +111,17 @@ export default function AppContainer() {
       }
     }
 
-    // Frequência de Vendas: (Média de dias entre as vendas do período)
-    // Se houve 5 vendas em 20 dias, a frequência é de 1 venda a cada 4 dias.
-    let salesFrequency = 0;
-    if (validSalesDates.length > 1) {
-      const newestSale = validSalesDates[0];
-      const oldestSale = validSalesDates[validSalesDates.length - 1];
-      const totalPeriodDays = diffDays(newestSale, oldestSale) || 1;
-      salesFrequency = Math.round(totalPeriodDays / (validSalesDates.length - 1));
-    } else if (validSalesDates.length === 1 && lastSale) {
-      // Se tiver apenas uma venda, calculamos a frequência baseada no início do ano ou do período
-      const startOfYear = new Date(2026, 0, 1);
-      const daysSoFar = diffDays(now, startOfYear) || 1;
-      salesFrequency = Math.round(daysSoFar / 1);
-    }
+    // Frequência de Vendas (Solicitado: média de dias que leva para vender um imóvel)
+    // Calculamos a diferença entre Data de Venda e Data de Entrada para todos os imóveis vendidos
+    const saleDurations = sales.map(s => {
+      const start = parseDate(s.propertyCaptureDate);
+      const end = parseDate(s.saleDate);
+      return diffDays(end, start);
+    }).filter((d): d is number => d !== null && d >= 0);
+
+    const salesFrequency = saleDurations.length > 0 
+      ? Math.round(saleDurations.reduce((a, b) => a + b, 0) / saleDurations.length) 
+      : 0;
 
     const salesOnly = sales.filter(s => !normalizeKey(s.tipoVenda || "").includes("locacao"));
     const validDiffs = salesOnly.map(s => {
