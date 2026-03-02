@@ -21,7 +21,7 @@ import { collection, query, orderBy } from "firebase/firestore";
 
 export default function AppContainer() {
   const [mounted, setMounted] = useState(false);
-  // Fixando hoje como 02 de Março de 2026 para que 15/01/2026 resulte em 46 dias.
+  // Hoje é 02 de Março de 2026 para que 15/01/2026 resulte em 46 dias.
   const [now] = useState<Date>(new Date(2026, 2, 2)); 
   const { auth, firestore } = useFirebase();
 
@@ -95,12 +95,13 @@ export default function AppContainer() {
       return Math.floor((t1 - t2) / (1000 * 60 * 60 * 24));
     };
 
-    const sortedSalesDates = sales
+    // Filtra e ordena todas as datas de venda válidas
+    const validSalesDates = sales
       .map(s => parseDate(s.saleDate))
       .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
       .sort((a, b) => b.getTime() - a.getTime());
 
-    const lastSale = sortedSalesDates.length > 0 ? sortedSalesDates[0] : null;
+    const lastSale = validSalesDates.length > 0 ? validSalesDates[0] : null;
 
     let daysSinceLastSaleDisplay = "0 Dias";
     if (lastSale && now) {
@@ -108,6 +109,15 @@ export default function AppContainer() {
       if (diff !== null) {
         daysSinceLastSaleDisplay = `${Math.max(0, diff)} Dias`;
       }
+    }
+
+    // Frequência de Vendas: Média de intervalo entre todas as vendas do período
+    let salesFrequency = 0;
+    if (validSalesDates.length > 1) {
+      const oldestSale = validSalesDates[validSalesDates.length - 1];
+      const newestSale = validSalesDates[0];
+      const totalSpanDays = diffDays(newestSale, oldestSale) || 0;
+      salesFrequency = Math.round(totalSpanDays / (validSalesDates.length - 1));
     }
 
     const salesOnly = sales.filter(s => !normalizeKey(s.tipoVenda || "").includes("locacao"));
@@ -130,9 +140,7 @@ export default function AppContainer() {
       totalSales: sales.length,
       totalProperties: properties.length,
       avgTicket: sales.length > 0 ? totalVgv / sales.length : 0,
-      salesFrequency: sortedSalesDates.length > 1 ? 
-        Math.floor((sortedSalesDates[0].getTime() - sortedSalesDates[sortedSalesDates.length - 1].getTime()) / (1000 * 3600 * 24)) / (sortedSalesDates.length - 1) 
-        : 0
+      salesFrequency
     };
   }, [rawSales, rawLeads, rawProperties, now]);
 

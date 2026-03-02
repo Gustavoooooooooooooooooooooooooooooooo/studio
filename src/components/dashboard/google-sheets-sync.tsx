@@ -76,16 +76,17 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       }
     }
 
-    // 2. Busca específica para Datas (Coluna R) - evita nomes de corretores
+    // 2. Busca específica para Datas (Coluna R) - Ignora carimbos e nomes
     if (searchKeys.includes("data venda")) {
       const targetKey = rowKeys.find(rk => {
         const n = normalize(rk);
-        // Deve conter 'data' e 'venda', mas NÃO pode ser 'vendedor', 'angariador' ou 'valor'
-        return (n.includes("data") && n.includes("venda")) && 
+        // Deve ser especificamente Data Venda e não pode ser Vendedor, Angariador ou Carimbo
+        return (n === "data venda" || n === "datavenda" || (n.includes("data") && n.includes("venda"))) && 
                !n.includes("vendedor") && 
                !n.includes("corretor") && 
                !n.includes("angariador") && 
-               !n.includes("valor");
+               !n.includes("valor") &&
+               !n.includes("carimbo");
       });
       if (targetKey) return row[targetKey];
     }
@@ -136,7 +137,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
 
             } else if (mode === 'sales') {
               // MAPEAMENTO RIGOROSO DA COLUNA R
-              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "data da venda", "data fechamento"]));
+              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "data da venda", "data fechamento", "fechamento"]));
               const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "entrada"]));
               
               const valorAnuncio = parseCurrency(getVal(row, ["valor anuncio"]));
@@ -184,7 +185,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         toast({
           variant: "destructive",
           title: "Erro na Planilha",
-          description: result.message || "Não foi possível ler os dados da Coluna R.",
+          description: result.message || "Não foi possível ler os dados.",
         });
       }
     } catch (error: any) {
@@ -278,10 +279,10 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         <div className="flex items-start gap-2 bg-white/40 p-3 rounded-lg border border-primary/5 text-[11px] text-muted-foreground">
           <div className="space-y-1">
             <p className="font-bold mb-1 flex items-center gap-1">
-               <Info className="h-3 w-3 text-primary" /> Mapeamento Coluna R:
+               <Info className="h-3 w-3 text-primary" /> Mapeamento Real:
             </p>
-            <p>O sistema agora foca estritamente na <b>Data Venda</b> e ignora qualquer nome de corretor ou carimbos de 2025.</p>
-            <p className="mt-1"><b>Importante:</b> Clique em "Limpar Base Atual" se ainda vir dados antigos de 2025.</p>
+            <p>O sistema agora foca estritamente na <b>Coluna R</b> (Data Venda) e calcula a média de frequência entre fechamentos.</p>
+            <p className="mt-1"><b>Dica:</b> O número 46037 será convertido para 15/01/2026.</p>
           </div>
         </div>
       </CardContent>
