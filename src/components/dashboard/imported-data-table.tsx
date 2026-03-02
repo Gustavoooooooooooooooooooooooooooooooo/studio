@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { Loader2, Home, Calendar, User, MapPin, Table2, Info } from "lucide-react";
+import { Loader2, Home, Calendar, User, Table2, Info } from "lucide-react";
 
 export function ImportedDataTable() {
   const { firestore } = useFirebase();
@@ -55,7 +55,7 @@ export function ImportedDataTable() {
           </div>
         ) : imoveis && imoveis.length > 0 ? (
           <ScrollArea className="w-full h-[600px]">
-            <div className="min-w-[2200px]">
+            <div className="min-w-[1200px]">
               <Table>
                 <TableHeader className="bg-muted/50 sticky top-0 z-10">
                   <TableRow>
@@ -63,9 +63,6 @@ export function ImportedDataTable() {
                     <TableHead className="text-[10px] font-bold uppercase min-w-[120px]">Código/Unidade</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[180px]">Angariador</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Bairro</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase min-w-[350px]">Endereço</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase min-w-[120px]">Transação</TableHead>
-                    <TableHead className="text-right text-[10px] font-bold uppercase min-w-[150px]">Valor Anúncio</TableHead>
                     <TableHead className="text-right text-[10px] font-bold uppercase min-w-[150px]">Valor Venda</TableHead>
                     <TableHead className="text-right text-[10px] font-bold uppercase min-w-[150px]">Valor Locação</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[120px] text-center">Status</TableHead>
@@ -92,20 +89,6 @@ export function ImportedDataTable() {
                       </TableCell>
                       <TableCell className="text-xs font-semibold">
                         {imovel.neighborhood || "Desconhecido"}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3 shrink-0" />
-                          <span className="truncate">{imovel.address || "N/A"}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-xs">
-                        <Badge variant="outline" className="text-[10px] border-primary/20 bg-white">
-                          {imovel.listingType || "Venda"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right text-xs font-bold text-primary">
-                        {formatCurrency(imovel.listingValue)}
                       </TableCell>
                       <TableCell className="text-right text-xs font-bold text-emerald-600">
                         {formatCurrency(imovel.saleValue)}
