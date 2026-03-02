@@ -52,9 +52,11 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
 
   const excelDateToJSDate = (serial: any) => {
     if (serial === undefined || serial === null || serial === "") return serial;
+    // Remove formatacao de pontos/virgulas para ler o numero bruto do excel (ex: 46037)
     let s = String(serial).replace(/[\.,]/g, "").trim();
     const num = Number(s);
-    if (!isNaN(num) && num > 30000 && num < 60000) {
+    // Jan 2025 ate Dez 2030 (aproximadamente)
+    if (!isNaN(num) && num > 45000 && num < 60000) {
       const date = new Date(Math.round((num - 25569) * 86400 * 1000));
       return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
     }
@@ -66,19 +68,26 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     const rowKeys = Object.keys(row);
     const normalizedSearchKeys = searchKeys.map(normalize);
 
+    // Primeira passada: Busca exata e ignora Carimbo explicitamente
     for (const rowKey of rowKeys) {
       const normRowKey = normalize(rowKey);
-      if (isDateSearch && (normRowKey.includes("carimbo") || normRowKey.includes("timestamp"))) continue;
+      
+      // BLOQUEIO CRITICO: Nunca usar o Carimbo de Data/Hora para data de venda ou entrada
+      if (isDateSearch && (normRowKey.includes("carimbo") || normRowKey.includes("timestamp"))) {
+        continue;
+      }
       
       if (normalizedSearchKeys.includes(normRowKey)) {
         return row[rowKey];
       }
     }
 
+    // Segunda passada: Busca parcial
     for (const rowKey of rowKeys) {
       const normRowKey = normalize(rowKey);
       if (isDateSearch && (normRowKey.includes("carimbo") || normRowKey.includes("timestamp"))) continue;
       
+      // Se for busca de data, ignorar colunas que parecem ser de valor financeiro
       if (isDateSearch && (normRowKey.includes("valor") || normRowKey.includes("vgv") || normRowKey.includes("anuncio"))) continue;
 
       if (normalizedSearchKeys.some(sk => normRowKey.includes(sk))) {
@@ -175,9 +184,21 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
             description: `${processedCount} registros atualizados.`,
           });
         }
+      } else if (!silent) {
+        toast({
+          variant: "destructive",
+          title: "Erro na Planilha",
+          description: result.message || "Não foi possível ler os dados.",
+        });
       }
     } catch (error: any) {
-      if (!silent) toast({ variant: "destructive", title: "Erro na Sincronização", description: error.message });
+      if (!silent) {
+        toast({ 
+          variant: "destructive", 
+          title: "Erro na Sincronização", 
+          description: error.message || "Verifique o link da planilha."
+        });
+      }
     } finally {
       if (!silent) setSyncing(false);
     }
