@@ -2,7 +2,7 @@
 "use client"
 
 import { useCollection, useMemoFirebase, useFirebase } from "@/firebase";
-import { collection, query, limit } from "firebase/firestore";
+import { collection, query } from "firebase/firestore";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,24 +13,23 @@ import { useMemo } from "react";
 export function LeadsDataTable() {
   const { firestore } = useFirebase();
   
-  // Consulta simplificada para garantir que os dados apareçam mesmo sem indexação imediata
+  // Consulta sem limite para buscar todos os leads conforme solicitado
   const leadsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(
-      collection(firestore, "leads"),
-      limit(500)
+      collection(firestore, "leads")
     );
   }, [firestore]);
 
   const { data: leads, isLoading } = useCollection(leadsQuery);
 
-  // Pega todas as chaves únicas presentes nos leads para montar os cabeçalhos dinamicamente
-  // Analisamos os primeiros 5 leads para garantir que pegamos todas as colunas possíveis
+  // Mapeamento dinâmico de colunas: analisa os leads carregados para identificar todos os campos da planilha
   const columns = useMemo(() => {
     if (!leads || leads.length === 0) return [];
     
     const allKeys = new Set<string>();
-    leads.slice(0, 5).forEach(lead => {
+    // Analisamos uma amostra maior para garantir que pegamos colunas que podem estar vazias nos primeiros registros
+    leads.slice(0, 50).forEach(lead => {
       Object.keys(lead).forEach(key => {
         if (key !== 'id' && key !== 'importedAt') {
           allKeys.add(key);
@@ -59,7 +58,7 @@ export function LeadsDataTable() {
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-24 gap-4">
             <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
-            <p className="text-sm text-muted-foreground font-medium">Carregando base de leads...</p>
+            <p className="text-sm text-muted-foreground font-medium">Carregando todos os leads...</p>
           </div>
         ) : leads && leads.length > 0 ? (
           <ScrollArea className="w-full h-[600px]">
@@ -101,7 +100,6 @@ export function LeadsDataTable() {
               <p className="text-muted-foreground font-bold text-lg">Nenhum lead encontrado</p>
               <p className="text-sm text-muted-foreground/60 max-w-sm mx-auto">
                 Certifique-se de ter colado o link CSV correto acima e clicado em "Sincronizar Agora". 
-                Se você acabou de sincronizar, aguarde alguns segundos para o banco atualizar.
               </p>
             </div>
           </div>
