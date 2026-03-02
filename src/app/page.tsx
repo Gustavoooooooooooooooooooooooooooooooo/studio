@@ -66,7 +66,7 @@ export default function AppContainer() {
       const cleanStr = String(d).trim();
       if (!cleanStr || cleanStr === "N/A" || cleanStr === "undefined" || cleanStr === "") return null;
 
-      // Suporte para números seriais do Excel (Ex: 46037)
+      // Suporte para números seriais do Excel (Ex: 46037 para 15/01/2026)
       const numStr = cleanStr.replace(/[\.,]/g, '');
       const num = Number(numStr);
       if (!isNaN(num) && num > 40000 && num < 60000) {

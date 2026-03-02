@@ -53,9 +53,11 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
   const excelDateToJSDate = (serial: any) => {
     if (serial === undefined || serial === null || serial === "") return "";
     if (typeof serial === 'string' && serial.includes('/')) return serial;
+    
+    // Converte o número serial do Excel (Ex: 46037) para String de Data
     let s = String(serial).replace(/[\.,]/g, "").trim();
     const num = Number(s);
-    if (!isNaN(num) && num > 44000 && num < 65000) {
+    if (!isNaN(num) && num > 40000 && num < 60000) {
       const date = new Date(Math.round((num - 25569) * 86400 * 1000));
       return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
     }
@@ -67,25 +69,27 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     const rowKeys = Object.keys(row);
     const normalizedSearchKeys = searchKeys.map(normalize);
 
-    // BUSCA EXATA (Ponto mais importante para não pegar "vendedor" em vez de "venda")
+    // 1. Busca por correspondência exata de termos normalizados
     for (const rowKey of rowKeys) {
-      const normRowKey = normalize(rowKey);
-      if (normalizedSearchKeys.includes(normRowKey)) {
+      if (normalizedSearchKeys.includes(normalize(rowKey))) {
         return row[rowKey];
       }
     }
 
-    // BUSCA POR TERMOS ESPECÍFICOS PARA COLUNA R
-    for (const rowKey of rowKeys) {
-      const normRowKey = normalize(rowKey);
-      // Se estamos procurando data e o cabeçalho contém nomes de pessoas, ignoramos
-      if (searchKeys.includes("data venda") && (normRowKey.includes("corretor") || normRowKey.includes("vendedor") || normRowKey.includes("angariador"))) {
-        continue;
-      }
-      if (normalizedSearchKeys.some(sk => normRowKey === sk)) {
-        return row[rowKey];
-      }
+    // 2. Busca específica para Datas (Coluna R) - evita nomes de corretores
+    if (searchKeys.includes("data venda")) {
+      const targetKey = rowKeys.find(rk => {
+        const n = normalize(rk);
+        // Deve conter 'data' e 'venda', mas NÃO pode ser 'vendedor', 'angariador' ou 'valor'
+        return (n.includes("data") && n.includes("venda")) && 
+               !n.includes("vendedor") && 
+               !n.includes("corretor") && 
+               !n.includes("angariador") && 
+               !n.includes("valor");
+      });
+      if (targetKey) return row[targetKey];
     }
+
     return undefined;
   };
 
@@ -131,8 +135,8 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              // MAPEAMENTO RÍGIDO PARA COLUNA R
-              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "data da venda"]));
+              // MAPEAMENTO RIGOROSO DA COLUNA R
+              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "data da venda", "data fechamento"]));
               const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "entrada"]));
               
               const valorAnuncio = parseCurrency(getVal(row, ["valor anuncio"]));
@@ -180,7 +184,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         toast({
           variant: "destructive",
           title: "Erro na Planilha",
-          description: result.message || "Não foi possível ler os dados.",
+          description: result.message || "Não foi possível ler os dados da Coluna R.",
         });
       }
     } catch (error: any) {
@@ -252,7 +256,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>Limpar todos os dados?</AlertDialogTitle>
-                  <AlertDialogDescription>Essa ação remove os registros locais de {mode === 'inventory' ? 'Imóveis' : mode === 'sales' ? 'Vendas' : 'Leads'} para forçar uma nova sincronização limpa.</AlertDialogDescription>
+                  <AlertDialogDescription>Essa ação remove os registros locais para forçar uma nova sincronização limpa da Coluna R.</AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
@@ -276,8 +280,8 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
             <p className="font-bold mb-1 flex items-center gap-1">
                <Info className="h-3 w-3 text-primary" /> Mapeamento Coluna R:
             </p>
-            <p>O sistema agora foca estritamente na <b>Coluna R</b> e ignora qualquer nome de corretor que apareça no lugar da data.</p>
-            <p className="mt-1">Use <b>Limpar Base Atual</b> se ainda estiver vendo nomes em vez de datas.</p>
+            <p>O sistema agora foca estritamente na <b>Data Venda</b> e ignora qualquer nome de corretor ou carimbos de 2025.</p>
+            <p className="mt-1"><b>Importante:</b> Clique em "Limpar Base Atual" se ainda vir dados antigos de 2025.</p>
           </div>
         </div>
       </CardContent>
