@@ -66,7 +66,7 @@ export default function AppContainer() {
       const cleanDate = String(d).trim();
       if (!cleanDate) return null;
 
-      // Tenta DD/MM/YYYY
+      // Prioridade máxima para formato DD/MM/YYYY (Coluna S)
       const parts = cleanDate.split('/');
       if (parts.length === 3) {
         const day = parseInt(parts[0], 10);
@@ -77,7 +77,7 @@ export default function AppContainer() {
         return isNaN(date.getTime()) ? null : date;
       }
 
-      // Tenta YYYY-MM-DD
+      // Fallback para ISO YYYY-MM-DD
       const isoParts = cleanDate.split('-');
       if (isoParts.length === 3) {
         const date = new Date(cleanDate);
@@ -97,7 +97,6 @@ export default function AppContainer() {
 
     const salesOnly = sales.filter(s => {
       const type = normalizeKey(s.tipoVenda || "");
-      // Considera venda se o tipo contiver "venda" ou for vazio (fallback para registros de venda)
       return type.includes("venda") || type === "" || type === "venda"; 
     });
     
@@ -110,7 +109,6 @@ export default function AppContainer() {
       const validDiffs = data.map(s => {
         const start = parseDate(s.propertyCaptureDate);
         const end = parseDate(s.saleDate);
-        // Ciclo médio = Data Venda - Data Entrada
         const diff = diffDays(end, start);
         return diff;
       }).filter(d => d !== null && d >= 0) as number[];
@@ -118,7 +116,7 @@ export default function AppContainer() {
       return validDiffs.length > 0 ? validDiffs.reduce((a, b) => a + b, 0) / validDiffs.length : 0;
     };
 
-    // Ordena vendas da mais antiga para a mais recente para calcular frequência e pegar a última
+    // Pega TODAS as datas de venda válidas e ordena para achar a mais recente absoluta
     const sortedSalesDates = salesOnly
       .map(s => parseDate(s.saleDate))
       .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
@@ -136,13 +134,11 @@ export default function AppContainer() {
 
     const lastSale = sortedSalesDates.length > 0 ? sortedSalesDates[sortedSalesDates.length - 1] : null;
 
-    // Cálculo de dias desde a última venda (Hoje - Data da Última Venda)
     let daysSinceLastSale = null;
     if (lastSale && now) {
       const todayZero = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const saleZero = new Date(lastSale.getFullYear(), lastSale.getMonth(), lastSale.getDate());
-      // Se a data for futura, tratamos como 0 dias ou diferença absoluta se desejar, 
-      // mas para "última venda" geralmente usamos diferença positiva
+      // Diferença de dias entre HOJE e a ÚLTIMA VENDA
       const diff = Math.floor((todayZero.getTime() - saleZero.getTime()) / (1000 * 3600 * 24));
       daysSinceLastSale = diff;
     }

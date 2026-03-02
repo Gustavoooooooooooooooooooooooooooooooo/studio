@@ -14,12 +14,13 @@ interface MonthlyTrendsProps {
 
 export function MonthlyTrends({ sales, leads, properties }: MonthlyTrendsProps) {
   const data = useMemo(() => {
+    const currentYear = new Date().getFullYear();
     const monthsNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     const monthlyData: Record<string, any> = {};
     
-    // Inicializar 12 meses de 2024
+    // Inicializar 12 meses do ano atual real (2026)
     monthsNames.forEach((name, i) => {
-      const key = `2024-${String(i+1).padStart(2, '0')}`;
+      const key = `${currentYear}-${String(i+1).padStart(2, '0')}`;
       monthlyData[key] = { month: name, vendas: 0, locacoes: 0, leads: 0, angariados: 0 };
     });
 
@@ -27,7 +28,10 @@ export function MonthlyTrends({ sales, leads, properties }: MonthlyTrendsProps) 
       if (!d) return null;
       if (typeof d === 'string') {
         const parts = d.split('/');
-        if (parts.length === 3) return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+        if (parts.length === 3) {
+          const year = parts[2].length === 2 ? 2000 + Number(parts[2]) : Number(parts[2]);
+          return new Date(year, Number(parts[1]) - 1, Number(parts[0]));
+        }
         return new Date(d);
       }
       return null;
@@ -37,8 +41,8 @@ export function MonthlyTrends({ sales, leads, properties }: MonthlyTrendsProps) 
 
     sales.forEach(sale => {
       const date = parseDate(sale.saleDate);
-      if (date && date.getFullYear() === 2024) {
-        const key = `2024-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      if (date && date.getFullYear() === currentYear) {
+        const key = `${currentYear}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         if (monthlyData[key]) {
           if (normalize(sale.tipoVenda).includes("venda")) monthlyData[key].vendas += 1;
           else monthlyData[key].locacoes += 1;
@@ -51,16 +55,16 @@ export function MonthlyTrends({ sales, leads, properties }: MonthlyTrendsProps) 
       const dateKey = keys.find(k => normalize(k).includes("data") || normalize(k).includes("carimbo"));
       const date = dateKey ? parseDate(lead[dateKey]) : null;
       
-      if (date && date.getFullYear() === 2024) {
-        const key = `2024-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      if (date && date.getFullYear() === currentYear) {
+        const key = `${currentYear}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         if (monthlyData[key]) monthlyData[key].leads += 1;
       }
     });
 
     properties.forEach(prop => {
       const date = parseDate(prop.captureDate);
-      if (date && date.getFullYear() === 2024) {
-        const key = `2024-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      if (date && date.getFullYear() === currentYear) {
+        const key = `${currentYear}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         if (monthlyData[key]) monthlyData[key].angariados += 1;
       }
     });
@@ -78,7 +82,7 @@ export function MonthlyTrends({ sales, leads, properties }: MonthlyTrendsProps) 
   return (
     <Card className="shadow-sm border-none bg-white overflow-hidden">
       <CardHeader className="bg-muted/5 border-b">
-        <CardTitle className="text-lg font-bold">Tendências Mensais (Dados Reais 2024)</CardTitle>
+        <CardTitle className="text-lg font-bold">Tendências Mensais ({new Date().getFullYear()})</CardTitle>
       </CardHeader>
       <CardContent className="pt-6">
         <ChartContainer config={config} className="h-[300px] w-full">

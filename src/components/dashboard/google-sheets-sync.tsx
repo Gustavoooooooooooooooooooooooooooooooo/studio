@@ -38,7 +38,6 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
   const { toast } = useToast();
   const { firestore } = useFirebase();
 
-  // Carrega URL salva do localStorage ao iniciar
   useEffect(() => {
     const savedUrl = localStorage.getItem(`sheet_url_${mode}`);
     if (savedUrl) setUrl(savedUrl);
@@ -50,14 +49,28 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       .replace(/[\u0300-\u036f]/g, "")
       .trim();
 
-  const getVal = (row: any, keys: string[]) => {
+  const getVal = (row: any, searchKeys: string[]) => {
     if (!row) return undefined;
     const rowKeys = Object.keys(row);
-    const normalizedSearchKeys = keys.map(normalize);
+    const normalizedSearchKeys = searchKeys.map(normalize);
 
+    // Prioridade 1: Correspondência Exata (Case-Insensitive)
     for (const rowKey of rowKeys) {
-      const normalizedRowKey = normalize(rowKey);
-      if (normalizedSearchKeys.some(sk => normalizedRowKey === sk || normalizedRowKey.includes(sk))) {
+      const normRowKey = normalize(rowKey);
+      if (normalizedSearchKeys.some(sk => normRowKey === sk)) {
+        return row[rowKey];
+      }
+    }
+
+    // Prioridade 2: Correspondência Parcial (Contém a palavra)
+    // Evita pegar colunas genéricas como "Carimbo de data" se buscamos "Data Venda"
+    for (const rowKey of rowKeys) {
+      const normRowKey = normalize(rowKey);
+      if (normalizedSearchKeys.some(sk => normRowKey.includes(sk))) {
+        // Se a busca for por "venda", ignoramos colunas que contenham "carimbo"
+        if (normRowKey.includes("carimbo") && !searchKeys.some(sk => normalize(sk).includes("carimbo"))) {
+          continue;
+        }
         return row[rowKey];
       }
     }
@@ -67,27 +80,15 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
   const parseCurrency = (val: any) => {
     if (val === undefined || val === null || val === "") return 0;
     if (typeof val === 'number') return val;
-    
-    let s = String(val).trim();
-    s = s.replace(/[R$ ]/g, "");
-    
-    if (s.includes('.') && s.includes(',')) {
-      s = s.replace(/\./g, "").replace(",", ".");
-    } 
-    else if (s.includes('.') && s.split('.').every((part, i) => i === 0 || part.length === 3)) {
-      s = s.replace(/\./g, "");
-    }
-    else if (s.includes(',')) {
-      s = s.replace(",", ".");
-    }
-    
+    let s = String(val).trim().replace(/[R$ ]/g, "");
+    if (s.includes('.') && s.includes(',')) s = s.replace(/\./g, "").replace(",", ".");
+    else if (s.includes(',') && !s.includes('.')) s = s.replace(",", ".");
     const num = parseFloat(s);
     return isNaN(num) ? 0 : num;
   };
 
   const handleSync = useCallback(async (silent = false) => {
     if (!url || syncing || !firestore) return;
-
     if (!silent) setSyncing(true);
     
     try {
@@ -104,42 +105,36 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
             const safeId = propertyCode.replace(/[\/\.\#\$\/\[\]]/g, "-") || `ID-${Date.now()}-${processedCount}`;
 
             if (mode === 'inventory') {
-              const saleValue = parseCurrency(getVal(row, ["Valor de venda", "venda"]));
-              const rentalValue = parseCurrency(getVal(row, ["Valor de locação", "locacao", "aluguel"]));
+              const saleValue = parseCurrency(getVal(row, ["venda"]));
+              const rentalValue = parseCurrency(getVal(row, ["locacao", "aluguel"]));
               const broker = String(getVal(row, ["angariador", "captador", "corretor"]) || "N/A");
-              const neighborhood = String(getVal(row, ["bairro", "regiao"]) || "Desconhecido");
-              const timestamp = String(getVal(row, ["data", "entrada"]) || "");
+              const neighborhood = String(getVal(row, ["bairro", "regiao"]) || "N/A");
+              const timestamp = String(getVal(row, ["data entrada", "entrada"]) || "");
               const status = String(getVal(row, ["status", "situacao"]) || "Disponível");
 
               const propRef = doc(firestore, "properties", `${safeId}-${processedCount}`);
               setDocumentNonBlocking(propRef, {
-                propertyCode,
-                neighborhood,
-                saleValue,
-                rentalValue,
-                brokerId: broker,
-                captureDate: timestamp,
-                status,
-                importedAt: serverTimestamp(),
+                propertyCode, neighborhood, saleValue, rentalValue,
+                brokerId: broker, captureDate: timestamp, status, importedAt: serverTimestamp(),
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              // Ajuste no mapeamento das datas conforme solicitado
-              const dataVendaRaw = getVal(row, ["Data do venda", "assinatura", "fechamento", "data venda"]);
-              const dataEntradaRaw = getVal(row, ["Data de entrada", "data entrada", "entrada"]);
-              const valorAnuncio = parseCurrency(getVal(row, ["Qual valor anunciado?", "anuncio"]));
-              const valorVenda = parseCurrency(getVal(row, ["Qual valor final de venda?", "valor fechado", "valor venda"]));
+              // Rigor total nas colunas específicas da Coluna S em diante
+              const dataVendaRaw = getVal(row, ["data do venda", "assinatura", "fechamento", "data venda"]);
+              const dataEntradaRaw = getVal(row, ["data de entrada", "data entrada", "entrada"]);
+              const valorAnuncio = parseCurrency(getVal(row, ["anuncio", "valor anunciado"]));
+              const valorVenda = parseCurrency(getVal(row, ["valor fechado", "valor venda"]));
 
               const saleRef = doc(firestore, "vendas_imoveis", `${safeId}-${processedCount}`);
               setDocumentNonBlocking(saleRef, {
-                vendedor: String(getVal(row, ["Vendedor"]) || ""),
-                tipoVenda: String(getVal(row, ["Tipo de Venda"]) || ""),
-                angariador: String(getVal(row, ["Angariador"]) || ""),
-                propertyCode: propertyCode,
-                neighborhood: String(getVal(row, ["Empreendimento", "bairro"]) || "N/A"),
-                unit: String(getVal(row, ["Unidade(s)"]) || "N/A"),
-                clientName: String(getVal(row, ["O contrato esta no nome de quem?", "cliente"]) || "N/A"),
-                originChannel: String(getVal(row, ["origem do lead?", "canal"]) || "Direto"),
+                vendedor: String(getVal(row, ["vendedor"]) || ""),
+                tipoVenda: String(getVal(row, ["tipo de venda"]) || ""),
+                angariador: String(getVal(row, ["angariador"]) || ""),
+                propertyCode,
+                neighborhood: String(getVal(row, ["empreendimento", "bairro"]) || "N/A"),
+                unit: String(getVal(row, ["unidade"]) || "N/A"),
+                clientName: String(getVal(row, ["cliente", "nome contrato"]) || "N/A"),
+                originChannel: String(getVal(row, ["origem", "canal"]) || "Direto"),
                 advertisedValue: valorAnuncio,
                 closedValue: valorVenda,
                 saleDate: String(dataVendaRaw || ""),
@@ -174,18 +169,10 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     }
   }, [url, mode, firestore, syncing, toast]);
 
-  // Efeito para Polling (Tempo Real)
   useEffect(() => {
     if (!autoSync || !url) return;
-
-    // Sincroniza imediatamente ao ativar ou mudar URL
     handleSync(true);
-
-    // Configura intervalo de 60 segundos
-    const interval = setInterval(() => {
-      handleSync(true);
-    }, 60000);
-
+    const interval = setInterval(() => handleSync(true), 60000);
     return () => clearInterval(interval);
   }, [autoSync, url, handleSync]);
 
@@ -198,7 +185,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       const batch = writeBatch(firestore);
       snapshot.docs.forEach((d) => batch.delete(d.ref));
       await batch.commit();
-      toast({ title: "Dados Limpos", description: "Base reiniciada com sucesso." });
+      toast({ title: "Base Limpa", description: "Todos os dados locais foram removidos." });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao limpar", description: error.message });
     } finally {
@@ -218,45 +205,31 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               <CardTitle className="text-lg">
                 {mode === 'inventory' ? 'Cadastro de Imóveis' : mode === 'sales' ? 'Conclusão de Negócios' : 'Base de Leads'}
               </CardTitle>
-              {lastSync && (
-                <p className="text-[10px] text-muted-foreground">
-                  Última atualização: {lastSync.toLocaleTimeString()}
-                </p>
-              )}
+              {lastSync && <p className="text-[10px] text-muted-foreground">Última atualização: {lastSync.toLocaleTimeString()}</p>}
             </div>
           </div>
           
           <div className="flex items-center gap-4">
             <div className="flex items-center space-x-2 bg-white/50 px-3 py-1.5 rounded-full border border-primary/10">
-              <Switch 
-                id="auto-sync" 
-                checked={autoSync} 
-                onCheckedChange={setAutoSync}
-                className="data-[state=checked]:bg-primary"
-              />
-              <Label htmlFor="auto-sync" className="text-[10px] font-bold cursor-pointer">TEMPO REAL</Label>
+              <Switch id="auto-sync" checked={autoSync} onCheckedChange={setAutoSync} className="data-[state=checked]:bg-primary" />
+              <Label htmlFor="auto-sync" className="text-[10px] font-bold cursor-pointer uppercase">Tempo Real</Label>
             </div>
 
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="outline" size="sm" disabled={clearing} className="text-xs text-destructive hover:bg-destructive hover:text-white border-destructive/20">
+                <Button variant="outline" size="sm" disabled={clearing} className="text-xs text-destructive border-destructive/20">
                   {clearing ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Trash2 className="h-3 w-3 mr-1" />}
-                  Limpar Base
+                  Limpar Base Atual
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Apagar todos os dados locais?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Esta ação irá remover todos os registros de {mode === 'inventory' ? 'Cadastro' : mode === 'sales' ? 'Vendas' : 'Leads'} deste app. 
-                    Isso não afeta sua planilha do Google.
-                  </AlertDialogDescription>
+                  <AlertDialogTitle>Limpar todos os dados?</AlertDialogTitle>
+                  <AlertDialogDescription>Essa ação remove os registros locais de {mode === 'inventory' ? 'Imóveis' : mode === 'Vendas' ? 'Vendas' : 'Leads'} para forçar uma nova sincronização limpa.</AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleClearData} className="bg-destructive hover:bg-destructive/90 text-white">
-                    Confirmar e Limpar
-                  </AlertDialogAction>
+                  <AlertDialogAction onClick={handleClearData} className="bg-destructive hover:bg-destructive/90 text-white">Confirmar</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
@@ -265,12 +238,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex gap-2">
-          <Input 
-            placeholder="Insira o link CSV da planilha publicada..." 
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            className="bg-white/50"
-          />
+          <Input placeholder="Cole o link CSV da planilha (Publicada na Web)..." value={url} onChange={(e) => setUrl(e.target.value)} className="bg-white/50" />
           <Button onClick={() => handleSync()} disabled={syncing} className={mode === 'inventory' ? 'bg-primary' : mode === 'sales' ? 'bg-emerald-600' : 'bg-indigo-600'}>
             {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sincronizar Agora"}
           </Button>
@@ -279,9 +247,9 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         <div className="flex items-start gap-2 bg-white/40 p-3 rounded-lg border border-primary/5 text-[11px] text-muted-foreground">
           <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <p className="font-bold mb-1">Atenção ao Link:</p>
-            <p>Certifique-se de que o link aponta para a aba correta da sua planilha do Google.</p>
-            <p className="mt-1">Vá em <b>Arquivo &gt; Compartilhar &gt; Publicar na Web</b>, selecione a <b>Aba Específica</b> e escolha o formato <b>CSV</b>.</p>
+            <p className="font-bold mb-1">Dica de Sincronização:</p>
+            <p>Para o Ciclo Médio funcionar, sua aba de <b>Conclusão</b> deve ter as colunas "Data de entrada" e "Data do venda" (Coluna S).</p>
+            <p className="mt-1">Use <b>Arquivo &gt; Compartilhar &gt; Publicar na Web</b> para gerar o link CSV.</p>
           </div>
         </div>
       </CardContent>
