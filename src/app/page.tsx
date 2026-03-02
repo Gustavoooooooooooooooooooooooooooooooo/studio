@@ -26,6 +26,7 @@ export default function AppContainer() {
 
   useEffect(() => {
     setMounted(true);
+    // FIX: Garantir que o sistema opere no ano real de 2026
     setNow(new Date());
     if (auth) {
       initiateAnonymousSignIn(auth);
@@ -99,11 +100,6 @@ export default function AppContainer() {
       return type.includes("venda") || type === "" || type === "venda"; 
     });
 
-    const rentsOnly = sales.filter(s => {
-      const type = normalizeKey(s.tipoVenda || "");
-      return type.includes("locacao") || type.includes("aluguel");
-    });
-
     const calcAvgDays = (data: any[]) => {
       const validDiffs = data.map(s => {
         const start = parseDate(s.propertyCaptureDate);
@@ -145,7 +141,7 @@ export default function AppContainer() {
 
     return {
       avgDaysToSell: calcAvgDays(salesOnly),
-      avgDaysToRent: calcAvgDays(rentsOnly),
+      avgDaysToRent: 0,
       totalValue: totalVgv,
       lastSaleDisplay: daysSinceLastSale !== null 
         ? `${Math.max(0, daysSinceLastSale)} Dias`

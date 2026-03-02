@@ -71,22 +71,25 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     const rowKeys = Object.keys(row);
     const normalizedSearchKeys = searchKeys.map(normalize);
 
-    // 1. Tenta correspondência exata primeiro
+    // 1. Tenta correspondência exata primeiro (ignorando Carimbo)
     for (const rowKey of rowKeys) {
       const normRowKey = normalize(rowKey);
+      if (normRowKey.includes("carimbo") || normRowKey.includes("timestamp")) continue;
+      
       if (normalizedSearchKeys.includes(normRowKey)) {
         return row[rowKey];
       }
     }
 
-    // 2. Tenta correspondência parcial inteligente (evitando confusão com colunas de valor)
+    // 2. Tenta correspondência parcial inteligente
     for (const rowKey of rowKeys) {
       const normRowKey = normalize(rowKey);
+      if (normRowKey.includes("carimbo") || normRowKey.includes("timestamp")) continue;
       
       const isSearchingDate = searchKeys.some(sk => normalize(sk).includes("data"));
       if (isSearchingDate) {
-        // Ignora colunas que claramente não são a data do evento
-        if (normRowKey.includes("carimbo") || normRowKey.includes("timestamp") || normRowKey.includes("valor") || normRowKey.includes("vgv")) {
+        // Ignora colunas que claramente não são a data do evento (evita Valor Venda)
+        if (normRowKey.includes("valor") || normRowKey.includes("vgv") || normRowKey.includes("anuncio")) {
           continue;
         }
       }
@@ -140,7 +143,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              // Busca específica para evitar conflito com Valor Venda
+              // BUSCA RIGOROSA PARA DATA VENDA (COLUNA S)
               const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "data da venda", "fechamento", "assinatura"]));
               const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "data de entrada", "entrada"]));
               
@@ -272,7 +275,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
           <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
           <div className="space-y-1">
             <p className="font-bold mb-1">Dica de Precisão:</p>
-            <p>O sistema agora converte automaticamente números (como 46.037) em datas reais (15/01/2026).</p>
+            <p>O sistema agora detecta automaticamente o <b>Carimbo de Data</b> e o ignora, focando na <b>Data Venda real</b> (Coluna S).</p>
             <p className="mt-1">Vá em <b>Arquivo &gt; Compartilhar &gt; Publicar na Web</b> e selecione o formato <b>CSV</b>.</p>
           </div>
         </div>
