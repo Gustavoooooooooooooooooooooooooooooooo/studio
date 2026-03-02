@@ -9,7 +9,8 @@ import {
   Target, 
   Home,
   CheckCircle2,
-  ArrowUpRight
+  ArrowUpRight,
+  Zap
 } from "lucide-react";
 
 interface StatsCardsProps {
@@ -22,6 +23,7 @@ interface StatsCardsProps {
     totalSales: number;
     totalProperties: number;
     avgTicket: number;
+    salesFrequency: number;
   }
 }
 
@@ -33,26 +35,26 @@ export function StatsCards({ metrics }: StatsCardsProps) {
   const kpis = [
     {
       title: "Ciclo Médio de Venda",
-      value: `${Math.round(metrics.avgDaysToSell)} dias`,
-      description: "Média real (Entrada → Venda)",
+      value: `${Math.round(metrics.avgDaysToSell)} Dias`,
+      description: "Média (Captura → Venda)",
       icon: Clock,
       color: "text-blue-600",
       group: "Performance"
     },
     {
-      title: "Ciclo Médio de Locação",
-      value: `${Math.round(metrics.avgDaysToRent)} dias`,
-      description: "Um imóvel é locado em média",
-      icon: Calendar,
-      color: "text-emerald-600",
+      title: "Frequência de Vendas",
+      value: `${metrics.salesFrequency > 0 ? Math.round(metrics.salesFrequency) : 0} Dias`,
+      description: "Intervalo médio entre vendas",
+      icon: Zap,
+      color: "text-amber-600",
       group: "Performance"
     },
     {
       title: "Última Venda Realizada",
       value: metrics.lastSaleDisplay,
-      description: "Tempo desde o fechamento mais recente",
+      description: "Tempo desde o último fechamento",
       icon: CheckCircle2,
-      color: "text-orange-600",
+      color: "text-emerald-600",
       group: "Histórico"
     },
     {
@@ -74,7 +76,7 @@ export function StatsCards({ metrics }: StatsCardsProps) {
     {
       title: "Total de Leads",
       value: metrics.totalLeads,
-      description: "Leads capturados na base",
+      description: "Base total de leads",
       icon: Home,
       color: "text-purple-600",
       group: "Geral"

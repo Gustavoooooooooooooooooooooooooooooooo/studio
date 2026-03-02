@@ -16,16 +16,11 @@ import { SalesDataTable } from "@/components/dashboard/sales-data-table";
 import { LeadsDataTable } from "@/components/dashboard/leads-data-table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LayoutDashboard, FilePlus, BadgeCheck, TrendingUp, Loader2, Table2, Users } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useAuth, initiateAnonymousSignIn, useCollection, useMemoFirebase, useFirebase } from "@/firebase";
+import { useMemoFirebase, useCollection, useFirebase, initiateAnonymousSignIn } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
 
 export default function AppContainer() {
   const [mounted, setMounted] = useState(false);
-  const [selectedMonth, setSelectedMonth] = useState<string>("all");
-  const [selectedBroker, setSelectedBroker] = useState<string>("all");
-  const [businessType, setBusinessType] = useState<string>("all");
-  
   const { auth, firestore } = useFirebase();
 
   useEffect(() => {
@@ -90,6 +85,23 @@ export default function AppContainer() {
       return validDiffs.length > 0 ? validDiffs.reduce((a, b) => a + b, 0) / validDiffs.length : 0;
     };
 
+    // Frequência de Vendas (A cada quantos dias um imóvel é vendido)
+    const sortedSalesDates = salesOnly
+      .map(s => parseDate(s.saleDate))
+      .filter(d => d !== null && !isNaN(d!.getTime()))
+      .sort((a, b) => a!.getTime() - b!.getTime());
+
+    let salesFrequency = 0;
+    if (sortedSalesDates.length > 1) {
+      const first = sortedSalesDates[0]!;
+      const last = sortedSalesDates[sortedSalesDates.length - 1]!;
+      const totalDays = Math.floor((last.getTime() - first.getTime()) / (1000 * 3600 * 24));
+      // Evita divisão por zero ou números negativos
+      if (totalDays > 0) {
+        salesFrequency = totalDays / (sortedSalesDates.length - 1);
+      }
+    }
+
     const lastSale = sales.length > 0 
       ? sales.reduce((latest, current) => {
           const d = parseDate(current.saleDate);
@@ -108,12 +120,13 @@ export default function AppContainer() {
       avgDaysToRent: calcAvgDays(rentsOnly),
       totalValue: totalVgv,
       lastSaleDisplay: daysSinceLastSale !== null 
-        ? `${daysSinceLastSale} ${daysSinceLastSale === 1 ? 'Dia' : 'Dias'}`
-        : "Nenhum registro",
+        ? `${daysSinceLastSale} Dias`
+        : "Nenhum",
       totalLeads: leads.length,
       totalSales: sales.length,
       totalProperties: properties.length,
-      avgTicket: sales.length > 0 ? totalVgv / sales.length : 0
+      avgTicket: sales.length > 0 ? totalVgv / sales.length : 0,
+      salesFrequency: salesFrequency
     };
   }, [rawSales, rawLeads, rawProperties]);
 
