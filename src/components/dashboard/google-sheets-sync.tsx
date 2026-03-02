@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useCallback } from "react";
@@ -123,8 +124,9 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
+              // Ajuste no mapeamento das datas conforme solicitado
               const dataVendaRaw = getVal(row, ["Data do venda", "assinatura", "fechamento", "data venda"]);
-              const dataEntradaRaw = getVal(row, ["data entrada", "data de entrada", "entrada"]);
+              const dataEntradaRaw = getVal(row, ["Data de entrada", "data entrada", "entrada"]);
               const valorAnuncio = parseCurrency(getVal(row, ["Qual valor anunciado?", "anuncio"]));
               const valorVenda = parseCurrency(getVal(row, ["Qual valor final de venda?", "valor fechado", "valor venda"]));
 
@@ -141,7 +143,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
                 advertisedValue: valorAnuncio,
                 closedValue: valorVenda,
                 saleDate: String(dataVendaRaw || ""),
-                propertyCaptureDate: String(dataEntradaRaw || ""), // Adicionado para cálculo de Ciclo Médio
+                propertyCaptureDate: String(dataEntradaRaw || ""),
                 status: "Vendido",
                 importedAt: serverTimestamp(),
               }, { merge: true });

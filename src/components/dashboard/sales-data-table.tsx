@@ -59,6 +59,7 @@ export function SalesDataTable() {
               <Table>
                 <TableHeader className="bg-muted/30">
                   <TableRow>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Data Entrada</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Data Venda</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Vendedor</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Tipo Venda</TableHead>
@@ -76,12 +77,12 @@ export function SalesDataTable() {
                     <TableHead className="text-[10px] font-bold uppercase min-w-[150px] text-right">Valor Anúncio</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[150px] text-right">Valor Venda</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[150px] text-right">Comissão Canto</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Última Importação</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {vendas.map((venda) => (
                     <TableRow key={venda.id} className="hover:bg-emerald-50/30 transition-colors">
+                      <TableCell className="text-xs text-muted-foreground">{venda.propertyCaptureDate || "N/A"}</TableCell>
                       <TableCell className="text-xs font-bold text-emerald-700">{venda.saleDate || "N/A"}</TableCell>
                       <TableCell className="text-xs">{venda.vendedor || "N/A"}</TableCell>
                       <TableCell className="text-xs">{venda.tipoVenda || "N/A"}</TableCell>
@@ -99,9 +100,6 @@ export function SalesDataTable() {
                       <TableCell className="text-xs text-right text-muted-foreground">{formatCurrency(venda.advertisedValue)}</TableCell>
                       <TableCell className="text-xs text-right font-bold text-emerald-600">{formatCurrency(venda.closedValue)}</TableCell>
                       <TableCell className="text-xs text-right font-bold text-indigo-600">{formatCurrency(venda.commissionValue)}</TableCell>
-                      <TableCell className="text-[10px] text-muted-foreground">
-                        {venda.importedAt ? new Date(venda.importedAt.seconds * 1000).toLocaleString('pt-BR') : "Processando..."}
-                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
