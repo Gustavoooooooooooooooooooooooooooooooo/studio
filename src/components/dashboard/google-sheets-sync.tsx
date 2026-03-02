@@ -56,12 +56,11 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     // Se já for uma string de data formatada DD/MM/AAAA, retorna ela
     if (typeof serial === 'string' && serial.includes('/')) return serial;
 
-    // Limpa o valor para tentar converter número do Excel
+    // Limpa o valor para tentar converter número do Excel (Ex: 46.037 ou 46037)
     let s = String(serial).replace(/[\.,]/g, "").trim();
     const num = Number(s);
     
-    // Range de 2024 a 2030 (Excel serial dates: 45000 a 60000)
-    // O valor 46037 corresponde a 15/01/2026
+    // O valor 46037 corresponde a 15/01/2026 no Excel
     if (!isNaN(num) && num > 44000 && num < 65000) {
       const date = new Date(Math.round((num - 25569) * 86400 * 1000));
       return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
@@ -82,18 +81,13 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       }
     }
 
-    // 2. Busca Parcial com filtros inteligentes (Evitar carimbos e valores)
+    // 2. Busca Parcial mais agressiva para Datas
     for (const rowKey of rowKeys) {
       const normRowKey = normalize(rowKey);
       
       if (isDateSearch) {
-        // Ignora carimbo de data/hora do sistema e colunas financeiras
-        if (normRowKey.includes("carimbo") || normRowKey.includes("timestamp") || normRowKey.includes("valor") || normRowKey.includes("preco")) {
-          continue;
-        }
-      } else {
-        // Se busca valor, ignora colunas que são puramente data
-        if (normRowKey.includes("data") && !normRowKey.includes("valor")) {
+        // Ignora carimbo de data/hora do sistema (Coluna A removida mas por precaução)
+        if (normRowKey.includes("carimbo") || normRowKey.includes("timestamp")) {
           continue;
         }
       }
@@ -147,9 +141,8 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              // MAPEAMENTO ESPECÍFICO PARA COLUNA R (DATA VENDA)
-              // Ignora carimbos de data/hora
-              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "fechamento", "data fechamento", "data da venda"], true));
+              // MAPEAMENTO ULTRA RÍGIDO PARA COLUNA R (DATA VENDA)
+              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "data da venda", "venda", "data_venda", "fechamento"], true));
               const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "entrada", "captura", "angariacao"], true));
               
               const valorAnuncio = parseCurrency(getVal(row, ["valor anuncio", "anuncio"]));
