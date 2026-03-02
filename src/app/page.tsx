@@ -63,18 +63,16 @@ export default function AppContainer() {
       if (!d) return null;
       if (d instanceof Date) return d;
       
-      // Suporte para números seriais do Excel/Sheets
-      if (typeof d === 'number' || (!isNaN(Number(d)) && !String(d).includes('/') && !String(d).includes('-'))) {
-        const num = Number(d);
-        if (num > 30000 && num < 60000) {
-          return new Date(Math.round((num - 25569) * 86400 * 1000));
-        }
+      const cleanStr = String(d).trim();
+      if (!cleanStr || cleanStr === "N/A" || cleanStr === "undefined") return null;
+
+      // Suporte para números seriais do Excel (Ex: 46037 para 15/01/2026)
+      const num = Number(cleanStr.replace(/[^0-9]/g, ''));
+      if (!isNaN(num) && num > 30000 && num < 60000 && !cleanStr.includes('/') && !cleanStr.includes('-')) {
+        return new Date(Math.round((num - 25569) * 86400 * 1000));
       }
 
-      const cleanDate = String(d).trim();
-      if (!cleanDate || cleanDate === "N/A" || cleanDate === "undefined") return null;
-
-      const parts = cleanDate.split('/');
+      const parts = cleanStr.split('/');
       if (parts.length === 3) {
         const day = parseInt(parts[0], 10);
         const month = parseInt(parts[1], 10) - 1;
@@ -84,14 +82,8 @@ export default function AppContainer() {
         return isNaN(date.getTime()) ? null : date;
       }
 
-      const isoParts = cleanDate.split('-');
-      if (isoParts.length === 3) {
-        const date = new Date(cleanDate);
-        return isNaN(date.getTime()) ? null : date;
-      }
-
-      const fallback = new Date(cleanDate);
-      return isNaN(fallback.getTime()) ? null : fallback;
+      const date = new Date(cleanStr);
+      return isNaN(date.getTime()) ? null : date;
     };
 
     const diffDays = (d1: Date | null, d2: Date | null) => {
@@ -122,22 +114,23 @@ export default function AppContainer() {
       return validDiffs.length > 0 ? validDiffs.reduce((a, b) => a + b, 0) / validDiffs.length : 0;
     };
 
+    // Ordenar para encontrar a venda MAIS RECENTE no tempo real (2026)
     const sortedSalesDates = salesOnly
       .map(s => parseDate(s.saleDate))
       .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
-      .sort((a, b) => a.getTime() - b.getTime());
+      .sort((a, b) => b.getTime() - a.getTime());
 
     let salesFrequency = 0;
     if (sortedSalesDates.length > 1) {
-      const first = sortedSalesDates[0];
-      const last = sortedSalesDates[sortedSalesDates.length - 1];
+      const last = sortedSalesDates[0];
+      const first = sortedSalesDates[sortedSalesDates.length - 1];
       const totalDays = Math.floor((last.getTime() - first.getTime()) / (1000 * 3600 * 24));
       if (totalDays > 0) {
         salesFrequency = totalDays / (sortedSalesDates.length - 1);
       }
     }
 
-    const lastSale = sortedSalesDates.length > 0 ? sortedSalesDates[sortedSalesDates.length - 1] : null;
+    const lastSale = sortedSalesDates.length > 0 ? sortedSalesDates[0] : null;
 
     let daysSinceLastSale = null;
     if (lastSale && now) {

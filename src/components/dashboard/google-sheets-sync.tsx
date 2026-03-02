@@ -47,13 +47,13 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     String(s || "").toLowerCase()
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ")
       .trim();
 
-  // Função para converter número serial do Excel para string de data DD/MM/YYYY
   const excelDateToJSDate = (serial: any) => {
     if (!serial || isNaN(Number(serial))) return serial;
     const num = Number(serial);
-    if (num < 30000 || num > 60000) return serial; // Proteção para não converter IDs numéricos
+    if (num < 30000 || num > 60000) return serial; 
     const date = new Date(Math.round((num - 25569) * 86400 * 1000));
     return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
   };
@@ -63,7 +63,6 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     const rowKeys = Object.keys(row);
     const normalizedSearchKeys = searchKeys.map(normalize);
 
-    // Prioridade 1: Correspondência Exata
     for (const rowKey of rowKeys) {
       const normRowKey = normalize(rowKey);
       if (normalizedSearchKeys.some(sk => normRowKey === sk)) {
@@ -73,14 +72,12 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
 
     if (strict) return undefined;
 
-    // Prioridade 2: Correspondência Parcial Inteligente
     for (const rowKey of rowKeys) {
       const normRowKey = normalize(rowKey);
       
-      // Proteção: Se estamos buscando uma DATA, não podemos aceitar colunas de VALOR ou CARIMBO
       const isSearchingDate = searchKeys.some(sk => normalize(sk).includes("data"));
       if (isSearchingDate) {
-        if (normRowKey.includes("carimbo") || normRowKey.includes("valor") || normRowKey.includes("vgv")) {
+        if (normRowKey.includes("carimbo") || normRowKey.includes("timestamp") || normRowKey.includes("valor") || normRowKey.includes("vgv")) {
           continue;
         }
       }
@@ -134,9 +131,8 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              // Busca rigorosa pela Data da Venda (Coluna S)
-              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data do venda", "assinatura", "data venda", "fechamento"], true) || getVal(row, ["data do venda", "assinatura", "data venda"]));
-              const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data de entrada", "data entrada", "entrada"]));
+              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "data da venda", "fechamento", "assinatura"], true) || getVal(row, ["data venda", "fechamento"]));
+              const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "data de entrada", "entrada"]));
               
               const valorAnuncio = parseCurrency(getVal(row, ["anuncio", "valor anunciado"]));
               const valorVenda = parseCurrency(getVal(row, ["valor fechado", "valor venda"]));
