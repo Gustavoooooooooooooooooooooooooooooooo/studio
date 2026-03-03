@@ -41,7 +41,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       const cleanStr = String(d).trim();
       if (!cleanStr || cleanStr === "N/A" || cleanStr === "undefined") return null;
 
-      // DD/MM/YYYY
       const parts = cleanStr.split('/');
       if (parts.length === 3) {
         const day = parseInt(parts[0], 10);
@@ -52,7 +51,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         if (!isNaN(date.getTime())) return date;
       }
 
-      // Excel Serial
       let val = cleanStr.replace(/\./g, '').replace(',', '.');
       const num = parseFloat(val);
       if (!isNaN(num) && num > 40000 && num < 60000) {
@@ -67,14 +65,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       const displayName = brokerDoc.name;
       const normName = normalize(displayName);
 
-      // Métricas de Vendas/Locações
-      const bSalesRecords = sales.filter(s => {
-        const vend = normalize(s.vendedor);
-        return vend === normName || vend.includes(normName);
-      });
-      const vSales = bSalesRecords.filter(s => normalize(s.tipoVenda).includes("venda"));
-      const rSales = bSalesRecords.filter(s => normalize(s.tipoVenda).includes("locacao") || normalize(s.tipoVenda).includes("aluguel"));
-
       // Métricas de Cadastro (Angariação)
       const bProps = properties.filter(p => {
         const bId = normalize(p.brokerId);
@@ -83,36 +73,50 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       const vProps = bProps.filter(p => Number(p.saleValue) > 0);
       const rProps = bProps.filter(p => Number(p.rentalValue) > 0);
 
-      // Métricas de Leads - FILTRO MÊS PASSADO (Fevereiro 2026)
-      const bLeads = leads.filter(l => {
+      // Filtro de Leads e Visitas
+      const brokerLeads = leads.filter(l => {
         const keys = Object.keys(l);
-        // Busca coluna de corretor no lead
         const brokerKey = keys.find(k => {
           const nk = normalize(k);
           return nk.includes("corretor") || nk.includes("responsavel") || nk.includes("atendente");
         });
-        
         if (!brokerKey) return false;
-        
         const leadBrokerVal = normalize(String(l[brokerKey]));
-        const nameMatch = leadBrokerVal && (leadBrokerVal === normName || leadBrokerVal.includes(normName));
-        
-        if (!nameMatch) return false;
+        return leadBrokerVal && (leadBrokerVal === normName || leadBrokerVal.includes(normName));
+      });
 
-        // Busca coluna de data no lead
+      // Leads Mês Passado
+      const leadsMonthPast = brokerLeads.filter(l => {
+        const keys = Object.keys(l);
         const dateKey = keys.find(k => {
           const nk = normalize(k);
           return nk.includes("data") || nk.includes("carimbo") || nk.includes("criado");
         });
-        
         const date = dateKey ? parseDate(l[dateKey]) : null;
-        
-        // Se não tiver data, não podemos filtrar por mês passado
-        if (!date) return false;
-
-        return date.getMonth() === targetMonth && date.getFullYear() === targetYear;
+        return date && date.getMonth() === targetMonth && date.getFullYear() === targetYear;
       });
 
+      // Visitas Realizadas (Compra)
+      // Baseado nas colunas "Status da atividade atual" e "Natureza da negociação"
+      const visitsRealized = brokerLeads.filter(l => {
+        const keys = Object.keys(l);
+        
+        const activityStatusKey = keys.find(k => normalize(k).includes("status da atividade atual") || normalize(k).includes("status atividade"));
+        const natureKey = keys.find(k => normalize(k).includes("natureza da negociacao") || normalize(k).includes("natureza"));
+
+        if (!activityStatusKey || !natureKey) return false;
+
+        const activityVal = normalize(String(l[activityStatusKey]));
+        const natureVal = normalize(String(l[natureKey]));
+
+        return activityVal.includes("realizada") && natureVal.includes("compra");
+      });
+
+      // VGV do corretor
+      const bSalesRecords = sales.filter(s => {
+        const vend = normalize(s.vendedor);
+        return vend === normName || vend.includes(normName);
+      });
       const totalVgv = bSalesRecords.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
       
       const validDiffs = bSalesRecords.map(s => {
@@ -128,9 +132,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
 
       return {
         name: displayName,
-        leads: bLeads.length,
-        vSales: vSales.length,
-        rSales: rSales.length,
+        leads: leadsMonthPast.length,
+        visits: visitsRealized.length,
         vProps: vProps.length,
         rProps: rProps.length,
         vgv: totalVgv,
@@ -159,7 +162,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
               <TableRow className="bg-muted/5">
                 <TableHead className="font-bold">Corretor</TableHead>
                 <TableHead className="text-center">Leads (Mês Passado)</TableHead>
-                <TableHead className="text-center">Fechamentos (V/L)</TableHead>
+                <TableHead className="text-center">Visitas Realizadas (Compra)</TableHead>
                 <TableHead className="text-center">Angariados (V/L)</TableHead>
                 <TableHead className="text-right">Tempo Médio</TableHead>
                 <TableHead className="text-right font-bold">VGV Total</TableHead>
@@ -175,10 +178,9 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                     </Badge>
                   </TableCell>
                   <TableCell className="text-center">
-                    <div className="flex items-center justify-center gap-2 text-xs">
-                      <span className={`${row.vSales > 0 ? 'text-emerald-600 font-bold' : 'text-muted-foreground/20'}`}>{row.vSales}V</span>
-                      <span className={`${row.rSales > 0 ? 'text-blue-600 font-bold' : 'text-muted-foreground/20'}`}>{row.rSales}L</span>
-                    </div>
+                    <Badge variant="outline" className={`${row.visits > 0 ? 'border-emerald-200 text-emerald-700 bg-emerald-50' : 'text-muted-foreground/40'}`}>
+                      {row.visits}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-center">
                     <div className="flex items-center justify-center gap-2 text-xs">
