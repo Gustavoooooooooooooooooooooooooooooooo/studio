@@ -1,10 +1,12 @@
-
 "use client"
 
 import { useMemo } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useCollection, useMemoFirebase, useFirebase } from "@/firebase";
+import { collection, query, orderBy } from "firebase/firestore";
+import { Loader2 } from "lucide-react";
 
 interface BrokerPerformanceGridProps {
   sales: any[];
@@ -13,41 +15,25 @@ interface BrokerPerformanceGridProps {
 }
 
 export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerformanceGridProps) {
+  const { firestore } = useFirebase();
+  
+  const brokersQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return query(collection(firestore, "brokers"), orderBy("name", "asc"));
+  }, [firestore]);
+
+  const { data: officialBrokers, isLoading: isBrokersLoading } = useCollection(brokersQuery);
+
   const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
   const stats = useMemo(() => {
-    // Mapa para unificar nomes: chave normalizada -> nome de exibição original
-    const brokerMap = new Map<string, string>();
-    
-    const addBroker = (name: any) => {
-      const sName = String(name || "");
-      const norm = normalize(sName);
-      if (norm && norm !== "undefined" && norm !== "n/a" && norm !== "null" && norm !== "") {
-        // Se ainda não temos esse corretor no mapa, adicionamos o primeiro nome encontrado como padrão de exibição
-        if (!brokerMap.has(norm)) {
-          brokerMap.set(norm, sName);
-        }
-      }
-    };
+    if (!officialBrokers || officialBrokers.length === 0) return [];
 
-    // Coletar todos os nomes possíveis de todas as bases
-    sales.forEach(s => {
-      addBroker(s.vendedor);
-      addBroker(s.angariador);
-    });
-    leads.forEach(l => {
-      const keys = Object.keys(l);
-      const key = keys.find(k => normalize(k).includes("corretor"));
-      if (key) addBroker(l[key]);
-    });
-    properties.forEach(p => addBroker(p.brokerId));
+    return officialBrokers.map(brokerDoc => {
+      const displayName = brokerDoc.name;
+      const normName = normalize(displayName);
 
-    const uniqueNormalizedNames = Array.from(brokerMap.keys());
-
-    return uniqueNormalizedNames.map(normName => {
-      const displayName = brokerMap.get(normName) || "N/A";
-
-      // Métricas de Vendas/Locações (Filtro por nome normalizado)
+      // Métricas de Vendas/Locações (Filtro por nome normalizado do corretor oficial)
       const bSalesRecords = sales.filter(s => normalize(s.vendedor) === normName);
       const vSales = bSalesRecords.filter(s => normalize(s.tipoVenda).includes("venda"));
       const rSales = bSalesRecords.filter(s => normalize(s.tipoVenda).includes("locacao") || normalize(s.tipoVenda).includes("aluguel"));
@@ -101,7 +87,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         avgTime
       };
     }).sort((a, b) => b.vgv - a.vgv);
-  }, [sales, leads, properties]);
+  }, [sales, leads, properties, officialBrokers]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
@@ -113,49 +99,53 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         <CardTitle className="text-lg font-bold">Performance Real por Corretor</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/5">
-              <TableHead className="font-bold">Corretor</TableHead>
-              <TableHead className="text-center">Leads</TableHead>
-              <TableHead className="text-center">Fechamentos (V/L)</TableHead>
-              <TableHead className="text-center">Angariados (V/L)</TableHead>
-              <TableHead className="text-right">Tempo Médio</TableHead>
-              <TableHead className="text-right font-bold">VGV Total</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {stats.map((row) => (
-              <TableRow key={row.name} className="hover:bg-muted/5">
-                <TableCell className="font-semibold">{row.name}</TableCell>
-                <TableCell className="text-center">
-                  <Badge variant="secondary" className="bg-indigo-50 text-indigo-700">{row.leads}</Badge>
-                </TableCell>
-                <TableCell className="text-center">
-                  <div className="flex items-center justify-center gap-2 text-xs">
-                    <span className={`${row.vSales > 0 ? 'text-emerald-600 font-bold' : 'text-muted-foreground/20'}`}>{row.vSales}V</span>
-                    <span className={`${row.rSales > 0 ? 'text-blue-600 font-bold' : 'text-muted-foreground/20'}`}>{row.rSales}L</span>
-                  </div>
-                </TableCell>
-                <TableCell className="text-center">
-                  <div className="flex items-center justify-center gap-2 text-xs">
-                    <span className={`${row.vProps > 0 ? 'text-amber-600 font-bold' : 'text-muted-foreground/20'}`}>{row.vProps}V</span>
-                    <span className={`${row.rProps > 0 ? 'text-purple-600 font-bold' : 'text-muted-foreground/20'}`}>{row.rProps}L</span>
-                  </div>
-                </TableCell>
-                <TableCell className="text-right text-xs">{row.avgTime > 0 ? `${Math.round(row.avgTime)} dias` : "-"}</TableCell>
-                <TableCell className="text-right font-bold text-primary">{formatCurrency(row.vgv)}</TableCell>
+        {isBrokersLoading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : stats.length > 0 ? (
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/5">
+                <TableHead className="font-bold">Corretor</TableHead>
+                <TableHead className="text-center">Leads</TableHead>
+                <TableHead className="text-center">Fechamentos (V/L)</TableHead>
+                <TableHead className="text-center">Angariados (V/L)</TableHead>
+                <TableHead className="text-right">Tempo Médio</TableHead>
+                <TableHead className="text-right font-bold">VGV Total</TableHead>
               </TableRow>
-            ))}
-            {stats.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
-                  Aguardando sincronização de dados reais...
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {stats.map((row) => (
+                <TableRow key={row.name} className="hover:bg-muted/5">
+                  <TableCell className="font-semibold">{row.name}</TableCell>
+                  <TableCell className="text-center">
+                    <Badge variant="secondary" className="bg-indigo-50 text-indigo-700">{row.leads}</Badge>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <div className="flex items-center justify-center gap-2 text-xs">
+                      <span className={`${row.vSales > 0 ? 'text-emerald-600 font-bold' : 'text-muted-foreground/20'}`}>{row.vSales}V</span>
+                      <span className={`${row.rSales > 0 ? 'text-blue-600 font-bold' : 'text-muted-foreground/20'}`}>{row.rSales}L</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <div className="flex items-center justify-center gap-2 text-xs">
+                      <span className={`${row.vProps > 0 ? 'text-amber-600 font-bold' : 'text-muted-foreground/20'}`}>{row.vProps}V</span>
+                      <span className={`${row.rProps > 0 ? 'text-purple-600 font-bold' : 'text-muted-foreground/20'}`}>{row.rProps}L</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right text-xs">{row.avgTime > 0 ? `${Math.round(row.avgTime)} dias` : "-"}</TableCell>
+                  <TableCell className="text-right font-bold text-primary">{formatCurrency(row.vgv)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : (
+          <div className="py-20 text-center text-muted-foreground">
+            <p className="text-sm font-medium">Nenhum corretor configurado.</p>
+            <p className="text-xs">Vá na aba "Config" para cadastrar os corretores oficiais.</p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
