@@ -1,3 +1,4 @@
+
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,7 +22,8 @@ export function InventoryHealth() {
   const stats = useMemo(() => {
     if (!properties) return { count: 0, vgv: 0 };
     const count = properties.length;
-    const vgv = properties.reduce((acc, p) => acc + (Number(p.listingValue) || 0), 0);
+    // Buscamos o VGV da coluna "Valor de Venda" (saleValue) conforme solicitado
+    const vgv = properties.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0);
     return { count, vgv };
   }, [properties]);
 

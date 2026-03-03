@@ -112,7 +112,6 @@ export default function AppContainer() {
     }
 
     // --- FREQUÊNCIA DE VENDAS (Média de Intervalo entre Vendas) ---
-    // Passo a Passo: Ordenação -> Cálculo dos Intervalos -> Soma e Divisão (n-1)
     let salesFrequency = 0;
     if (validSalesDates.length > 1) {
       let sumIntervals = 0;
@@ -140,17 +139,20 @@ export default function AppContainer() {
     }).filter((d): d is number => d !== null && d >= 0);
     
     const avgDaysToSell = validCycles.length > 0 ? validCycles.reduce((a, b) => a + b, 0) / validCycles.length : 0;
-    const totalVgv = uniqueSalesList.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
+
+    // --- VGV ACUMULADO (BUSCANDO NA ABA CADASTRO / PROPERTIES) ---
+    const totalInventoryVgv = properties.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0);
+    const totalSalesVgv = uniqueSalesList.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
 
     return {
       avgDaysToSell,
       avgDaysToRent: 0,
-      totalValue: totalVgv,
+      totalValue: totalInventoryVgv, // VGV Acumulado agora vem do Cadastro (Estoque)
       lastSaleDisplay: daysSinceLastSaleDisplay,
       totalLeads: leads.length,
       totalSales: uniqueSalesList.length,
       totalProperties: properties.length,
-      avgTicket: uniqueSalesList.length > 0 ? totalVgv / uniqueSalesList.length : 0,
+      avgTicket: uniqueSalesList.length > 0 ? totalSalesVgv / uniqueSalesList.length : 0,
       salesFrequency
     };
   }, [rawSales, rawLeads, rawProperties, now]);
