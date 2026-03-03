@@ -2,10 +2,9 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { useMemo } from "react";
-import { Badge } from "@/components/ui/badge";
 
 interface ChannelPerformanceProps {
   leads: any[];
@@ -46,13 +45,12 @@ export function ChannelPerformance({ leads }: ChannelPerformanceProps) {
     return null;
   };
 
-  const matrix = useMemo(() => {
+  const matrixData = useMemo(() => {
     const data: Record<string, number[]> = {};
-    const currentYear = 2026; // Fixado conforme os dados da Canto Imóveis
+    const currentYear = 2026;
 
     leads.forEach(lead => {
       const keys = Object.keys(lead);
-      // Busca agressiva pela coluna de Canal/Fonte/Origem
       const sourceKey = keys.find(k => {
         const nk = normalize(k);
         return nk === "fonte" || nk.includes("fonte") || nk === "origem" || nk.includes("origem") || nk === "canal";
@@ -63,7 +61,6 @@ export function ChannelPerformance({ leads }: ChannelPerformanceProps) {
       if (channel && channel !== "undefined" && channel !== "null" && channel !== "") {
         if (!data[channel]) data[channel] = new Array(12).fill(0);
         
-        // Busca agressiva pela coluna de Data
         const dateKey = keys.find(k => {
           const nk = normalize(k);
           return nk.includes("data") || nk.includes("carimbo") || nk.includes("criado");
@@ -78,15 +75,30 @@ export function ChannelPerformance({ leads }: ChannelPerformanceProps) {
       }
     });
 
-    return Object.entries(data)
+    const rows = Object.entries(data)
       .map(([name, counts]) => ({ 
         name, 
         counts, 
         total: counts.reduce((a, b) => a + b, 0) 
       }))
-      .filter(row => row.total > 0) // Mostra apenas canais com leads no período
+      .filter(row => row.total > 0)
       .sort((a, b) => b.total - a.total);
+
+    // Calcular Totais Mensais (Rodapé)
+    const monthlyTotals = new Array(12).fill(0);
+    let grandTotal = 0;
+
+    rows.forEach(row => {
+      row.counts.forEach((count, i) => {
+        monthlyTotals[i] += count;
+      });
+      grandTotal += row.total;
+    });
+
+    return { rows, monthlyTotals, grandTotal };
   }, [leads]);
+
+  const { rows, monthlyTotals, grandTotal } = matrixData;
 
   return (
     <Card className="shadow-sm border-none bg-white overflow-hidden">
@@ -94,7 +106,7 @@ export function ChannelPerformance({ leads }: ChannelPerformanceProps) {
         <CardTitle className="text-base font-bold text-primary">Matriz de Leads por Canal (2026)</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
-        {matrix.length > 0 ? (
+        {rows.length > 0 ? (
           <ScrollArea className="w-full">
             <Table className="table-fixed w-full">
               <TableHeader className="bg-muted/10">
@@ -107,7 +119,7 @@ export function ChannelPerformance({ leads }: ChannelPerformanceProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {matrix.map((row) => (
+                {rows.map((row) => (
                   <TableRow key={row.name} className="hover:bg-muted/5 transition-colors">
                     <TableCell className="font-semibold text-[10px] py-2 px-2 sticky left-0 bg-white z-10 border-r truncate">
                       {row.name}
@@ -123,6 +135,21 @@ export function ChannelPerformance({ leads }: ChannelPerformanceProps) {
                   </TableRow>
                 ))}
               </TableBody>
+              <TableFooter className="bg-primary/5 border-t-2 border-primary/20">
+                <TableRow>
+                  <TableCell className="font-bold text-[10px] py-2 px-2 sticky left-0 bg-primary/5 z-10 border-r">
+                    TOTAL GERAL
+                  </TableCell>
+                  {monthlyTotals.map((val, i) => (
+                    <TableCell key={i} className="text-center text-[10px] font-bold py-2 px-1 border-r text-primary">
+                      {val}
+                    </TableCell>
+                  ))}
+                  <TableCell className="text-right font-bold text-[11px] py-2 px-2 bg-primary text-white sticky right-0 z-10">
+                    {grandTotal}
+                  </TableCell>
+                </TableRow>
+              </TableFooter>
             </Table>
             <ScrollBar orientation="horizontal" />
           </ScrollArea>
