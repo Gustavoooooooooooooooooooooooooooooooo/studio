@@ -14,8 +14,9 @@ import { GoogleSheetsSync } from "@/components/dashboard/google-sheets-sync";
 import { ImportedDataTable } from "@/components/dashboard/imported-data-table";
 import { SalesDataTable } from "@/components/dashboard/sales-data-table";
 import { LeadsDataTable } from "@/components/dashboard/leads-data-table";
+import { BrokerSettings } from "@/components/dashboard/broker-settings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LayoutDashboard, TrendingUp, Loader2, Table2, Users, BadgeCheck } from "lucide-react";
+import { LayoutDashboard, TrendingUp, Loader2, Table2, Users, BadgeCheck, Settings } from "lucide-react";
 import { useMemoFirebase, useCollection, useFirebase, initiateAnonymousSignIn } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
 
@@ -182,12 +183,13 @@ export default function AppContainer() {
 
       <main className="container mx-auto px-4 py-6 max-w-7xl">
         <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="grid grid-cols-5 w-full max-w-4xl mx-auto h-12 p-1 bg-muted/50 rounded-xl">
+          <TabsList className="grid grid-cols-6 w-full max-w-5xl mx-auto h-12 p-1 bg-muted/50 rounded-xl">
             <TabsTrigger value="dashboard" className="rounded-lg"><LayoutDashboard className="h-4 w-4 mr-2" /> Dashboard</TabsTrigger>
             <TabsTrigger value="base" className="rounded-lg"><Table2 className="h-4 w-4 mr-2" /> Base</TabsTrigger>
             <TabsTrigger value="cadastro" className="rounded-lg"><Table2 className="h-4 w-4 mr-2" /> Cadastro</TabsTrigger>
             <TabsTrigger value="leads" className="rounded-lg"><Users className="h-4 w-4 mr-2" /> Leads</TabsTrigger>
             <TabsTrigger value="conclusao" className="rounded-lg"><BadgeCheck className="h-4 w-4 mr-2" /> Conclusão</TabsTrigger>
+            <TabsTrigger value="config" className="rounded-lg"><Settings className="h-4 w-4 mr-2" /> Config</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-8 animate-in fade-in duration-500">
@@ -204,6 +206,7 @@ export default function AppContainer() {
           <TabsContent value="cadastro" className="space-y-6"><GoogleSheetsSync mode="inventory" /><ImportedDataTable /></TabsContent>
           <TabsContent value="leads" className="space-y-6"><GoogleSheetsSync mode="leads" /><LeadsDataTable /></TabsContent>
           <TabsContent value="conclusao" className="space-y-6"><GoogleSheetsSync mode="sales" /><SalesDataTable /></TabsContent>
+          <TabsContent value="config" className="space-y-6"><BrokerSettings /></TabsContent>
         </Tabs>
       </main>
 
