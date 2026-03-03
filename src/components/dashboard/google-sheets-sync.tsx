@@ -51,16 +51,18 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
 
   const excelDateToJSDate = (serial: any) => {
     if (!serial) return "";
-    if (typeof serial === 'string' && serial.includes('/')) return serial;
+    const cleanSerial = String(serial).trim();
+    if (cleanSerial.includes('/')) return cleanSerial;
     
-    const s = String(serial).trim().replace(',', '.');
-    const num = parseFloat(s);
+    // Converte o número serial do Excel (Ex: 46037)
+    const val = cleanSerial.replace(/\./g, '').replace(',', '.');
+    const num = parseFloat(val);
     
     if (!isNaN(num) && num > 40000 && num < 60000) {
       const date = new Date(Math.round((num - 25569) * 86400 * 1000));
       return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
     }
-    return String(serial);
+    return cleanSerial;
   };
 
   const getVal = (row: any, searchKeys: string[]) => {
@@ -68,17 +70,22 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     const rowKeys = Object.keys(row);
     const normalizedSearchKeys = searchKeys.map(normalize);
 
+    // 1. Busca por correspondência exata de nomes normalizados
     for (const rowKey of rowKeys) {
       if (normalizedSearchKeys.includes(normalize(rowKey))) {
         return row[rowKey];
       }
     }
 
-    // Busca por inclusão para campos críticos de data e valor
-    if (normalizedSearchKeys.some(sk => sk.includes("data") && sk.includes("venda"))) {
+    // 2. Busca por inclusão para campos críticos (Ex: "Data Venda" em vez de apenas "Venda")
+    const isSearchingDate = normalizedSearchKeys.some(sk => sk.includes("data"));
+    const isSearchingSales = normalizedSearchKeys.some(sk => sk.includes("venda"));
+
+    if (isSearchingDate && isSearchingSales) {
       const targetKey = rowKeys.find(rk => {
         const n = normalize(rk);
-        return n.includes("data") && n.includes("venda") && !n.includes("vendedor");
+        // Garante que é a coluna de data e NÃO a de vendedor
+        return n.includes("data") && n.includes("venda") && !n.includes("vendedor") && !n.includes("corretor");
       });
       if (targetKey) return row[targetKey];
     }
@@ -109,15 +116,16 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         
         for (const row of result.data) {
           try {
-            const rawCode = getVal(row, ["codigo", "referencia", "unidade", "id", "cod imovel", "codigo imovel"]);
+            // Captura Coluna D (Código/Unidade/Referência)
+            const rawCode = getVal(row, ["codigo", "referencia", "unidade", "id", "cod imovel", "codigo imovel", "id imovel", "id_imovel"]);
             const propertyCode = String(rawCode || `REF-${processedCount}`).trim();
 
             if (mode === 'inventory') {
-              const saleValue = parseCurrency(getVal(row, ["valor venda"]));
-              const broker = String(getVal(row, ["angariador", "corretor", "captador"]) || "N/A");
-              const neighborhood = String(getVal(row, ["bairro"]) || "N/A");
+              const saleValue = parseCurrency(getVal(row, ["valor venda", "venda"]));
+              const broker = String(getVal(row, ["angariador", "corretor", "captador", "quem angariou"]) || "N/A");
+              const neighborhood = String(getVal(row, ["bairro", "localizacao"]) || "N/A");
               const timestamp = excelDateToJSDate(getVal(row, ["data entrada", "entrada"]));
-              const status = String(getVal(row, ["status"]) || "Disponível");
+              const status = String(getVal(row, ["status", "situacao"]) || "Disponível");
 
               const safeId = `prop-${propertyCode}`.replace(/[\/\.\#\$\/\[\]]/g, "-");
               const propRef = doc(firestore, "properties", safeId);
@@ -127,21 +135,24 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
+              // Coluna R (Data Venda)
               const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "fechamento", "venda"]));
               const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "entrada"]));
               
-              const safeSaleId = `sale-${propertyCode}-${String(dataVendaRaw).replace(/\//g, '-')}`.replace(/[\/\.\#\$\/\[\]]/g, "-");
+              // ID Estável baseado no Cód + Data para evitar duplicatas nos cálculos
+              const dateKey = String(dataVendaRaw).replace(/\//g, '-');
+              const safeSaleId = `sale-${propertyCode}-${dateKey}`.replace(/[\/\.\#\$\/\[\]]/g, "-");
               const saleRef = doc(firestore, "vendas_imoveis", safeSaleId);
               
               setDocumentNonBlocking(saleRef, {
                 vendedor: String(getVal(row, ["vendedor", "corretor", "responsavel"]) || ""),
-                angariador: String(getVal(row, ["angariador", "captador"]) || "N/A"),
-                tipoVenda: String(getVal(row, ["tipo venda", "tipo", "operacao"]) || "Venda"),
+                angariador: String(getVal(row, ["angariador", "captador", "captacao"]) || "N/A"),
+                tipoVenda: String(getVal(row, ["tipo venda", "tipo", "operacao", "negocio"]) || "Venda"),
                 propertyCode,
-                neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
-                clientName: String(getVal(row, ["cliente", "comprador"]) || "N/A"),
+                neighborhood: String(getVal(row, ["bairro", "localizacao", "empreendimento"]) || "N/A"),
+                clientName: String(getVal(row, ["cliente", "comprador", "nome contrato"]) || "N/A"),
                 advertisedValue: parseCurrency(getVal(row, ["valor anuncio", "valor inicial", "anuncio"])),
-                closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda", "fechamento"])),
+                closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda", "venda", "fechamento"])),
                 saleDate: String(dataVendaRaw || ""),
                 propertyCaptureDate: String(dataEntradaRaw || ""),
                 status: "Vendido",
@@ -157,7 +168,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         }
 
         setLastSync(new Date());
-        if (!silent) toast({ title: "Sincronização Concluída", description: `${processedCount} registros atualizados.` });
+        if (!silent) toast({ title: "Sincronização Concluída", description: `${processedCount} registros atualizados sem duplicatas.` });
       }
     } catch (error: any) {
       if (!silent) toast({ variant: "destructive", title: "Erro na Sincronização", description: error.message });
