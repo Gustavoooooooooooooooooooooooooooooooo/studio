@@ -166,9 +166,9 @@ export function ChannelPerformance({ leads }: ChannelPerformanceProps) {
                 ))}
               </TableBody>
               <TableFooter className="bg-primary/5 border-t-2 border-primary/20">
-                <TableRow>
-                  <TableCell className="font-bold text-[10px] py-2 px-2 sticky left-0 bg-primary/5 z-10 border-r">
-                    TOTAL GERAL
+                <TableRow className="border-b border-primary/10">
+                  <TableCell className="font-bold text-[10px] py-2 px-2 sticky left-0 bg-primary/5 z-10 border-r text-muted-foreground">
+                    POR NATUREZA
                   </TableCell>
                   {months.map((_, i) => (
                     <TableCell key={i} className="text-center py-1 px-1 border-r">
@@ -185,6 +185,19 @@ export function ChannelPerformance({ leads }: ChannelPerformanceProps) {
                       <div className="h-[1px] w-4 bg-primary/10 my-0.5" />
                       <span className="text-blue-600 font-extrabold text-[10px]">{grandTotalLocacao}</span>
                     </div>
+                  </TableCell>
+                </TableRow>
+                <TableRow className="bg-primary/10">
+                  <TableCell className="font-bold text-[10px] py-2 px-2 sticky left-0 bg-primary/10 z-10 border-r text-primary">
+                    SOMA TOTAL
+                  </TableCell>
+                  {months.map((_, i) => (
+                    <TableCell key={i} className="text-center py-2 px-1 border-r font-extrabold text-primary text-[11px]">
+                      {monthlyTotals.venda[i] + monthlyTotals.locacao[i]}
+                    </TableCell>
+                  ))}
+                  <TableCell className="text-right py-2 px-2 bg-primary/20 sticky right-0 z-10 font-black text-primary text-[11px]">
+                    {grandTotalVenda + grandTotalLocacao}
                   </TableCell>
                 </TableRow>
               </TableFooter>
