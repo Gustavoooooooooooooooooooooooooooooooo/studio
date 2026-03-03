@@ -24,10 +24,11 @@ service cloud.firestore {
     // --- COLLECTION RULES ---
 
     match /brokers/{brokerId} {
-      allow get, list: if isOwner(brokerId) || isAdmin();
-      allow create: if isOwner(brokerId);
-      allow update: if isOwner(brokerId) || isAdmin();
-      allow delete: if isAdmin();
+      // Permitimos que qualquer usuário logado gerencie a lista de corretores oficiais para este protótipo
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
     }
 
     match /properties/{propertyId} {
