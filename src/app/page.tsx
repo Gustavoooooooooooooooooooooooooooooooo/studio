@@ -193,16 +193,10 @@ export default function AppContainer() {
           <TabsContent value="dashboard" className="space-y-8 animate-in fade-in duration-500">
             <StatsCards metrics={metrics} />
             <InventoryHealth />
-            <div className="grid lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 space-y-6">
-                <MonthlyTrends sales={rawSales || []} leads={rawLeads || []} properties={rawProperties || []} />
-                <BrokerPerformanceGrid sales={rawSales || []} leads={rawLeads || []} properties={rawProperties || []} />
-                <ChannelPerformance leads={rawLeads || []} />
-              </div>
-              <div className="space-y-6">
-                <AIPerformanceSummary sales={rawSales || []} />
-                <NeighborhoodAnalysis sales={rawSales || []} />
-              </div>
+            <div className="space-y-6">
+              <MonthlyTrends sales={rawSales || []} leads={rawLeads || []} properties={rawProperties || []} />
+              <BrokerPerformanceGrid sales={rawSales || []} leads={rawLeads || []} properties={rawProperties || []} />
+              <ChannelPerformance leads={rawLeads || []} />
             </div>
           </TabsContent>
 
