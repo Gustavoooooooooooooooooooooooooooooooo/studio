@@ -97,19 +97,25 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       });
 
       // Visitas Realizadas (Compra)
-      // Baseado nas colunas "Status da atividade atual" e "Natureza da negociação"
-      const visitsRealized = brokerLeads.filter(l => {
+      const visitsRealizedSale = brokerLeads.filter(l => {
         const keys = Object.keys(l);
-        
         const activityStatusKey = keys.find(k => normalize(k).includes("status da atividade atual") || normalize(k).includes("status atividade"));
         const natureKey = keys.find(k => normalize(k).includes("natureza da negociacao") || normalize(k).includes("natureza"));
-
         if (!activityStatusKey || !natureKey) return false;
-
         const activityVal = normalize(String(l[activityStatusKey]));
         const natureVal = normalize(String(l[natureKey]));
-
         return activityVal.includes("realizada") && natureVal.includes("compra");
+      });
+
+      // Visitas Realizadas (Aluguel)
+      const visitsRealizedRent = brokerLeads.filter(l => {
+        const keys = Object.keys(l);
+        const activityStatusKey = keys.find(k => normalize(k).includes("status da atividade atual") || normalize(k).includes("status atividade"));
+        const natureKey = keys.find(k => normalize(k).includes("natureza da negociacao") || normalize(k).includes("natureza"));
+        if (!activityStatusKey || !natureKey) return false;
+        const activityVal = normalize(String(l[activityStatusKey]));
+        const natureVal = normalize(String(l[natureKey]));
+        return activityVal.includes("realizada") && (natureVal.includes("locacao") || natureVal.includes("aluguel"));
       });
 
       // VGV do corretor
@@ -133,7 +139,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       return {
         name: displayName,
         leads: leadsMonthPast.length,
-        visits: visitsRealized.length,
+        visitsSale: visitsRealizedSale.length,
+        visitsRent: visitsRealizedRent.length,
         vProps: vProps.length,
         rProps: rProps.length,
         vgv: totalVgv,
@@ -162,7 +169,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
               <TableRow className="bg-muted/5">
                 <TableHead className="font-bold">Corretor</TableHead>
                 <TableHead className="text-center">Leads (Mês Passado)</TableHead>
-                <TableHead className="text-center">Visitas Realizadas (Compra)</TableHead>
+                <TableHead className="text-center">Visitas (Compra)</TableHead>
+                <TableHead className="text-center">Visitas (Aluguel)</TableHead>
                 <TableHead className="text-center">Angariados (V/L)</TableHead>
                 <TableHead className="text-right">Tempo Médio</TableHead>
                 <TableHead className="text-right font-bold">VGV Total</TableHead>
@@ -178,8 +186,13 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                     </Badge>
                   </TableCell>
                   <TableCell className="text-center">
-                    <Badge variant="outline" className={`${row.visits > 0 ? 'border-emerald-200 text-emerald-700 bg-emerald-50' : 'text-muted-foreground/40'}`}>
-                      {row.visits}
+                    <Badge variant="outline" className={`${row.visitsSale > 0 ? 'border-emerald-200 text-emerald-700 bg-emerald-50' : 'text-muted-foreground/40'}`}>
+                      {row.visitsSale}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Badge variant="outline" className={`${row.visitsRent > 0 ? 'border-blue-200 text-blue-700 bg-blue-50' : 'text-muted-foreground/40'}`}>
+                      {row.visitsRent}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-center">
