@@ -89,7 +89,6 @@ export default function AppContainer() {
       return Math.floor((t1 - t2) / (1000 * 60 * 60 * 24));
     };
 
-    // --- FILTRAGEM E ORDENAÇÃO DE VENDAS (CONCLUSÃO) ---
     const uniqueSalesMap = new Map();
     sales.forEach(s => {
       const key = `${s.propertyCode}-${s.saleDate}`;
@@ -102,7 +101,6 @@ export default function AppContainer() {
       .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
       .sort((a, b) => a.getTime() - b.getTime());
 
-    // --- ÚLTIMA VENDA ---
     const lastSale = validSalesDates.length > 0 ? validSalesDates[validSalesDates.length - 1] : null;
     let daysSinceLastSaleDisplay = "0 Dias";
     if (lastSale && now) {
@@ -110,7 +108,6 @@ export default function AppContainer() {
       daysSinceLastSaleDisplay = `${Math.max(0, diff)} Dias`;
     }
 
-    // --- FREQUÊNCIA DE VENDAS ---
     let salesFrequency = 0;
     if (validSalesDates.length > 1) {
       let sumIntervals = 0;
@@ -129,7 +126,6 @@ export default function AppContainer() {
       }
     }
 
-    // --- CICLO MÉDIO DE VENDA ---
     const validCycles = uniqueSalesList.map(s => {
       const start = parseDate(s.propertyCaptureDate);
       const end = parseDate(s.saleDate);
@@ -139,7 +135,6 @@ export default function AppContainer() {
     
     const avgDaysToSell = validCycles.length > 0 ? validCycles.reduce((a, b) => a + b, 0) / validCycles.length : 0;
 
-    // --- VGV E TICKETS (BUSCANDO NA ABA CADASTRO / PROPERTIES) ---
     const totalInventoryVgv = properties.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0);
     
     const saleProps = properties.filter(p => Number(p.saleValue) > 0);
@@ -202,10 +197,10 @@ export default function AppContainer() {
               <div className="lg:col-span-2 space-y-6">
                 <MonthlyTrends sales={rawSales || []} leads={rawLeads || []} properties={rawProperties || []} />
                 <BrokerPerformanceGrid sales={rawSales || []} leads={rawLeads || []} properties={rawProperties || []} />
+                <ChannelPerformance leads={rawLeads || []} />
               </div>
               <div className="space-y-6">
                 <AIPerformanceSummary sales={rawSales || []} />
-                <ChannelPerformance leads={rawLeads || []} />
                 <NeighborhoodAnalysis sales={rawSales || []} />
               </div>
             </div>
