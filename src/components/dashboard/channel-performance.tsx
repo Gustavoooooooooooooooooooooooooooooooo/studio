@@ -1,3 +1,4 @@
+
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,35 +18,57 @@ export function ChannelPerformance({ leads }: ChannelPerformanceProps) {
 
   const parseDate = (d: any) => {
     if (!d) return null;
+    if (d instanceof Date) return d;
+    
     if (typeof d === 'string') {
-      const parts = d.split('/');
+      const cleanStr = d.trim();
+      // Suporte DD/MM/AAAA
+      const parts = cleanStr.split('/');
       if (parts.length === 3) {
-        const year = parts[2].length === 2 ? 2000 + Number(parts[2]) : Number(parts[2]);
-        return new Date(year, Number(parts[1]) - 1, Number(parts[0]));
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const yearPart = parts[2].trim();
+        const year = yearPart.length === 2 ? 2000 + parseInt(yearPart, 10) : parseInt(yearPart, 10);
+        const date = new Date(year, month, day);
+        if (!isNaN(date.getTime())) return date;
       }
-      let val = d.replace(/\./g, '').replace(',', '.');
+      
+      // Suporte Serial Excel
+      let val = cleanStr.replace(/\./g, '').replace(',', '.');
       const num = parseFloat(val);
       if (!isNaN(num) && num > 40000 && num < 60000) {
         return new Date(Math.round((num - 25569) * 86400 * 1000));
       }
-      return new Date(d);
+
+      const date = new Date(cleanStr);
+      return isNaN(date.getTime()) ? null : date;
     }
     return null;
   };
 
   const matrix = useMemo(() => {
     const data: Record<string, number[]> = {};
-    const currentYear = 2026;
+    const currentYear = 2026; // Fixado conforme os dados da Canto Imóveis
 
     leads.forEach(lead => {
       const keys = Object.keys(lead);
-      const sourceKey = keys.find(k => normalize(k) === "fonte" || normalize(k).includes("fonte"));
-      const channel = sourceKey ? String(lead[sourceKey]).trim() : "Outros";
+      // Busca agressiva pela coluna de Canal/Fonte/Origem
+      const sourceKey = keys.find(k => {
+        const nk = normalize(k);
+        return nk === "fonte" || nk.includes("fonte") || nk === "origem" || nk.includes("origem") || nk === "canal";
+      });
+      
+      const channel = sourceKey && lead[sourceKey] ? String(lead[sourceKey]).trim() : "Direto/Indicação";
 
       if (channel && channel !== "undefined" && channel !== "null" && channel !== "") {
         if (!data[channel]) data[channel] = new Array(12).fill(0);
         
-        const dateKey = keys.find(k => normalize(k).includes("data") || normalize(k).includes("carimbo"));
+        // Busca agressiva pela coluna de Data
+        const dateKey = keys.find(k => {
+          const nk = normalize(k);
+          return nk.includes("data") || nk.includes("carimbo") || nk.includes("criado");
+        });
+        
         const date = dateKey ? parseDate(lead[dateKey]) : null;
 
         if (date && date.getFullYear() === currentYear) {
@@ -61,6 +84,7 @@ export function ChannelPerformance({ leads }: ChannelPerformanceProps) {
         counts, 
         total: counts.reduce((a, b) => a + b, 0) 
       }))
+      .filter(row => row.total > 0) // Mostra apenas canais com leads no período
       .sort((a, b) => b.total - a.total);
   }, [leads]);
 
@@ -89,7 +113,7 @@ export function ChannelPerformance({ leads }: ChannelPerformanceProps) {
                       {row.name}
                     </TableCell>
                     {row.counts.map((val, i) => (
-                      <TableCell key={i} className={`text-center text-[10px] py-2 px-1 border-r ${val === 0 ? 'text-muted-foreground/20' : 'font-medium text-primary'}`}>
+                      <TableCell key={i} className={`text-center text-[10px] py-2 px-1 border-r ${val === 0 ? 'text-muted-foreground/10' : 'font-medium text-primary'}`}>
                         {val === 0 ? '0' : val}
                       </TableCell>
                     ))}
@@ -105,6 +129,7 @@ export function ChannelPerformance({ leads }: ChannelPerformanceProps) {
         ) : (
           <div className="py-12 flex flex-col items-center justify-center text-center space-y-2">
             <p className="text-sm text-muted-foreground font-medium">Nenhum dado de lead sincronizado para 2026.</p>
+            <p className="text-[10px] text-muted-foreground/60 max-w-xs mx-auto">Verifique se as colunas "Fonte" e "Data" estão presentes na sua planilha de Leads.</p>
           </div>
         )}
       </CardContent>
