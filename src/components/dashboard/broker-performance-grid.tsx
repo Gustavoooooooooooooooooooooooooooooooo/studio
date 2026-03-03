@@ -37,20 +37,30 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
     const parseDate = (d: any) => {
       if (!d) return null;
       if (d instanceof Date) return d;
-      if (typeof d === 'string') {
-        const parts = d.split('/');
-        if (parts.length === 3) {
-          const year = parts[2].length === 2 ? 2000 + Number(parts[2]) : Number(parts[2]);
-          return new Date(year, Number(parts[1]) - 1, Number(parts[0]));
-        }
-        return new Date(d);
+      
+      const cleanStr = String(d).trim();
+      if (!cleanStr || cleanStr === "N/A" || cleanStr === "undefined") return null;
+
+      // DD/MM/YYYY
+      const parts = cleanStr.split('/');
+      if (parts.length === 3) {
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const yearPart = parts[2].trim();
+        const year = yearPart.length === 2 ? 2000 + parseInt(yearPart, 10) : parseInt(yearPart, 10);
+        const date = new Date(year, month, day);
+        if (!isNaN(date.getTime())) return date;
       }
+
       // Excel Serial
-      const num = parseFloat(String(d).replace(',', '.'));
+      let val = cleanStr.replace(/\./g, '').replace(',', '.');
+      const num = parseFloat(val);
       if (!isNaN(num) && num > 40000 && num < 60000) {
         return new Date(Math.round((num - 25569) * 86400 * 1000));
       }
-      return null;
+
+      const date = new Date(cleanStr);
+      return isNaN(date.getTime()) ? null : date;
     };
 
     return officialBrokers.map(brokerDoc => {
@@ -58,27 +68,49 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       const normName = normalize(displayName);
 
       // Métricas de Vendas/Locações
-      const bSalesRecords = sales.filter(s => normalize(s.vendedor) === normName);
+      const bSalesRecords = sales.filter(s => {
+        const vend = normalize(s.vendedor);
+        return vend === normName || vend.includes(normName);
+      });
       const vSales = bSalesRecords.filter(s => normalize(s.tipoVenda).includes("venda"));
       const rSales = bSalesRecords.filter(s => normalize(s.tipoVenda).includes("locacao") || normalize(s.tipoVenda).includes("aluguel"));
 
       // Métricas de Cadastro (Angariação)
-      const bProps = properties.filter(p => normalize(p.brokerId) === normName);
+      const bProps = properties.filter(p => {
+        const bId = normalize(p.brokerId);
+        return bId === normName || bId.includes(normName);
+      });
       const vProps = bProps.filter(p => Number(p.saleValue) > 0);
       const rProps = bProps.filter(p => Number(p.rentalValue) > 0);
 
       // Métricas de Leads - FILTRO MÊS PASSADO (Fevereiro 2026)
       const bLeads = leads.filter(l => {
         const keys = Object.keys(l);
-        const brokerKey = keys.find(k => normalize(k).includes("corretor"));
-        const nameMatch = brokerKey && normalize(l[brokerKey]) === normName;
+        // Busca coluna de corretor no lead
+        const brokerKey = keys.find(k => {
+          const nk = normalize(k);
+          return nk.includes("corretor") || nk.includes("responsavel") || nk.includes("atendente");
+        });
+        
+        if (!brokerKey) return false;
+        
+        const leadBrokerVal = normalize(String(l[brokerKey]));
+        const nameMatch = leadBrokerVal && (leadBrokerVal === normName || leadBrokerVal.includes(normName));
         
         if (!nameMatch) return false;
 
-        const dateKey = keys.find(k => normalize(k).includes("data") || normalize(k).includes("carimbo"));
+        // Busca coluna de data no lead
+        const dateKey = keys.find(k => {
+          const nk = normalize(k);
+          return nk.includes("data") || nk.includes("carimbo") || nk.includes("criado");
+        });
+        
         const date = dateKey ? parseDate(l[dateKey]) : null;
         
-        return date && date.getMonth() === targetMonth && date.getFullYear() === targetYear;
+        // Se não tiver data, não podemos filtrar por mês passado
+        if (!date) return false;
+
+        return date.getMonth() === targetMonth && date.getFullYear() === targetYear;
       });
 
       const totalVgv = bSalesRecords.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
@@ -138,7 +170,9 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                 <TableRow key={row.name} className="hover:bg-muted/5">
                   <TableCell className="font-semibold">{row.name}</TableCell>
                   <TableCell className="text-center">
-                    <Badge variant="secondary" className="bg-indigo-50 text-indigo-700">{row.leads}</Badge>
+                    <Badge variant="secondary" className="bg-indigo-50 text-indigo-700">
+                      {row.leads}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-center">
                     <div className="flex items-center justify-center gap-2 text-xs">
