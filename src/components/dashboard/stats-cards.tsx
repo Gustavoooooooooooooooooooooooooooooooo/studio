@@ -10,7 +10,8 @@ import {
   Home,
   CheckCircle2,
   ArrowUpRight,
-  Zap
+  Zap,
+  Key
 } from "lucide-react";
 
 interface StatsCardsProps {
@@ -23,6 +24,7 @@ interface StatsCardsProps {
     totalSales: number;
     totalProperties: number;
     avgTicket: number;
+    avgTicketRent: number;
     salesFrequency: number;
   }
 }
@@ -34,12 +36,28 @@ export function StatsCards({ metrics }: StatsCardsProps) {
 
   const kpis = [
     {
-      title: "Ciclo Médio de Venda",
-      value: `${Math.round(metrics.avgDaysToSell)} Dias`,
-      description: "Média (Captura → Venda)",
-      icon: Clock,
-      color: "text-blue-600",
-      group: "Performance"
+      title: "VGV Acumulado",
+      value: formatCurrency(metrics.totalValue),
+      description: "Volume total em estoque (Venda)",
+      icon: TrendingUp,
+      color: "text-indigo-600",
+      group: "Financeiro"
+    },
+    {
+      title: "Ticket Médio Venda",
+      value: formatCurrency(metrics.avgTicket),
+      description: "Média de valor no estoque",
+      icon: Target,
+      color: "text-rose-600",
+      group: "Financeiro"
+    },
+    {
+      title: "Ticket Médio Locação",
+      value: formatCurrency(metrics.avgTicketRent),
+      description: "Média de aluguel no estoque",
+      icon: Key,
+      color: "text-emerald-600",
+      group: "Financeiro"
     },
     {
       title: "Frequência de Vendas",
@@ -50,36 +68,20 @@ export function StatsCards({ metrics }: StatsCardsProps) {
       group: "Performance"
     },
     {
+      title: "Ciclo Médio de Venda",
+      value: `${Math.round(metrics.avgDaysToSell)} Dias`,
+      description: "Média (Captura → Venda)",
+      icon: Clock,
+      color: "text-blue-600",
+      group: "Performance"
+    },
+    {
       title: "Última Venda Realizada",
       value: metrics.lastSaleDisplay,
       description: "Tempo desde o último fechamento",
       icon: CheckCircle2,
       color: "text-emerald-600",
       group: "Histórico"
-    },
-    {
-      title: "VGV Acumulado",
-      value: formatCurrency(metrics.totalValue),
-      description: "Volume total transacionado",
-      icon: TrendingUp,
-      color: "text-indigo-600",
-      group: "Financeiro"
-    },
-    {
-      title: "Ticket Médio",
-      value: formatCurrency(metrics.avgTicket),
-      description: "Média por fechamento",
-      icon: Target,
-      color: "text-rose-600",
-      group: "Financeiro"
-    },
-    {
-      title: "Total de Leads",
-      value: metrics.totalLeads,
-      description: "Base total de leads",
-      icon: Home,
-      color: "text-purple-600",
-      group: "Geral"
     }
   ];
 

@@ -54,7 +54,6 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     const cleanSerial = String(serial).trim();
     if (cleanSerial.includes('/')) return cleanSerial;
     
-    // Converte o número serial do Excel (Ex: 46037)
     let val = cleanSerial.replace(/\./g, '').replace(',', '.');
     const num = parseFloat(val);
     
@@ -70,18 +69,15 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     const rowKeys = Object.keys(row);
     const normalizedSearchKeys = searchKeys.map(normalize);
 
-    // 1. Busca por correspondência exata de nomes normalizados
     for (const rowKey of rowKeys) {
       if (normalizedSearchKeys.includes(normalize(rowKey))) {
         return row[rowKey];
       }
     }
 
-    // 2. Busca por inclusão para campos críticos
     for (const rowKey of rowKeys) {
       const normalizedRowKey = normalize(rowKey);
       if (normalizedSearchKeys.some(sk => normalizedRowKey.includes(sk))) {
-        // Garantir que não estamos pegando o vendedor quando queremos a data
         if (normalizedSearchKeys.includes("data") && normalizedRowKey.includes("vendedor")) continue;
         return row[rowKey];
       }
@@ -113,12 +109,12 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         
         for (const row of result.data) {
           try {
-            // Captura Coluna D (Código/Unidade/Referência)
             const rawCode = getVal(row, ["codigo", "unidade", "referencia", "id imovel", "cod imovel", "codigo imovel", "id_imovel"]);
             const propertyCode = String(rawCode || `REF-${processedCount}`).trim();
 
             if (mode === 'inventory') {
               const saleValue = parseCurrency(getVal(row, ["valor venda", "venda", "valor"]));
+              const rentalValue = parseCurrency(getVal(row, ["valor locacao", "locacao", "aluguel", "valor aluguel"]));
               const broker = String(getVal(row, ["angariador", "corretor", "captador", "quem angariou"]) || "N/A");
               const neighborhood = String(getVal(row, ["bairro", "localizacao", "bairros"]) || "N/A");
               const timestamp = excelDateToJSDate(getVal(row, ["data entrada", "entrada", "data"]));
@@ -127,16 +123,14 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               const safeId = `prop-${propertyCode}`.replace(/[\/\.\#\$\/\[\]]/g, "-");
               const propRef = doc(firestore, "properties", safeId);
               setDocumentNonBlocking(propRef, {
-                propertyCode, neighborhood, saleValue,
+                propertyCode, neighborhood, saleValue, rentalValue,
                 brokerId: broker, captureDate: String(timestamp || ""), status, importedAt: serverTimestamp(),
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              // Coluna R (Data Venda)
               const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "fechamento", "venda"]));
               const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "entrada"]));
               
-              // ID Estável baseado no Cód + Data para evitar duplicatas e limpar a média
               const dateKey = String(dataVendaRaw).replace(/\//g, '-');
               const safeSaleId = `sale-${propertyCode}-${dateKey}`.replace(/[\/\.\#\$\/\[\]]/g, "-");
               const saleRef = doc(firestore, "vendas_imoveis", safeSaleId);

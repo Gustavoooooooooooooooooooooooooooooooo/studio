@@ -89,8 +89,7 @@ export default function AppContainer() {
       return Math.floor((t1 - t2) / (1000 * 60 * 60 * 24));
     };
 
-    // --- FILTRAGEM E ORDENAÇÃO ---
-    // Removemos duplicatas de venda para garantir que a média seja baseada em eventos únicos
+    // --- FILTRAGEM E ORDENAÇÃO DE VENDAS (CONCLUSÃO) ---
     const uniqueSalesMap = new Map();
     sales.forEach(s => {
       const key = `${s.propertyCode}-${s.saleDate}`;
@@ -101,9 +100,9 @@ export default function AppContainer() {
     const validSalesDates = uniqueSalesList
       .map(s => parseDate(s.saleDate))
       .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
-      .sort((a, b) => a.getTime() - b.getTime()); // Ordenação cronológica
+      .sort((a, b) => a.getTime() - b.getTime());
 
-    // --- ÚLTIMA VENDA (Dias desde a última) ---
+    // --- ÚLTIMA VENDA ---
     const lastSale = validSalesDates.length > 0 ? validSalesDates[validSalesDates.length - 1] : null;
     let daysSinceLastSaleDisplay = "0 Dias";
     if (lastSale && now) {
@@ -111,7 +110,7 @@ export default function AppContainer() {
       daysSinceLastSaleDisplay = `${Math.max(0, diff)} Dias`;
     }
 
-    // --- FREQUÊNCIA DE VENDAS (Média de Intervalo entre Vendas) ---
+    // --- FREQUÊNCIA DE VENDAS ---
     let salesFrequency = 0;
     if (validSalesDates.length > 1) {
       let sumIntervals = 0;
@@ -130,7 +129,7 @@ export default function AppContainer() {
       }
     }
 
-    // --- CICLO MÉDIO DE VENDA (Tempo de estoque) ---
+    // --- CICLO MÉDIO DE VENDA ---
     const validCycles = uniqueSalesList.map(s => {
       const start = parseDate(s.propertyCaptureDate);
       const end = parseDate(s.saleDate);
@@ -140,19 +139,25 @@ export default function AppContainer() {
     
     const avgDaysToSell = validCycles.length > 0 ? validCycles.reduce((a, b) => a + b, 0) / validCycles.length : 0;
 
-    // --- VGV ACUMULADO (BUSCANDO NA ABA CADASTRO / PROPERTIES) ---
+    // --- VGV E TICKETS (BUSCANDO NA ABA CADASTRO / PROPERTIES) ---
     const totalInventoryVgv = properties.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0);
-    const totalSalesVgv = uniqueSalesList.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
+    
+    const saleProps = properties.filter(p => Number(p.saleValue) > 0);
+    const avgTicket = saleProps.length > 0 ? saleProps.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0) / saleProps.length : 0;
+
+    const rentProps = properties.filter(p => Number(p.rentalValue) > 0);
+    const avgTicketRent = rentProps.length > 0 ? rentProps.reduce((acc, p) => acc + (Number(p.rentalValue) || 0), 0) / rentProps.length : 0;
 
     return {
       avgDaysToSell,
       avgDaysToRent: 0,
-      totalValue: totalInventoryVgv, // VGV Acumulado agora vem do Cadastro (Estoque)
+      totalValue: totalInventoryVgv,
       lastSaleDisplay: daysSinceLastSaleDisplay,
       totalLeads: leads.length,
       totalSales: uniqueSalesList.length,
       totalProperties: properties.length,
-      avgTicket: uniqueSalesList.length > 0 ? totalSalesVgv / uniqueSalesList.length : 0,
+      avgTicket,
+      avgTicketRent,
       salesFrequency
     };
   }, [rawSales, rawLeads, rawProperties, now]);
