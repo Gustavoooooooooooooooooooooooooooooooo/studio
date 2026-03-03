@@ -11,7 +11,7 @@ interface ChannelPerformanceProps {
 }
 
 export function ChannelPerformance({ leads }: ChannelPerformanceProps) {
-  const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  const months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
   
   const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
@@ -70,7 +70,7 @@ export function ChannelPerformance({ leads }: ChannelPerformanceProps) {
   return (
     <Card className="shadow-sm border-none bg-white overflow-hidden">
       <CardHeader className="bg-muted/5 border-b">
-        <CardTitle className="text-lg font-bold">Leads por Canal: Matriz Mensal (2026)</CardTitle>
+        <CardTitle className="text-lg font-bold text-primary">Matriz de Leads por Canal (2026)</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
         {matrix.length > 0 ? (
@@ -78,23 +78,23 @@ export function ChannelPerformance({ leads }: ChannelPerformanceProps) {
             <Table>
               <TableHeader className="bg-muted/10">
                 <TableRow>
-                  <TableHead className="min-w-[140px] font-bold text-xs uppercase">Canal (Fonte)</TableHead>
+                  <TableHead className="min-w-[140px] font-bold text-xs uppercase sticky left-0 bg-muted/10 z-20">Canal (Fonte)</TableHead>
                   {months.map(m => (
-                    <TableHead key={m} className="text-center text-[10px] px-2 font-bold">{m}</TableHead>
+                    <TableHead key={m} className="text-center text-[10px] px-4 font-bold min-w-[100px]">{m}</TableHead>
                   ))}
-                  <TableHead className="text-right font-bold bg-muted/20 text-xs">TOTAL</TableHead>
+                  <TableHead className="text-right font-bold bg-muted/20 text-xs sticky right-0 z-20">TOTAL</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {matrix.map((row) => (
                   <TableRow key={row.name} className="hover:bg-muted/5 transition-colors">
-                    <TableCell className="font-semibold text-xs py-3">{row.name}</TableCell>
+                    <TableCell className="font-semibold text-xs py-3 sticky left-0 bg-white z-10 border-r">{row.name}</TableCell>
                     {row.counts.map((val, i) => (
-                      <TableCell key={i} className={`text-center text-xs ${val === 0 ? 'text-muted-foreground/20' : 'font-medium text-primary'}`}>
-                        {val === 0 ? '-' : val}
+                      <TableCell key={i} className={`text-center text-xs border-r ${val === 0 ? 'text-muted-foreground/20' : 'font-medium text-primary'}`}>
+                        {val === 0 ? '0' : val}
                       </TableCell>
                     ))}
-                    <TableCell className="text-right font-bold text-xs bg-muted/5 text-primary">
+                    <TableCell className="text-right font-bold text-xs bg-muted/5 text-primary sticky right-0 z-10 border-l">
                       <Badge variant="secondary" className="bg-primary/10 text-primary hover:bg-primary/20">
                         {row.total}
                       </Badge>
