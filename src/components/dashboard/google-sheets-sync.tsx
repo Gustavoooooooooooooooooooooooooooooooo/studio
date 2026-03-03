@@ -55,7 +55,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     if (cleanSerial.includes('/')) return cleanSerial;
     
     // Converte o número serial do Excel (Ex: 46037)
-    const val = cleanSerial.replace(/\./g, '').replace(',', '.');
+    let val = cleanSerial.replace(/\./g, '').replace(',', '.');
     const num = parseFloat(val);
     
     if (!isNaN(num) && num > 40000 && num < 60000) {
@@ -77,17 +77,14 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       }
     }
 
-    // 2. Busca por inclusão para campos críticos (Ex: "Data Venda" em vez de apenas "Venda")
-    const isSearchingDate = normalizedSearchKeys.some(sk => sk.includes("data"));
-    const isSearchingSales = normalizedSearchKeys.some(sk => sk.includes("venda"));
-
-    if (isSearchingDate && isSearchingSales) {
-      const targetKey = rowKeys.find(rk => {
-        const n = normalize(rk);
-        // Garante que é a coluna de data e NÃO a de vendedor
-        return n.includes("data") && n.includes("venda") && !n.includes("vendedor") && !n.includes("corretor");
-      });
-      if (targetKey) return row[targetKey];
+    // 2. Busca por inclusão para campos críticos
+    for (const rowKey of rowKeys) {
+      const normalizedRowKey = normalize(rowKey);
+      if (normalizedSearchKeys.some(sk => normalizedRowKey.includes(sk))) {
+        // Garantir que não estamos pegando o vendedor quando queremos a data
+        if (normalizedSearchKeys.includes("data") && normalizedRowKey.includes("vendedor")) continue;
+        return row[rowKey];
+      }
     }
 
     return undefined;
@@ -117,14 +114,14 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         for (const row of result.data) {
           try {
             // Captura Coluna D (Código/Unidade/Referência)
-            const rawCode = getVal(row, ["codigo", "referencia", "unidade", "id", "cod imovel", "codigo imovel", "id imovel", "id_imovel"]);
+            const rawCode = getVal(row, ["codigo", "unidade", "referencia", "id imovel", "cod imovel", "codigo imovel", "id_imovel"]);
             const propertyCode = String(rawCode || `REF-${processedCount}`).trim();
 
             if (mode === 'inventory') {
-              const saleValue = parseCurrency(getVal(row, ["valor venda", "venda"]));
+              const saleValue = parseCurrency(getVal(row, ["valor venda", "venda", "valor"]));
               const broker = String(getVal(row, ["angariador", "corretor", "captador", "quem angariou"]) || "N/A");
-              const neighborhood = String(getVal(row, ["bairro", "localizacao"]) || "N/A");
-              const timestamp = excelDateToJSDate(getVal(row, ["data entrada", "entrada"]));
+              const neighborhood = String(getVal(row, ["bairro", "localizacao", "bairros"]) || "N/A");
+              const timestamp = excelDateToJSDate(getVal(row, ["data entrada", "entrada", "data"]));
               const status = String(getVal(row, ["status", "situacao"]) || "Disponível");
 
               const safeId = `prop-${propertyCode}`.replace(/[\/\.\#\$\/\[\]]/g, "-");
@@ -139,13 +136,13 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "fechamento", "venda"]));
               const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "entrada"]));
               
-              // ID Estável baseado no Cód + Data para evitar duplicatas nos cálculos
+              // ID Estável baseado no Cód + Data para evitar duplicatas e limpar a média
               const dateKey = String(dataVendaRaw).replace(/\//g, '-');
               const safeSaleId = `sale-${propertyCode}-${dateKey}`.replace(/[\/\.\#\$\/\[\]]/g, "-");
               const saleRef = doc(firestore, "vendas_imoveis", safeSaleId);
               
               setDocumentNonBlocking(saleRef, {
-                vendedor: String(getVal(row, ["vendedor", "corretor", "responsavel"]) || ""),
+                vendedor: String(getVal(row, ["vendedor", "corretor", "venda responsavel"]) || ""),
                 angariador: String(getVal(row, ["angariador", "captador", "captacao"]) || "N/A"),
                 tipoVenda: String(getVal(row, ["tipo venda", "tipo", "operacao", "negocio"]) || "Venda"),
                 propertyCode,
@@ -168,7 +165,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         }
 
         setLastSync(new Date());
-        if (!silent) toast({ title: "Sincronização Concluída", description: `${processedCount} registros atualizados sem duplicatas.` });
+        if (!silent) toast({ title: "Sincronização Concluída", description: `${processedCount} registros atualizados.` });
       }
     } catch (error: any) {
       if (!silent) toast({ variant: "destructive", title: "Erro na Sincronização", description: error.message });

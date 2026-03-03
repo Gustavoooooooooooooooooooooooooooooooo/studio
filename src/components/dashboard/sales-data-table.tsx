@@ -21,7 +21,18 @@ export function SalesDataTable() {
     );
   }, [firestore]);
 
-  const { data: vendas, isLoading } = useCollection(vendasQuery);
+  const { data: rawVendas, isLoading } = useCollection(vendasQuery);
+
+  // Removemos duplicatas para a exibição da tabela também
+  const vendas = useMemo(() => {
+    if (!rawVendas) return [];
+    const map = new Map();
+    rawVendas.forEach(v => {
+      const key = `${v.propertyCode}-${v.saleDate}`;
+      if (!map.has(key)) map.set(key, v);
+    });
+    return Array.from(map.values());
+  }, [rawVendas]);
 
   const formatCurrency = (value: any) => {
     const num = Number(value);

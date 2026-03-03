@@ -63,7 +63,6 @@ export default function AppContainer() {
       const cleanStr = String(d).trim();
       if (!cleanStr || cleanStr === "N/A" || cleanStr === "undefined" || cleanStr === "") return null;
 
-      // Suporte para DD/MM/AAAA
       const parts = cleanStr.split('/');
       if (parts.length === 3) {
         const day = parseInt(parts[0], 10);
@@ -74,8 +73,8 @@ export default function AppContainer() {
         if (!isNaN(date.getTime())) return date;
       }
 
-      // Suporte para números seriais do Excel (Ex: 46037)
-      const num = parseFloat(cleanStr.replace(',', '.'));
+      let val = cleanStr.replace(/\./g, '').replace(',', '.');
+      const num = parseFloat(val);
       if (!isNaN(num) && num > 40000 && num < 60000) {
         return new Date(Math.round((num - 25569) * 86400 * 1000));
       }
@@ -91,15 +90,15 @@ export default function AppContainer() {
     };
 
     // --- FILTRAGEM E ORDENAÇÃO ---
-    // Removemos duplicatas de venda baseadas no código do imóvel + data para evitar poluir a média
+    // Removemos duplicatas de venda para garantir que a média seja baseada em eventos únicos
     const uniqueSalesMap = new Map();
     sales.forEach(s => {
       const key = `${s.propertyCode}-${s.saleDate}`;
       if (!uniqueSalesMap.has(key)) uniqueSalesMap.set(key, s);
     });
-    const uniqueSales = Array.from(uniqueSalesMap.values());
+    const uniqueSalesList = Array.from(uniqueSalesMap.values());
 
-    const validSalesDates = uniqueSales
+    const validSalesDates = uniqueSalesList
       .map(s => parseDate(s.saleDate))
       .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
       .sort((a, b) => a.getTime() - b.getTime()); // Ordenação cronológica
@@ -112,13 +111,13 @@ export default function AppContainer() {
       daysSinceLastSaleDisplay = `${Math.max(0, diff)} Dias`;
     }
 
-    // --- FREQUÊNCIA DE VENDAS (Lógica Canto Imóveis) ---
+    // --- FREQUÊNCIA DE VENDAS (Média de Intervalo entre Vendas) ---
+    // Passo a Passo: Ordenação -> Cálculo dos Intervalos -> Soma e Divisão (n-1)
     let salesFrequency = 0;
     if (validSalesDates.length > 1) {
       let sumIntervals = 0;
       let countIntervals = 0;
 
-      // Cálculo dos Intervalos: Subtrair a data da primeira da segunda, a segunda da terceira...
       for (let i = 0; i < validSalesDates.length - 1; i++) {
         const interval = diffDays(validSalesDates[i+1], validSalesDates[i]);
         if (interval >= 0) {
@@ -127,14 +126,13 @@ export default function AppContainer() {
         }
       }
       
-      // Soma e Divisão: Dividir pelo número total de intervalos (Vendas - 1)
       if (countIntervals > 0) {
         salesFrequency = sumIntervals / countIntervals;
       }
     }
 
-    // --- CICLO MÉDIO DE VENDA ---
-    const validCycles = uniqueSales.map(s => {
+    // --- CICLO MÉDIO DE VENDA (Tempo de estoque) ---
+    const validCycles = uniqueSalesList.map(s => {
       const start = parseDate(s.propertyCaptureDate);
       const end = parseDate(s.saleDate);
       if (start && end) return diffDays(end, start);
@@ -142,7 +140,7 @@ export default function AppContainer() {
     }).filter((d): d is number => d !== null && d >= 0);
     
     const avgDaysToSell = validCycles.length > 0 ? validCycles.reduce((a, b) => a + b, 0) / validCycles.length : 0;
-    const totalVgv = uniqueSales.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
+    const totalVgv = uniqueSalesList.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
 
     return {
       avgDaysToSell,
@@ -150,9 +148,9 @@ export default function AppContainer() {
       totalValue: totalVgv,
       lastSaleDisplay: daysSinceLastSaleDisplay,
       totalLeads: leads.length,
-      totalSales: uniqueSales.length,
+      totalSales: uniqueSalesList.length,
       totalProperties: properties.length,
-      avgTicket: uniqueSales.length > 0 ? totalVgv / uniqueSales.length : 0,
+      avgTicket: uniqueSalesList.length > 0 ? totalVgv / uniqueSalesList.length : 0,
       salesFrequency
     };
   }, [rawSales, rawLeads, rawProperties, now]);
