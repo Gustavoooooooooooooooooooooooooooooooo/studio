@@ -1,4 +1,3 @@
-
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,18 +16,24 @@ export function ChannelPerformance({ leads }: ChannelPerformanceProps) {
     const counts: Record<string, number> = {};
     
     leads.forEach(lead => {
-      // Tenta encontrar a coluna de origem dinamicamente
+      // Busca especificamente pela coluna "Fonte" conforme solicitado
       const keys = Object.keys(lead);
-      const originKey = keys.find(k => normalize(k).includes("origem") || normalize(k).includes("canal"));
-      const origin = originKey ? String(lead[originKey]) : "Outros";
+      const sourceKey = keys.find(k => normalize(k) === "fonte" || normalize(k).includes("fonte"));
       
-      counts[origin] = (counts[origin] || 0) + 1;
+      // Fallback para "Origem" ou "Canal" caso "Fonte" não exista em algum registro
+      const finalKey = sourceKey || keys.find(k => normalize(k).includes("origem") || normalize(k).includes("canal"));
+      
+      const channel = finalKey ? String(lead[finalKey]).trim() : "Outros";
+      
+      if (channel && channel !== "undefined" && channel !== "null" && channel !== "") {
+        counts[channel] = (counts[channel] || 0) + 1;
+      }
     });
 
     return Object.entries(counts)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
-      .slice(0, 8); // Top 8 canais
+      .slice(0, 10); // Exibir top 10 canais
   }, [leads]);
 
   const config = {
@@ -41,35 +46,41 @@ export function ChannelPerformance({ leads }: ChannelPerformanceProps) {
   return (
     <Card className="shadow-sm border-none bg-white">
       <CardHeader>
-        <CardTitle className="text-lg font-bold">Leads por Canal</CardTitle>
+        <CardTitle className="text-lg font-bold">Leads por Canal (Fonte)</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="h-[250px] w-full">
-          <ChartContainer config={config}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data} layout="vertical" margin={{ left: 10, right: 30 }}>
-                <XAxis type="number" hide />
-                <YAxis 
-                  dataKey="name" 
-                  type="category" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  width={100}
-                  style={{ fontSize: '11px', fontWeight: '500' }}
-                />
-                <ChartTooltip content={<ChartTooltipContent hideLabel />} />
-                <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={16}>
-                  {data.map((entry, index) => (
-                    <Cell 
-                      key={`cell-${index}`} 
-                      fill={index % 2 === 0 ? "hsl(var(--primary))" : "hsl(var(--accent))"} 
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartContainer>
-        </div>
+        {data.length > 0 ? (
+          <div className="h-[300px] w-full">
+            <ChartContainer config={config}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data} layout="vertical" margin={{ left: 10, right: 30, top: 0, bottom: 0 }}>
+                  <XAxis type="number" hide />
+                  <YAxis 
+                    dataKey="name" 
+                    type="category" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    width={110}
+                    style={{ fontSize: '11px', fontWeight: '600' }}
+                  />
+                  <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+                  <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={18}>
+                    {data.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={index % 2 === 0 ? "hsl(var(--primary))" : "hsl(var(--accent))"} 
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </div>
+        ) : (
+          <div className="h-[200px] flex items-center justify-center text-sm text-muted-foreground border-2 border-dashed rounded-lg">
+            Sincronize a aba Leads para ver os dados.
+          </div>
+        )}
       </CardContent>
     </Card>
   );
