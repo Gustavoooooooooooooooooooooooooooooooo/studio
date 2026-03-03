@@ -16,7 +16,7 @@ service cloud.firestore {
     // --- COLLECTION RULES ---
 
     match /brokers/{brokerId} {
-      // Permitimos que qualquer usuário logado gerencie a lista de corretores oficiais para este protótipo
+      // Permitimos que qualquer usuário autenticado gerencie a lista para este protótipo
       allow read, write: if isSignedIn();
     }
 

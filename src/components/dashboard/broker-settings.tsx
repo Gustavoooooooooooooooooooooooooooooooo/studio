@@ -6,15 +6,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useCollection, useMemoFirebase, useFirebase } from "@/firebase";
+import { useCollection, useMemoFirebase, useFirebase, useUser } from "@/firebase";
 import { collection, query, orderBy, doc } from "firebase/firestore";
 import { addDocumentNonBlocking, deleteDocumentNonBlocking } from "@/firebase/non-blocking-updates";
-import { Trash2, Plus, Users, Loader2, UserCheck } from "lucide-react";
+import { Trash2, Plus, Users, Loader2, UserCheck, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export function BrokerSettings() {
   const [newBrokerName, setNewBrokerName] = useState("");
   const { firestore } = useFirebase();
+  const { user, isUserLoading } = useUser();
   const { toast } = useToast();
 
   const brokersQuery = useMemoFirebase(() => {
@@ -22,13 +23,23 @@ export function BrokerSettings() {
     return query(collection(firestore, "brokers"), orderBy("name", "asc"));
   }, [firestore]);
 
-  const { data: brokersList, isLoading } = useCollection(brokersQuery);
+  const { data: brokersList, isLoading: isListLoading } = useCollection(brokersQuery);
 
   const handleAddBroker = () => {
     if (!newBrokerName.trim() || !firestore) return;
+    
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "Acesso Negado",
+        description: "Você precisa estar autenticado para realizar esta ação."
+      });
+      return;
+    }
 
     const brokerName = newBrokerName.trim();
-    // Verifica se já existe (normalizado)
+    
+    // Verifica duplicidade localmente para feedback rápido
     const exists = brokersList?.some(b => b.name.toLowerCase() === brokerName.toLowerCase());
     
     if (exists) {
@@ -41,10 +52,13 @@ export function BrokerSettings() {
     }
 
     const brokersRef = collection(firestore, "brokers");
+    
+    // Operação não bloqueante
     addDocumentNonBlocking(brokersRef, {
       name: brokerName,
       active: true,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      createdBy: user.uid
     });
 
     setNewBrokerName("");
@@ -64,6 +78,16 @@ export function BrokerSettings() {
     });
   };
 
+  // Se o usuário ainda está carregando, mostramos um loader
+  if (isUserLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-4">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground">Autenticando sessão...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       <Card className="border-none shadow-sm">
@@ -73,8 +97,7 @@ export function BrokerSettings() {
             Configuração de Corretores Oficiais
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            Cadastre aqui os nomes dos corretores que você deseja que apareçam no Dashboard. 
-            Isso ajudará a padronizar os nomes vindos das planilhas.
+            Cadastre os nomes oficiais para padronizar os relatórios e o dashboard.
           </p>
         </CardHeader>
         <CardContent className="pt-6">
@@ -85,10 +108,12 @@ export function BrokerSettings() {
                 value={newBrokerName} 
                 onChange={(e) => setNewBrokerName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAddBroker()}
+                disabled={isListLoading}
               />
             </div>
-            <Button onClick={handleAddBroker} className="bg-primary hover:bg-primary/90">
-              <Plus className="h-4 w-4 mr-2" /> Adicionar
+            <Button onClick={handleAddBroker} disabled={!newBrokerName.trim() || isListLoading} className="bg-primary hover:bg-primary/90">
+              {isListLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
+              Adicionar
             </Button>
           </div>
 
@@ -102,7 +127,7 @@ export function BrokerSettings() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading ? (
+                {isListLoading ? (
                   <TableRow>
                     <TableCell colSpan={3} className="text-center py-10">
                       <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
@@ -111,7 +136,7 @@ export function BrokerSettings() {
                 ) : brokersList && brokersList.length > 0 ? (
                   brokersList.map((broker) => (
                     <TableRow key={broker.id}>
-                      <TableCell className="font-semibold flex items-center gap-2">
+                      <TableCell className="font-semibold flex items-center gap-2 text-sm">
                         <UserCheck className="h-4 w-4 text-emerald-500" />
                         {broker.name}
                       </TableCell>
@@ -134,8 +159,11 @@ export function BrokerSettings() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center py-10 text-muted-foreground">
-                      Nenhum corretor configurado. Adicione o primeiro acima!
+                    <TableCell colSpan={3} className="text-center py-12 text-muted-foreground">
+                      <div className="flex flex-col items-center gap-2">
+                        <AlertCircle className="h-8 w-8 opacity-20" />
+                        <p className="text-xs">Nenhum corretor configurado. Adicione o primeiro acima.</p>
+                      </div>
                     </TableCell>
                   </TableRow>
                 )}
@@ -154,8 +182,7 @@ export function BrokerSettings() {
             <div className="space-y-1">
               <h4 className="text-sm font-bold text-amber-800">Dica de Padronização</h4>
               <p className="text-xs text-amber-700 leading-relaxed">
-                Ao cadastrar os corretores aqui, o app passará a priorizar estes nomes. 
-                Certifique-se de usar o nome exatamente como você deseja que apareça nos relatórios finais.
+                Ao cadastrar os corretores aqui, o app passará a priorizar estes nomes nos filtros e cálculos automáticos.
               </p>
             </div>
           </div>
