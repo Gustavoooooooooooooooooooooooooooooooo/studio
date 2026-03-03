@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { useMemo } from "react";
+import { Badge } from "@/components/ui/badge";
 
 interface ChannelPerformanceProps {
   leads: any[];
@@ -46,20 +47,34 @@ export function ChannelPerformance({ leads }: ChannelPerformanceProps) {
   };
 
   const matrixData = useMemo(() => {
-    const data: Record<string, number[]> = {};
+    const data: Record<string, Record<string, number[]>> = {}; // channel -> type -> months
     const currentYear = 2026;
 
     leads.forEach(lead => {
       const keys = Object.keys(lead);
+      
+      // Identifica o Canal (Fonte)
       const sourceKey = keys.find(k => {
         const nk = normalize(k);
         return nk === "fonte" || nk.includes("fonte") || nk === "origem" || nk.includes("origem") || nk === "canal";
       });
-      
       const channel = sourceKey && lead[sourceKey] ? String(lead[sourceKey]).trim() : "Direto/Indicação";
 
+      // Identifica a Natureza (Venda/Locação)
+      const natureKey = keys.find(k => {
+        const nk = normalize(k);
+        return nk.includes("natureza") || nk.includes("negociacao");
+      });
+      let nature = "Outros";
+      if (natureKey && lead[natureKey]) {
+        const nVal = normalize(lead[natureKey]);
+        if (nVal.includes("venda")) nature = "Venda";
+        else if (nVal.includes("loca") || nVal.includes("alug")) nature = "Locação";
+      }
+
       if (channel && channel !== "undefined" && channel !== "null" && channel !== "") {
-        if (!data[channel]) data[channel] = new Array(12).fill(0);
+        if (!data[channel]) data[channel] = {};
+        if (!data[channel][nature]) data[channel][nature] = new Array(12).fill(0);
         
         const dateKey = keys.find(k => {
           const nk = normalize(k);
@@ -70,26 +85,37 @@ export function ChannelPerformance({ leads }: ChannelPerformanceProps) {
 
         if (date && date.getFullYear() === currentYear) {
           const monthIndex = date.getMonth();
-          data[channel][monthIndex] += 1;
+          data[channel][nature][monthIndex] += 1;
         }
       }
     });
 
-    const rows = Object.entries(data)
-      .map(([name, counts]) => ({ 
-        name, 
-        counts, 
-        total: counts.reduce((a, b) => a + b, 0) 
-      }))
-      .filter(row => row.total > 0)
-      .sort((a, b) => b.total - a.total);
+    const rows: any[] = [];
+    Object.entries(data).forEach(([channel, natures]) => {
+      Object.entries(natures).forEach(([nature, counts]) => {
+        const total = counts.reduce((a, b) => a + b, 0);
+        if (total > 0) {
+          rows.push({
+            channel,
+            nature,
+            counts,
+            total
+          });
+        }
+      });
+    });
 
-    // Calcular Totais Mensais (Rodapé)
+    // Ordenar por canal e depois por tipo
+    rows.sort((a, b) => {
+      if (a.channel !== b.channel) return a.channel.localeCompare(b.channel);
+      return b.total - a.total;
+    });
+
+    // Totais Mensais
     const monthlyTotals = new Array(12).fill(0);
     let grandTotal = 0;
-
     rows.forEach(row => {
-      row.counts.forEach((count, i) => {
+      row.counts.forEach((count: number, i: number) => {
         monthlyTotals[i] += count;
       });
       grandTotal += row.total;
@@ -103,7 +129,7 @@ export function ChannelPerformance({ leads }: ChannelPerformanceProps) {
   return (
     <Card className="shadow-sm border-none bg-white overflow-hidden">
       <CardHeader className="bg-muted/5 border-b py-3">
-        <CardTitle className="text-base font-bold text-primary">Matriz de Leads por Canal (2026)</CardTitle>
+        <CardTitle className="text-base font-bold text-primary">Matriz de Leads por Canal e Natureza (2026)</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
         {rows.length > 0 ? (
@@ -111,7 +137,7 @@ export function ChannelPerformance({ leads }: ChannelPerformanceProps) {
             <Table className="table-fixed w-full">
               <TableHeader className="bg-muted/10">
                 <TableRow>
-                  <TableHead className="w-[120px] font-bold text-[9px] uppercase sticky left-0 bg-muted/10 z-20 px-2">Canal (Fonte)</TableHead>
+                  <TableHead className="w-[140px] font-bold text-[9px] uppercase sticky left-0 bg-muted/10 z-20 px-2">Canal / Natureza</TableHead>
                   {months.map(m => (
                     <TableHead key={m} className="text-center text-[9px] px-1 font-bold w-[45px]">{m}</TableHead>
                   ))}
@@ -119,12 +145,20 @@ export function ChannelPerformance({ leads }: ChannelPerformanceProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((row) => (
-                  <TableRow key={row.name} className="hover:bg-muted/5 transition-colors">
-                    <TableCell className="font-semibold text-[10px] py-2 px-2 sticky left-0 bg-white z-10 border-r truncate">
-                      {row.name}
+                {rows.map((row, idx) => (
+                  <TableRow key={`${row.channel}-${row.nature}-${idx}`} className="hover:bg-muted/5 transition-colors">
+                    <TableCell className="py-2 px-2 sticky left-0 bg-white z-10 border-r">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-semibold text-[10px] truncate leading-tight">{row.channel}</span>
+                        <span className={`text-[8px] font-bold uppercase ${
+                          row.nature === 'Venda' ? 'text-emerald-600' : 
+                          row.nature === 'Locação' ? 'text-blue-600' : 'text-muted-foreground'
+                        }`}>
+                          {row.nature}
+                        </span>
+                      </div>
                     </TableCell>
-                    {row.counts.map((val, i) => (
+                    {row.counts.map((val: number, i: number) => (
                       <TableCell key={i} className={`text-center text-[10px] py-2 px-1 border-r ${val === 0 ? 'text-muted-foreground/10' : 'font-medium text-primary'}`}>
                         {val === 0 ? '0' : val}
                       </TableCell>
@@ -156,10 +190,11 @@ export function ChannelPerformance({ leads }: ChannelPerformanceProps) {
         ) : (
           <div className="py-12 flex flex-col items-center justify-center text-center space-y-2">
             <p className="text-sm text-muted-foreground font-medium">Nenhum dado de lead sincronizado para 2026.</p>
-            <p className="text-[10px] text-muted-foreground/60 max-w-xs mx-auto">Verifique se as colunas "Fonte" e "Data" estão presentes na sua planilha de Leads.</p>
+            <p className="text-[10px] text-muted-foreground/60 max-w-xs mx-auto">Verifique as colunas "Fonte", "Natureza da Negociação" e "Data" na sua planilha.</p>
           </div>
         )}
       </CardContent>
     </Card>
   );
 }
+
