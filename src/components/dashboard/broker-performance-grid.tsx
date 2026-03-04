@@ -62,7 +62,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       return isNaN(date.getTime()) ? null : date;
     };
 
-    // Total de dias transcorridos desde 01/01/2025
+    // Total de dias transcorridos desde 01/01/2025 (Aproximadamente 426-427 dias)
     const diffMs = referenceNow.getTime() - fixedStartDate.getTime();
     const totalDaysCount = diffMs / (1000 * 3600 * 24);
 
@@ -129,16 +129,17 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         return activityVal.includes("realizada") && (natureVal.includes("locacao") || natureVal.includes("aluguel"));
       });
 
-      // Vendas do corretor (usando a lista desduplicada)
+      // Vendas do corretor: Filtrar APENAS o tipo 'Venda' para refletir a produtividade real
       const bSalesRecords = dedupedSales.filter(s => {
-        const vend = normalize(s.vendedor);
-        return vend === normName || vend.includes(normName);
+        const vend = normalize(s.vendedor || s.corretor);
+        const isVenda = normalize(s.tipoVenda || s.tipo || "").includes('venda');
+        return (vend === normName || vend.includes(normName)) && isVenda;
       });
       
       const totalVgv = bSalesRecords.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
       const numSales = bSalesRecords.length;
       
-      // FÓRMULA DE PRODUTIVIDADE: (Hoje - 01/01/2025) / Vendas_do_Corretor
+      // FÓRMULA DE PRODUTIVIDADE: (Hoje - 01/01/2025) / Vendas_de_Corretor
       let avgFrequency = 0;
       if (numSales > 0) {
         avgFrequency = totalDaysCount / numSales;

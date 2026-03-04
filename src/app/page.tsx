@@ -90,9 +90,12 @@ export default function AppContainer() {
       return Math.floor((t1 - t2) / (1000 * 60 * 60 * 24));
     };
 
-    // Desduplicar vendas globais
+    // Desduplicar vendas globais E Filtrar APENAS o tipo 'Venda' para as métricas de Giro/Frequência
     const uniqueSalesMap = new Map();
     sales.forEach(s => {
+      const type = String(s.tipoVenda || s.tipo || "").toLowerCase();
+      if (!type.includes('venda')) return; // Ignorar locações no cálculo de giro de vendas
+      
       const key = `${s.propertyCode}-${s.saleDate}`;
       if (!uniqueSalesMap.has(key)) uniqueSalesMap.set(key, s);
     });
