@@ -67,19 +67,20 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
   const getVal = (row: any, searchKeys: string[]) => {
     if (!row) return undefined;
     const rowKeys = Object.keys(row);
+    const normalizedRowKeys = rowKeys.map(k => ({ original: k, norm: normalize(k) }));
     const normalizedSearchKeys = searchKeys.map(normalize);
 
-    for (const rowKey of rowKeys) {
-      if (normalizedSearchKeys.includes(normalize(rowKey))) {
-        return row[rowKey];
-      }
+    // 1. Busca por correspondência EXATA seguindo a ordem de prioridade das searchKeys
+    for (const sKey of normalizedSearchKeys) {
+      const match = normalizedRowKeys.find(rk => rk.norm === sKey);
+      if (match) return row[match.original];
     }
 
-    for (const rowKey of rowKeys) {
-      const normalizedRowKey = normalize(rowKey);
-      if (normalizedSearchKeys.some(sk => normalizedRowKey.includes(sk))) {
-        return row[rowKey];
-      }
+    // 2. Busca por correspondência PARCIAL seguindo a ordem de prioridade das searchKeys
+    // (Apenas se não encontrou correspondência exata para nenhuma chave)
+    for (const sKey of normalizedSearchKeys) {
+      const match = normalizedRowKeys.find(rk => rk.norm.includes(sKey));
+      if (match) return row[match.original];
     }
 
     return undefined;
@@ -129,16 +130,18 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "fechamento", "venda"]));
-              const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "entrada"]));
+              // Ajuste rigoroso para evitar confusão entre a coluna de Nome e a coluna de Data
+              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "fechamento", "data da venda", "data de venda"]));
+              const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "entrada", "data da entrada"]));
               const closedVal = parseCurrency(getVal(row, ["valor fechado", "valor venda", "venda", "fechamento"]));
+              const vendedor = String(getVal(row, ["vendedor", "corretor", "venda responsavel"]) || "");
               
               const dateKey = String(dataVendaRaw).replace(/\//g, '-');
               const safeSaleId = `sale-${propertyCode}-${dateKey}-${closedVal}`.replace(/[\/\.\#\$\/\[\]]/g, "-");
               const saleRef = doc(firestore, "vendas_imoveis", safeSaleId);
               
               setDocumentNonBlocking(saleRef, {
-                vendedor: String(getVal(row, ["vendedor", "corretor", "venda responsavel"]) || ""),
+                vendedor,
                 angariador: String(getVal(row, ["angariador", "captador", "captacao"]) || "N/A"),
                 tipoVenda: String(getVal(row, ["tipo venda", "tipo", "operacao", "negocio"]) || "Venda"),
                 propertyCode,
