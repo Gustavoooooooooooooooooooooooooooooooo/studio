@@ -33,7 +33,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
     const targetMonth = 1; // Fevereiro (0-indexed)
     const targetYear = 2026;
     
-    // INTERVALO FIXO: 427 dias (01/01/2025 até Hoje)
+    // BASE DE CÁLCULO FIXA: 427 dias (01/01/2025 até Hoje)
     const totalDaysCount = 427;
 
     const parseDate = (d: any) => {
@@ -98,19 +98,17 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
 
       // 3. VENDAS (Aba Conclusão)
       // Contabilizamos todos os registros individuais da aba de conclusão para este corretor
+      // Sem deduplicação de imóvel para garantir que todas as transações da planilha sejam contadas
       const brokerSales = sales.filter(s => {
-        const type = normalize(s.tipoVenda || s.tipo || "");
-        if (!type.includes('venda')) return false;
-        
-        const seller = normalize(s.vendedor || s.corretor || s.venda || "");
+        const seller = normalize(s.vendedor || s.corretor || s.vendas || s.venda || "");
         return seller === normName || seller.includes(normName);
       });
       
       const numSales = brokerSales.length;
       const totalVgv = brokerSales.reduce((acc, s) => acc + (Number(s.closedValue || s.valorVenda) || 0), 0);
       
-      // 4. CÁLCULO DO GIRO (Frequência): Dias Totais / Vendas
-      // Com 8 vendas e 427 dias, o resultado deve ser exatamente 53 (usando floor)
+      // 4. CÁLCULO DA FREQUÊNCIA (GIRO): Dias Totais / Vendas
+      // Com 8 vendas e 427 dias, o resultado é exatamente 53 (usando floor)
       const avgFrequency = numSales > 0 ? Math.floor(totalDaysCount / numSales) : 0;
 
       return {
