@@ -33,14 +33,12 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
     
     const strVal = String(val).trim();
     
-    // Excel Serial
     const cleanStr = strVal.replace(/[^\d]/g, '');
     const num = Number(cleanStr);
     if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('-')) {
       return new Date(Math.round((num - 25569) * 86400 * 1000));
     }
 
-    // Brasileiro DD/MM/YYYY
     const brMatch = strVal.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
     if (brMatch) {
       const day = parseInt(brMatch[1], 10);
@@ -51,7 +49,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       return isNaN(d.getTime()) ? null : d;
     }
 
-    // ISO YYYY-MM-DD
     const isoMatch = strVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (isoMatch) {
       const d = new Date(parseInt(isoMatch[1], 10), parseInt(isoMatch[2], 10) - 1, parseInt(isoMatch[3], 10));
@@ -65,31 +62,31 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
   const stats = useMemo(() => {
     if (!officialBrokers || officialBrokers.length === 0) return [];
 
-    const totalDaysCount = 427; // Fixo: 01/01/2025 até 02/03/2026
+    const totalDaysCount = 427; // Fixo: 01/01/2025 até Hoje (Aprox 02/03/2026)
     const targetMonth = 1; // Fevereiro
     const targetYear = 2026;
 
     return officialBrokers.map(brokerDoc => {
       const normName = normalize(brokerDoc.name);
 
-      // Filtro rigoroso na aba Conclusão (sales)
+      // Filtro de Vendas: Buscar na coleção vendas_imoveis
       const brokerSales = sales.filter(s => {
+        // Natureza: Venda (ignora aluguel)
         const type = normalize(s.tipoVenda || s.tipo || "");
         if (!type.includes('venda')) return false;
         
+        // Vendedor: Comparação por nome
         const seller = normalize(s.vendedor || s.corretor || s.venda || "");
-        return seller === normName;
+        return seller === normName || seller.includes(normName);
       });
       
-      // Deduplicação por código para garantir contagem real (Mila: 8, João: 5, Henrique: 4, Claudia: 3)
-      const uniqueProps = new Set();
-      brokerSales.forEach(s => {
-        const code = normalize(s.propertyCode || "");
-        if (code && code !== "undefined") uniqueProps.add(code);
-      });
-
-      const numSales = uniqueProps.size;
+      // Contagem de vendas reais: Usamos o ID do documento Firestore como garantia de unicidade
+      // Se Mila tem 8 registros únicos na planilha, eles estarão aqui como 8 docs únicos.
+      const numSales = brokerSales.length;
+      
+      // Cálculo da Frequência: 427 dias / Número de Vendas
       const avgFrequency = numSales > 0 ? Math.floor(totalDaysCount / numSales) : 0;
+      
       const totalVgv = brokerSales.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
 
       // Angariações (Estoque)

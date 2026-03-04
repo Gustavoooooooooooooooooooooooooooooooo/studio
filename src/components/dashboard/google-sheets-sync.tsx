@@ -10,7 +10,7 @@ import { syncGoogleSheets } from "@/ai/flows/sync-sheets-flow";
 import { useToast } from "@/hooks/use-toast";
 import { useFirebase } from "@/firebase";
 import { collection, serverTimestamp, getDocs, writeBatch, doc } from "firebase/firestore";
-import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
+import { setDocumentNonBlocking, addDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 
@@ -42,20 +42,16 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     if (val === undefined || val === null || String(val).trim() === "") return "";
     const strVal = String(val).trim();
     
-    // Tentar detectar Serial do Excel (número puro)
     const cleanStr = strVal.replace(/[^\d]/g, '');
     const num = Number(cleanStr);
     
-    // Números entre 40000 e 60000 cobrem de 2009 a 2063
     if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('-')) {
       const date = new Date(Math.round((num - 25569) * 86400 * 1000));
       return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
     }
 
-    // Se já estiver no formato brasileiro DD/MM/YYYY
     if (strVal.match(/^\d{1,2}\/\d{1,2}\/\d{2,4}$/)) return strVal;
 
-    // Se estiver em formato ISO YYYY-MM-DD
     const isoMatch = strVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (isoMatch) {
       return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
@@ -70,15 +66,13 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     const normalizedRowKeys = rowKeys.map(k => ({ original: k, norm: normalize(k) }));
     const normalizedSearchKeys = searchKeys.map(normalize);
 
-    // 1. Busca por correspondência EXATA seguindo a ordem de prioridade das searchKeys
     for (const sKey of normalizedSearchKeys) {
       const match = normalizedRowKeys.find(rk => rk.norm === sKey);
       if (match) return row[match.original];
     }
 
-    // 2. Busca por correspondência PARCIAL seguindo a ordem de prioridade das searchKeys
     for (const sKey of normalizedSearchKeys) {
-      const match = normalizedRowKeys.find(rk => rk.norm.includes(sKey));
+      const match = normalizedRowKeys.find(rk => rk.norm.includes(sKey) && rk.norm.length < sKey.length + 5);
       if (match) return row[match.original];
     }
 
@@ -114,31 +108,28 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               : `REF-${processedCount + 1}`;
 
             if (mode === 'inventory') {
-              const saleValue = parseCurrency(getVal(row, ["valor venda", "venda", "valor"]));
-              const rentalValue = parseCurrency(getVal(row, ["valor locacao", "locacao", "aluguel", "valor aluguel"]));
-              const broker = String(getVal(row, ["angariador", "corretor", "captador", "quem angariou"]) || "N/A");
-              const neighborhood = String(getVal(row, ["bairro", "localizacao", "bairros"]) || "N/A");
-              const timestamp = excelDateToJSDate(getVal(row, ["data entrada", "entrada", "data"]));
-              const status = String(getVal(row, ["status", "situacao"]) || "Disponível");
-
               const safeId = `prop-${propertyCode}`.replace(/[\/\.\#\$\/\[\]]/g, "-");
               const propRef = doc(firestore, "properties", safeId);
               setDocumentNonBlocking(propRef, {
-                propertyCode, neighborhood, saleValue, rentalValue,
-                brokerId: broker, captureDate: String(timestamp || ""), status, importedAt: serverTimestamp(),
+                propertyCode,
+                neighborhood: String(getVal(row, ["bairro", "localizacao", "bairros"]) || "N/A"),
+                saleValue: parseCurrency(getVal(row, ["valor venda", "venda", "valor"])),
+                rentalValue: parseCurrency(getVal(row, ["valor locacao", "locacao", "aluguel", "valor aluguel"])),
+                brokerId: String(getVal(row, ["angariador", "corretor", "captador", "quem angariou"]) || "N/A"),
+                captureDate: String(excelDateToJSDate(getVal(row, ["data entrada", "entrada", "data"])) || ""),
+                status: String(getVal(row, ["status", "situacao"]) || "Disponível"),
+                importedAt: serverTimestamp(),
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              // Ajuste de termos de busca para serem mais robustos e capturarem a data corretamente
-              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "fechamento", "data de venda", "data da venda", "data", "carimbo"]));
+              const dataVendaRaw = excelDateToJSDate(getVal(row, ["fechamento", "data venda", "data de venda", "data da venda", "carimbo"]));
               const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "entrada", "data da entrada", "cadastro"]));
               const closedVal = parseCurrency(getVal(row, ["valor fechado", "valor venda", "fechamento"]));
-              
-              // O termo "venda" é usado para o corretor na sua planilha
               const vendedor = String(getVal(row, ["vendedor", "corretor", "venda", "responsavel"]) || "");
+              const cliente = String(getVal(row, ["cliente", "comprador", "nome contrato"]) || "N/A");
               
               const dateKey = String(dataVendaRaw).replace(/\//g, '-');
-              const safeSaleId = `sale-${propertyCode}-${dateKey}-${closedVal}`.replace(/[\/\.\#\$\/\[\]]/g, "-");
+              const safeSaleId = `sale-${propertyCode}-${normalize(cliente)}-${dateKey}`.replace(/[\/\.\#\$\/\[\]]/g, "-");
               const saleRef = doc(firestore, "vendas_imoveis", safeSaleId);
               
               setDocumentNonBlocking(saleRef, {
@@ -147,7 +138,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
                 tipoVenda: String(getVal(row, ["tipo venda", "tipo", "operacao", "negocio"]) || "Venda"),
                 propertyCode,
                 neighborhood: String(getVal(row, ["bairro", "localizacao", "empreendimento"]) || "N/A"),
-                clientName: String(getVal(row, ["cliente", "comprador", "nome contrato"]) || "N/A"),
+                clientName: cliente,
                 advertisedValue: parseCurrency(getVal(row, ["valor anuncio", "valor inicial", "anuncio"])),
                 closedValue: closedVal,
                 saleDate: String(dataVendaRaw || ""),
