@@ -31,7 +31,9 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
     if (!officialBrokers || officialBrokers.length === 0) return [];
 
     // Data de referência do app: 02 de Março de 2026
-    // Mês passado: Fevereiro de 2026
+    const nowRef = new Date(2026, 2, 2);
+    // Data inicial fixa solicitada: 01 de Janeiro de 2025
+    const fixedStart = new Date(2025, 0, 1);
     const targetMonth = 1; // Fevereiro (0-indexed)
     const targetYear = 2026;
 
@@ -126,23 +128,13 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       });
       const totalVgv = bSalesRecords.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
       
-      // Cálculo da Frequência de Vendas (Intervalo médio entre vendas em dias)
-      const saleDates = bSalesRecords
-        .map(s => parseDate(s.saleDate))
-        .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
-        .sort((a, b) => a.getTime() - b.getTime());
-
+      // Nova Lógica de Frequência solicitada:
+      // (Data Atual [02/03/2026] - Data Fixa [01/01/2025]) / Total de Vendas do Corretor
+      const totalDaysElapsed = (nowRef.getTime() - fixedStart.getTime()) / (1000 * 3600 * 24);
+      
       let avgFrequency = 0;
-      if (saleDates.length > 1) {
-        let totalInterval = 0;
-        for (let i = 0; i < saleDates.length - 1; i++) {
-          totalInterval += (saleDates[i + 1].getTime() - saleDates[i].getTime()) / (1000 * 3600 * 24);
-        }
-        avgFrequency = totalInterval / (saleDates.length - 1);
-      } else if (saleDates.length === 1) {
-        // Se houver apenas uma venda, não há intervalo médio entre vendas. 
-        // Poderia ser zero ou um indicador de "Venda única".
-        avgFrequency = 0;
+      if (bSalesRecords.length > 0) {
+        avgFrequency = totalDaysElapsed / bSalesRecords.length;
       }
 
       return {
@@ -216,7 +208,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                     </div>
                   </TableCell>
                   <TableCell className="text-right border-r py-2 text-[10px] text-muted-foreground font-medium">
-                    {row.avgFrequency > 0 ? `a cada ${Math.round(row.avgFrequency)} dias` : (row.avgFrequency === 0 && row.vgv > 0 ? "Venda Única" : "-")}
+                    {row.avgFrequency > 0 ? `${Math.round(row.avgFrequency)} dias` : "-"}
                   </TableCell>
                   <TableCell className="text-right py-2 font-bold text-primary bg-primary/5 text-sm">
                     {formatCurrency(row.vgv)}
