@@ -95,7 +95,7 @@ export default function AppContainer() {
     // Desduplicar vendas globais E Filtrar APENAS o tipo 'Venda'
     const uniqueSalesMap = new Map();
     sales.forEach(s => {
-      const type = String(s.tipoVenda || s.tipo || "").toLowerCase();
+      const type = normalize(s.tipoVenda || s.tipo || "");
       if (!type.includes('venda')) return;
 
       const cleanCode = normalize(s.propertyCode).replace(/[^a-z0-9]/g, "");
@@ -120,8 +120,8 @@ export default function AppContainer() {
       daysSinceLastSaleDisplay = `${Math.max(0, diff)} Dias`;
     }
 
-    // LÓGICA DE PRODUTIVIDADE: (HOJE - 01/01/2025) / TOTAL DE VENDAS
-    // 01/01/2025 até 02/03/2026 = exatos 427 dias.
+    // LÓGICA DE PRODUTIVIDADE REAL: (HOJE - 01/01/2025) / TOTAL DE VENDAS
+    // 01/01/2025 até 02/03/2026 = 427 dias.
     const totalDaysSinceStart = 427; 
 
     let salesFrequency = 0;

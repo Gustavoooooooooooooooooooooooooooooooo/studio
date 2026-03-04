@@ -32,7 +32,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
 
     const targetMonth = 1; // Fevereiro (0-indexed)
     const targetYear = 2026;
-    // INTERVALO FIXO: 01/01/2025 até 02/03/2026 = 427 dias
+    // INTERVALO ABSOLUTO: 01/01/2025 até 02/03/2026 = 427 dias
     const totalDaysCount = 427; 
 
     const parseDate = (d: any) => {
@@ -62,17 +62,17 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       return isNaN(date.getTime()) ? null : date;
     };
 
-    // Deduplicação RIGOROSA de Vendas
+    // Deduplicação RIGOROSA de Vendas (Apenas tipo "Venda")
     const uniqueSalesMap = new Map();
     sales.forEach(s => {
-      const type = String(s.tipoVenda || s.tipo || "").toLowerCase();
-      // FILTRO EXCLUSIVO DE VENDAS
+      const type = normalize(s.tipoVenda || s.tipo || "");
       if (!type.includes('venda')) return;
 
       const cleanCode = normalize(s.propertyCode).replace(/[^a-z0-9]/g, "");
       const d = parseDate(s.saleDate);
       const cleanDate = d ? d.toISOString().split('T')[0] : normalize(s.saleDate);
       
+      // Chave para evitar duplicatas da planilha
       const key = `${cleanCode}-${cleanDate}-${Math.round(Number(s.closedValue))}`;
       if (!uniqueSalesMap.has(key)) uniqueSalesMap.set(key, s);
     });
@@ -133,7 +133,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         return activityVal.includes("realizada") && (natureVal.includes("locacao") || natureVal.includes("aluguel"));
       });
 
-      // Vendas do corretor (após deduplicação e filtro de tipo "Venda")
+      // Vendas do corretor (exclusivamente Vendas únicas)
       const bSalesRecords = dedupedSales.filter(s => {
         const vend = normalize(s.vendedor || s.corretor);
         return vend === normName || vend.includes(normName);
@@ -142,7 +142,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       const totalVgv = bSalesRecords.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
       const numSales = bSalesRecords.length;
       
-      // FÓRMULA DE PRODUTIVIDADE: 427 / Vendas
+      // FÓRMULA DE PRODUTIVIDADE REAL: 427 / Vendas
       let avgFrequency = 0;
       if (numSales > 0) {
         avgFrequency = totalDaysCount / numSales;
