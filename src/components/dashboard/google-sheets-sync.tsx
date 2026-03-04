@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useCallback } from "react";
@@ -226,6 +227,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               <ul className="text-[10px] text-amber-700 space-y-1">
                 <li>• Use nomes de colunas em Inglês ou Português (Ex: <b>ID</b> ou <b>Código</b>).</li>
                 <li>• Na coluna de Código, você pode usar: <code>{`=ARRAYFORMULA(IF(B2:B<>""; ROW(B2:B)-1; ""))`}</code></li>
+                <li>• Frequência Venda: <code>{`=IF(COUNT(B2:B)=0; "-"; (TODAY()-DATE(2025;1;1))/COUNT(B2:B))`}</code></li>
                 <li>• Garanta que o link do CSV seja público (Arquivo &gt; Compartilhar &gt; Publicar na Web &gt; CSV).</li>
               </ul>
             </div>

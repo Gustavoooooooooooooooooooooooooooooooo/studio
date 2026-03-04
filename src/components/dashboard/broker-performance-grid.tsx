@@ -1,5 +1,5 @@
 
-"use client"
+'use client';
 
 import { useMemo } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -33,7 +33,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
     const targetMonth = 1; // Fevereiro (0-indexed)
     const targetYear = 2026;
     const referenceNow = new Date(2026, 2, 2); // Data "hoje" do app
-    const fixedStartDate = new Date(2025, 0, 1); // 01/01/2025 fixado pelo usuário
+    const fixedStartDate = new Date(2025, 0, 1); // Data fixa solicitada: 01/01/2025
 
     const parseDate = (d: any) => {
       if (!d) return null;
@@ -125,7 +125,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       });
       const totalVgv = bSalesRecords.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
       
-      // Lógica de Frequência Venda (Fixo desde 01/01/2025)
+      // NOVA LÓGICA DE FREQUÊNCIA VENDA (Solicitada): (HOJE - 01/01/2025) / Número de Vendas
       let avgFrequency = 0;
       const numSales = bSalesRecords.length;
       

@@ -109,22 +109,14 @@ export default function AppContainer() {
       daysSinceLastSaleDisplay = `${Math.max(0, diff)} Dias`;
     }
 
-    let salesFrequency = 0;
-    if (validSalesDates.length > 1) {
-      let sumIntervals = 0;
-      let countIntervals = 0;
+    // NOVA LÓGICA DE FREQUÊNCIA: (HOJE - 01/01/2025) / TOTAL DE VENDAS
+    const fixedStartDate = new Date(2025, 0, 1);
+    const diffMsSinceFixed = now.getTime() - fixedStartDate.getTime();
+    const totalDaysSinceStart = diffMsSinceFixed / (1000 * 3600 * 24);
 
-      for (let i = 0; i < validSalesDates.length - 1; i++) {
-        const interval = diffDays(validSalesDates[i+1], validSalesDates[i]);
-        if (interval >= 0) {
-          sumIntervals += interval;
-          countIntervals++;
-        }
-      }
-      
-      if (countIntervals > 0) {
-        salesFrequency = sumIntervals / countIntervals;
-      }
+    let salesFrequency = 0;
+    if (uniqueSalesList.length > 0) {
+      salesFrequency = totalDaysSinceStart / uniqueSalesList.length;
     }
 
     const validCycles = uniqueSalesList.map(s => {
