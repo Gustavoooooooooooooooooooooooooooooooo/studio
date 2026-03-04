@@ -13,17 +13,6 @@ import { collection, serverTimestamp, getDocs, writeBatch, doc } from "firebase/
 import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 
 interface GoogleSheetsSyncProps {
   mode: 'inventory' | 'sales' | 'leads';
@@ -49,19 +38,30 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       .replace(/[\u0300-\u036f]/g, "")
       .trim();
 
-  const excelDateToJSDate = (serial: any) => {
-    if (serial === undefined || serial === null || String(serial).trim() === "") return "";
-    const cleanSerial = String(serial).trim();
-    if (cleanSerial.includes('/')) return cleanSerial;
+  const excelDateToJSDate = (val: any) => {
+    if (val === undefined || val === null || String(val).trim() === "") return "";
+    const strVal = String(val).trim();
     
-    let val = cleanSerial.replace(/\./g, '').replace(',', '.');
-    const num = parseFloat(val);
+    // Tentar detectar Serial do Excel (número puro)
+    const cleanStr = strVal.replace(/[^\d]/g, '');
+    const num = Number(cleanStr);
     
-    if (!isNaN(num) && num > 30000 && num < 60000) {
+    // Números entre 40000 e 60000 cobrem de 2009 a 2063
+    if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('-')) {
       const date = new Date(Math.round((num - 25569) * 86400 * 1000));
       return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
     }
-    return cleanSerial;
+
+    // Se já estiver no formato brasileiro DD/MM/YYYY
+    if (strVal.match(/^\d{1,2}\/\d{1,2}\/\d{2,4}$/)) return strVal;
+
+    // Se estiver em formato ISO YYYY-MM-DD
+    const isoMatch = strVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) {
+      return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
+    }
+
+    return strVal;
   };
 
   const getVal = (row: any, searchKeys: string[]) => {
@@ -78,7 +78,6 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     for (const rowKey of rowKeys) {
       const normalizedRowKey = normalize(rowKey);
       if (normalizedSearchKeys.some(sk => normalizedRowKey.includes(sk))) {
-        if (normalizedSearchKeys.includes("data") && normalizedRowKey.includes("vendedor")) continue;
         return row[rowKey];
       }
     }
@@ -132,9 +131,10 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
             } else if (mode === 'sales') {
               const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "fechamento", "venda"]));
               const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "entrada"]));
+              const closedVal = parseCurrency(getVal(row, ["valor fechado", "valor venda", "venda", "fechamento"]));
               
               const dateKey = String(dataVendaRaw).replace(/\//g, '-');
-              const safeSaleId = `sale-${propertyCode}-${dateKey}`.replace(/[\/\.\#\$\/\[\]]/g, "-");
+              const safeSaleId = `sale-${propertyCode}-${dateKey}-${closedVal}`.replace(/[\/\.\#\$\/\[\]]/g, "-");
               const saleRef = doc(firestore, "vendas_imoveis", safeSaleId);
               
               setDocumentNonBlocking(saleRef, {
@@ -145,7 +145,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
                 neighborhood: String(getVal(row, ["bairro", "localizacao", "empreendimento"]) || "N/A"),
                 clientName: String(getVal(row, ["cliente", "comprador", "nome contrato"]) || "N/A"),
                 advertisedValue: parseCurrency(getVal(row, ["valor anuncio", "valor inicial", "anuncio"])),
-                closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda", "venda", "fechamento"])),
+                closedValue: closedVal,
                 saleDate: String(dataVendaRaw || ""),
                 propertyCaptureDate: String(dataEntradaRaw || ""),
                 status: "Vendido",
@@ -153,7 +153,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'leads') {
-              const leadRef = doc(firestore, "leads", `lead-${processedCount}`);
+              const leadRef = doc(firestore, "leads", `lead-${processedCount}-${Date.now()}`);
               setDocumentNonBlocking(leadRef, { ...row, importedAt: serverTimestamp() }, { merge: true });
             }
             processedCount++;

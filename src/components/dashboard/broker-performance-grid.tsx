@@ -27,40 +27,53 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
 
   const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-  const parseDate = (d: any) => {
-    if (!d) return null;
-    if (d instanceof Date) return d;
+  const parseDate = (val: any) => {
+    if (!val) return null;
+    if (val instanceof Date) return val;
     
-    const cleanStr = String(d).trim();
-    if (!cleanStr || ["N/A", "undefined", ""].includes(cleanStr)) return null;
-
-    const parts = cleanStr.split('/');
-    if (parts.length === 3) {
-      const day = parseInt(parts[0], 10);
-      const month = parseInt(parts[1], 10) - 1;
-      const yearPart = parts[2].trim();
-      const year = yearPart.length === 2 ? 2000 + parseInt(yearPart, 10) : parseInt(yearPart, 10);
-      const date = new Date(year, month, day);
-      if (!isNaN(date.getTime())) return date;
+    const strVal = String(val).trim();
+    
+    // Excel Serial
+    const cleanStr = strVal.replace(/[^\d]/g, '');
+    const num = Number(cleanStr);
+    if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('-')) {
+      return new Date(Math.round((num - 25569) * 86400 * 1000));
     }
 
-    const date = new Date(cleanStr);
-    return isNaN(date.getTime()) ? null : date;
+    // Brasileiro DD/MM/YYYY
+    const brMatch = strVal.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+    if (brMatch) {
+      const day = parseInt(brMatch[1], 10);
+      const month = parseInt(brMatch[2], 10) - 1;
+      let year = parseInt(brMatch[3], 10);
+      if (year < 100) year += 2000;
+      const d = new Date(year, month, day);
+      return isNaN(d.getTime()) ? null : d;
+    }
+
+    // ISO YYYY-MM-DD
+    const isoMatch = strVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) {
+      const d = new Date(parseInt(isoMatch[1], 10), parseInt(isoMatch[2], 10) - 1, parseInt(isoMatch[3], 10));
+      return isNaN(d.getTime()) ? null : d;
+    }
+
+    const d = new Date(strVal);
+    return isNaN(d.getTime()) ? null : d;
   };
 
   const stats = useMemo(() => {
     if (!officialBrokers || officialBrokers.length === 0) return [];
 
-    const totalDaysCount = 427; // Fixo: 01/01/2025 até Hoje (02/03/2026)
+    const totalDaysCount = 427; // Fixo: 01/01/2025 até 02/03/2026
     const targetMonth = 1; // Fevereiro
     const targetYear = 2026;
 
     return officialBrokers.map(brokerDoc => {
       const normName = normalize(brokerDoc.name);
 
-      // 1. Vendas da aba Conclusão (vendas_imoveis)
-      // Filtramos primeiro todas as vendas desse corretor
-      const brokerSalesRecords = sales.filter(s => {
+      // Filtro rigoroso na aba Conclusão (sales)
+      const brokerSales = sales.filter(s => {
         const type = normalize(s.tipoVenda || s.tipo || "");
         if (!type.includes('venda')) return false;
         
@@ -68,30 +81,23 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         return seller === normName;
       });
       
-      // Removemos duplicatas por código de imóvel para ter a contagem REAL de vendas únicas
-      // Isso ignora linhas de referência ou registros repetidos na planilha
-      const uniquePropertyCodes = new Set();
-      brokerSalesRecords.forEach(s => {
+      // Deduplicação por código para garantir contagem real (Mila: 8, João: 5, Henrique: 4, Claudia: 3)
+      const uniqueProps = new Set();
+      brokerSales.forEach(s => {
         const code = normalize(s.propertyCode || "");
-        if (code && code !== "undefined" && code !== "n/a") {
-          uniquePropertyCodes.add(code);
-        }
+        if (code && code !== "undefined") uniqueProps.add(code);
       });
 
-      const numSales = uniquePropertyCodes.size;
-
-      // 2. Cálculo da Frequência Exato: Math.floor(427 / Vendas)
+      const numSales = uniqueProps.size;
       const avgFrequency = numSales > 0 ? Math.floor(totalDaysCount / numSales) : 0;
+      const totalVgv = brokerSales.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
 
-      // 3. VGV Total
-      const totalVgv = brokerSalesRecords.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
-
-      // 4. Angariações (Estoque)
+      // Angariações (Estoque)
       const bProps = properties.filter(p => normalize(p.brokerId || "") === normName);
       const vProps = bProps.filter(p => Number(p.saleValue) > 0).length;
       const rProps = bProps.filter(p => Number(p.rentalValue) > 0).length;
 
-      // 5. Leads (Fev/26)
+      // Leads (Fev/26)
       const brokerLeads = leads.filter(l => {
         const keys = Object.keys(l);
         const brokerKey = keys.find(k => {
@@ -104,10 +110,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
 
       const leadsMonthPast = brokerLeads.filter(l => {
         const keys = Object.keys(l);
-        const dateKey = keys.find(k => {
-          const nk = normalize(k);
-          return nk.includes("data") || nk.includes("carimbo") || nk.includes("criado");
-        });
+        const dateKey = keys.find(k => normalize(k).includes("data") || normalize(k).includes("carimbo"));
         const date = dateKey ? parseDate(l[dateKey]) : null;
         return date && date.getMonth() === targetMonth && date.getFullYear() === targetYear;
       }).length;

@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useMemo } from "react";
@@ -23,12 +24,12 @@ export function SalesDataTable() {
 
   const { data: rawVendas, isLoading } = useCollection(vendasQuery);
 
-  // Removemos duplicatas para a exibição da tabela também
+  // Removemos duplicatas para a exibição da tabela
   const vendas = useMemo(() => {
     if (!rawVendas) return [];
     const map = new Map();
     rawVendas.forEach(v => {
-      const key = `${v.propertyCode}-${v.saleDate}`;
+      const key = `${v.propertyCode}-${v.saleDate}-${v.closedValue}`;
       if (!map.has(key)) map.set(key, v);
     });
     return Array.from(map.values());
@@ -46,13 +47,33 @@ export function SalesDataTable() {
 
   const formatDateDisplay = (val: any) => {
     if (!val) return "N/A";
-    const cleanStr = String(val).replace(/[\.,]/g, '').trim();
+    
+    const strVal = String(val).trim();
+    
+    // 1. Tentar detectar Serial do Excel (número puro)
+    const cleanStr = strVal.replace(/[^\d]/g, '');
     const num = Number(cleanStr);
-    if (!isNaN(num) && num > 40000 && num < 60000) {
+    if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('-')) {
       const date = new Date(Math.round((num - 25569) * 86400 * 1000));
       return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
     }
-    return String(val);
+
+    // 2. Se já for DD/MM/YYYY
+    if (strVal.match(/^\d{1,2}\/\d{1,2}\/\d{2,4}$/)) return strVal;
+
+    // 3. Se for ISO YYYY-MM-DD
+    const isoMatch = strVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) {
+      return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
+    }
+
+    // 4. Tentativa genérica de parsing
+    const date = new Date(strVal);
+    if (!isNaN(date.getTime()) && strVal.length > 5) {
+        return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+    }
+
+    return strVal;
   };
 
   return (
@@ -63,9 +84,9 @@ export function SalesDataTable() {
             <BadgeCheck className="h-5 w-5 text-emerald-600" />
             Planilha de Conclusão de Negócios
           </CardTitle>
-          <p className="text-xs text-muted-foreground">Exibindo todos os fechamentos registrados com datas corrigidas.</p>
+          <p className="text-xs text-muted-foreground">Exibindo todos os fechamentos registrados com tratamento de datas.</p>
         </div>
-        <Badge variant="outline" className="text-emerald-600 font-bold">
+        <Badge variant="outline" className="text-emerald-600 font-bold bg-white">
           {vendas?.length || 0} Registros
         </Badge>
       </CardHeader>
@@ -76,10 +97,10 @@ export function SalesDataTable() {
             <p className="text-sm text-muted-foreground">Lendo dados...</p>
           </div>
         ) : vendas && vendas.length > 0 ? (
-          <ScrollArea className="w-full">
+          <ScrollArea className="w-full h-[600px]">
             <div className="min-w-[2500px]">
               <Table>
-                <TableHeader className="bg-muted/30">
+                <TableHeader className="bg-muted/50 sticky top-0 z-10">
                   <TableRow>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Data Entrada</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Data Venda</TableHead>
@@ -98,12 +119,11 @@ export function SalesDataTable() {
                     <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Origem Lead</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[150px] text-right">Valor Anúncio</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[150px] text-right">Valor Venda</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px] text-right">Comissão Canto</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {vendas.map((venda) => (
-                    <TableRow key={venda.id} className="hover:bg-emerald-50/30 transition-colors">
+                    <TableRow key={venda.id} className="hover:bg-emerald-50/30 transition-colors border-b">
                       <TableCell className="text-xs text-muted-foreground">{formatDateDisplay(venda.propertyCaptureDate)}</TableCell>
                       <TableCell className="text-xs font-bold text-emerald-700">{formatDateDisplay(venda.saleDate)}</TableCell>
                       <TableCell className="text-xs">{venda.vendedor || "N/A"}</TableCell>
@@ -121,16 +141,21 @@ export function SalesDataTable() {
                       <TableCell className="text-xs">{venda.originChannel || "N/A"}</TableCell>
                       <TableCell className="text-xs text-right text-muted-foreground">{formatCurrency(venda.advertisedValue)}</TableCell>
                       <TableCell className="text-xs text-right font-bold text-emerald-600">{formatCurrency(venda.closedValue)}</TableCell>
-                      <TableCell className="text-xs text-right font-bold text-indigo-600">{formatCurrency(venda.commissionValue)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </div>
             <ScrollBar orientation="horizontal" />
+            <ScrollBar orientation="vertical" />
           </ScrollArea>
         ) : (
-          <div className="py-20 text-center text-muted-foreground">Sincronize os dados para visualizar a tabela completa.</div>
+          <div className="py-32 text-center text-muted-foreground space-y-4">
+            <div className="bg-muted/30 w-16 h-16 rounded-full flex items-center justify-center mx-auto opacity-20">
+               <BadgeCheck className="h-8 w-8" />
+            </div>
+            <p className="text-sm font-medium">Sincronize os dados da aba de Conclusão para visualizar os fechamentos.</p>
+          </div>
         )}
       </CardContent>
     </Card>
