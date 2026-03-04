@@ -33,7 +33,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
     const targetMonth = 1; // Fevereiro (0-indexed)
     const targetYear = 2026;
     const referenceNow = new Date(2026, 2, 2); // Data "hoje" do app (Março 2, 2026)
-    const fixedStartDate = new Date(2025, 0, 1); // Data fixa solicitada: 01/01/2025
+    const fixedStartDate = new Date(2025, 0, 1); // Data fixa: 01/01/2025
 
     const parseDate = (d: any) => {
       if (!d) return null;
@@ -64,7 +64,15 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
 
     // Calculamos o total de dias transcorridos desde 01/01/2025 (inclusivo)
     const diffMs = referenceNow.getTime() - fixedStartDate.getTime();
-    const totalDaysCount = Math.floor(diffMs / (1000 * 3600 * 24)) + 1; // +1 para ser inclusive, resultando nos ~427 dias mostrados na imagem
+    const totalDaysCount = Math.floor(diffMs / (1000 * 3600 * 24)); // Total de dias passados desde a data base
+
+    // Desduplicar vendas globais para evitar contagem errada se houver registros repetidos
+    const uniqueSalesMap = new Map();
+    sales.forEach(s => {
+      const key = `${normalize(s.propertyCode)}-${s.saleDate}`;
+      if (!uniqueSalesMap.has(key)) uniqueSalesMap.set(key, s);
+    });
+    const dedupedSales = Array.from(uniqueSalesMap.values());
 
     return officialBrokers.map(brokerDoc => {
       const displayName = brokerDoc.name;
@@ -78,7 +86,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       const vProps = bProps.filter(p => Number(p.saleValue) > 0);
       const rProps = bProps.filter(p => Number(p.rentalValue) > 0);
 
-      // Filtro de Leads
+      // Filtro de Leads (Mês Passado - Fevereiro/2026)
       const brokerLeads = leads.filter(l => {
         const keys = Object.keys(l);
         const brokerKey = keys.find(k => {
@@ -90,7 +98,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         return leadBrokerVal && (leadBrokerVal === normName || leadBrokerVal.includes(normName));
       });
 
-      // Leads Mês Passado
       const leadsMonthPast = brokerLeads.filter(l => {
         const keys = Object.keys(l);
         const dateKey = keys.find(k => {
@@ -122,15 +129,16 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         return activityVal.includes("realizada") && (natureVal.includes("locacao") || natureVal.includes("aluguel"));
       });
 
-      // VGV do corretor e Frequência
-      const bSalesRecords = sales.filter(s => {
+      // Vendas do corretor (usando a lista desduplicada)
+      const bSalesRecords = dedupedSales.filter(s => {
         const vend = normalize(s.vendedor);
         return vend === normName || vend.includes(normName);
       });
+      
       const totalVgv = bSalesRecords.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
       const numSales = bSalesRecords.length;
       
-      // LÓGICA DE FREQUÊNCIA (GIRO): DIAS TOTAIS / NÚMERO DE VENDAS
+      // LÓGICA DE FREQUÊNCIA (GIRO): (Hoje - 01/01/2025) / Número de Vendas
       let avgFrequency = 0;
       if (numSales > 0) {
         avgFrequency = totalDaysCount / numSales;
