@@ -22,7 +22,7 @@ import { collection, query, orderBy } from "firebase/firestore";
 
 export default function AppContainer() {
   const [mounted, setMounted] = useState(false);
-  // Fixamos Hoje em 02 de Março de 2026 para os cálculos de performance.
+  // Fixamos Hoje em 02 de Março de 2026 para os cálculos de performance conforme solicitado.
   const [now] = useState<Date>(new Date(2026, 2, 2)); 
   const { auth, firestore } = useFirebase();
 
@@ -90,6 +90,7 @@ export default function AppContainer() {
       return Math.floor((t1 - t2) / (1000 * 60 * 60 * 24));
     };
 
+    // Desduplicar vendas globais
     const uniqueSalesMap = new Map();
     sales.forEach(s => {
       const key = `${s.propertyCode}-${s.saleDate}`;
@@ -109,7 +110,7 @@ export default function AppContainer() {
       daysSinceLastSaleDisplay = `${Math.max(0, diff)} Dias`;
     }
 
-    // NOVA LÓGICA DE FREQUÊNCIA: (HOJE - 01/01/2025) / TOTAL DE VENDAS
+    // LÓGICA DE PRODUTIVIDADE REAL: (HOJE - 01/01/2025) / TOTAL DE VENDAS
     const fixedStartDate = new Date(2025, 0, 1);
     const diffMsSinceFixed = now.getTime() - fixedStartDate.getTime();
     const totalDaysSinceStart = diffMsSinceFixed / (1000 * 3600 * 24);

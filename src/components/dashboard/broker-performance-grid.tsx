@@ -32,8 +32,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
 
     const targetMonth = 1; // Fevereiro (0-indexed)
     const targetYear = 2026;
-    const referenceNow = new Date(2026, 2, 2); // Data "hoje" do app (Março 2, 2026)
-    const fixedStartDate = new Date(2025, 0, 1); // Data fixa: 01/01/2025
+    const referenceNow = new Date(2026, 2, 2); // Data "hoje" fixa do app
+    const fixedStartDate = new Date(2025, 0, 1); // Data inicial: 01/01/2025
 
     const parseDate = (d: any) => {
       if (!d) return null;
@@ -62,11 +62,11 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       return isNaN(date.getTime()) ? null : date;
     };
 
-    // Calculamos o total de dias transcorridos desde 01/01/2025 (inclusivo)
+    // Total de dias transcorridos desde 01/01/2025
     const diffMs = referenceNow.getTime() - fixedStartDate.getTime();
-    const totalDaysCount = Math.floor(diffMs / (1000 * 3600 * 24)); // Total de dias passados desde a data base
+    const totalDaysCount = diffMs / (1000 * 3600 * 24);
 
-    // Desduplicar vendas globais para evitar contagem errada se houver registros repetidos
+    // Desduplicar vendas globais
     const uniqueSalesMap = new Map();
     sales.forEach(s => {
       const key = `${normalize(s.propertyCode)}-${s.saleDate}`;
@@ -86,7 +86,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       const vProps = bProps.filter(p => Number(p.saleValue) > 0);
       const rProps = bProps.filter(p => Number(p.rentalValue) > 0);
 
-      // Filtro de Leads (Mês Passado - Fevereiro/2026)
+      // Filtro de Leads (Fevereiro/2026)
       const brokerLeads = leads.filter(l => {
         const keys = Object.keys(l);
         const brokerKey = keys.find(k => {
@@ -138,7 +138,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       const totalVgv = bSalesRecords.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
       const numSales = bSalesRecords.length;
       
-      // LÓGICA DE FREQUÊNCIA (GIRO): (Hoje - 01/01/2025) / Número de Vendas
+      // FÓRMULA DE PRODUTIVIDADE: (Hoje - 01/01/2025) / Vendas_do_Corretor
       let avgFrequency = 0;
       if (numSales > 0) {
         avgFrequency = totalDaysCount / numSales;
@@ -152,7 +152,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         vProps: vProps.length,
         rProps: rProps.length,
         numSales,
-        totalDays: totalDaysCount,
         vgv: totalVgv,
         avgFrequency
       };
@@ -183,7 +182,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                 <TableHead className="text-center border-r text-xs uppercase">Visitas (Aluguel)</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase">Angariados</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase">Vendas</TableHead>
-                <TableHead className="text-right border-r text-xs uppercase bg-amber-50/30">Giro (Dias)</TableHead>
+                <TableHead className="text-right border-r text-xs uppercase bg-amber-50/30">Frequência Venda</TableHead>
                 <TableHead className="text-right font-bold text-xs uppercase bg-primary/5">VGV Total</TableHead>
               </TableRow>
             </TableHeader>
