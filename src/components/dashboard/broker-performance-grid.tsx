@@ -67,7 +67,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       const displayName = brokerDoc.name;
       const normName = normalize(displayName);
 
-      // 1. Angariações (Cadastro de Imóveis) - Filtro por Broker
+      // 1. Angariações (Cadastro de Imóveis)
       const bProps = properties.filter(p => {
         const bId = normalize(p.brokerId || p.angariador || "");
         return bId === normName || bId.includes(normName);
@@ -75,7 +75,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       const vPropsCount = bProps.filter(p => Number(p.saleValue || p.valorVenda) > 0).length;
       const rPropsCount = bProps.filter(p => Number(p.rentalValue || p.valorAluguel) > 0).length;
 
-      // 2. Leads (Mês Alvo: Fev/26)
+      // 2. Leads (Fev/26)
       const brokerLeads = leads.filter(l => {
         const keys = Object.keys(l);
         const brokerKey = keys.find(k => {
@@ -96,14 +96,12 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         return date && date.getMonth() === targetMonth && date.getFullYear() === targetYear;
       }).length;
 
-      // 3. VENDAS (Aba Conclusão / Collection: vendas_imoveis)
-      // Removida deduplicação global para contar cada transação individualmente por corretor
+      // 3. VENDAS (Aba Conclusão)
+      // Contabilizamos todos os registros individuais da aba de conclusão para este corretor
       const brokerSales = sales.filter(s => {
-        // Natureza: Venda
         const type = normalize(s.tipoVenda || s.tipo || "");
         if (!type.includes('venda')) return false;
         
-        // Vendedor: Comparação por nome
         const seller = normalize(s.vendedor || s.corretor || s.venda || "");
         return seller === normName || seller.includes(normName);
       });
@@ -111,8 +109,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       const numSales = brokerSales.length;
       const totalVgv = brokerSales.reduce((acc, s) => acc + (Number(s.closedValue || s.valorVenda) || 0), 0);
       
-      // 4. CÁLCULO DO GIRO (Frequência): Dias Totais / Vendas Reais
-      // Usamos Math.floor para bater com os valores esperados (ex: 427/8 = 53)
+      // 4. CÁLCULO DO GIRO (Frequência): Dias Totais / Vendas
+      // Com 8 vendas e 427 dias, o resultado deve ser exatamente 53 (usando floor)
       const avgFrequency = numSales > 0 ? Math.floor(totalDaysCount / numSales) : 0;
 
       return {

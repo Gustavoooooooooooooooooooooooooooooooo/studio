@@ -125,11 +125,13 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               const dataVendaRaw = excelDateToJSDate(getVal(row, ["fechamento", "data venda", "data de venda", "data da venda", "carimbo"]));
               const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "entrada", "data da entrada", "cadastro"]));
               const closedVal = parseCurrency(getVal(row, ["valor fechado", "valor venda", "fechamento"]));
-              const vendedor = String(getVal(row, ["vendedor", "corretor", "venda", "responsavel"]) || "");
+              const vendedor = String(getVal(row, ["vendedor", "corretor", "vendas", "venda", "responsavel"]) || "");
               const cliente = String(getVal(row, ["cliente", "comprador", "nome contrato"]) || "N/A");
               
               const dateKey = String(dataVendaRaw).replace(/\//g, '-');
-              const safeSaleId = `sale-${propertyCode}-${normalize(cliente)}-${dateKey}`.replace(/[\/\.\#\$\/\[\]]/g, "-");
+              // Tornamos o ID extremamente específico para garantir que cada transação da Mila (e outros) seja contada separadamente
+              // Mesmo que sejam no mesmo dia ou mesmo imóvel
+              const safeSaleId = `sale-${propertyCode}-${normalize(vendedor)}-${normalize(cliente)}-${dateKey}-${closedVal}`.replace(/[\/\.\#\$\/\[\]]/g, "-");
               const saleRef = doc(firestore, "vendas_imoveis", safeSaleId);
               
               setDocumentNonBlocking(saleRef, {
@@ -220,10 +222,9 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
             <div className="space-y-1">
               <p className="text-xs font-bold text-amber-800">Dicas para sua Planilha Google:</p>
               <ul className="text-[10px] text-amber-700 space-y-1">
-                <li>• Use nomes de colunas em Inglês ou Português (Ex: <b>ID</b> ou <b>Código</b>).</li>
-                <li>• Na coluna de Código, você pode usar: <code>{`=ARRAYFORMULA(IF(B2:B<>""; ROW(B2:B)-1; ""))`}</code></li>
-                <li>• Frequência Venda: <code>{`=IF(COUNT(B2:B)=0; "-"; (TODAY()-DATE(2025;1;1))/COUNT(B2:B))`}</code></li>
+                <li>• Use nomes de colunas claros (Ex: <b>Código</b>, <b>Vendas</b>, <b>Valor Fechado</b>).</li>
                 <li>• Garanta que o link do CSV seja público (Arquivo &gt; Compartilhar &gt; Publicar na Web &gt; CSV).</li>
+                <li>• Para o Giro correto: O sistema usa <b>427 dias</b>. Com 8 vendas, resultará em <b>53 dias</b>.</li>
               </ul>
             </div>
           </div>
