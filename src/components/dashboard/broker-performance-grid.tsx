@@ -68,7 +68,11 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       const type = normalize(s.tipoVenda || s.tipo || "");
       if (!type.includes('venda')) return;
 
-      const cleanCode = normalize(s.propertyCode).replace(/[^a-z0-9]/g, "");
+      // Ignorar linhas que não possuem código de imóvel (linhas de referência de data)
+      const pCode = String(s.propertyCode || "").trim();
+      if (!pCode || pCode === "undefined" || pCode === "N/A") return;
+
+      const cleanCode = normalize(pCode).replace(/[^a-z0-9]/g, "");
       const d = parseDate(s.saleDate);
       const cleanDate = d ? d.toISOString().split('T')[0] : normalize(s.saleDate);
       
@@ -142,7 +146,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       const totalVgv = bSalesRecords.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
       const numSales = bSalesRecords.length;
       
-      // FÓRMULA DE PRODUTIVIDADE REAL: 427 / Vendas
+      // FÓRMULA DE PRODUTIVIDADE REAL: 427 / Vendas (Usando floor para bater com o cálculo manual)
       let avgFrequency = 0;
       if (numSales > 0) {
         avgFrequency = totalDaysCount / numSales;
@@ -224,7 +228,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                     {row.numSales}
                   </TableCell>
                   <TableCell className="text-right border-r py-2 text-xs font-bold text-amber-700 bg-amber-50/20">
-                    {row.avgFrequency > 0 ? `${Math.round(row.avgFrequency)} dias` : "-"}
+                    {row.avgFrequency > 0 ? `${Math.floor(row.avgFrequency)} dias` : "-"}
                   </TableCell>
                   <TableCell className="text-right py-2 font-bold text-primary bg-primary/5 text-sm">
                     {formatCurrency(row.vgv)}

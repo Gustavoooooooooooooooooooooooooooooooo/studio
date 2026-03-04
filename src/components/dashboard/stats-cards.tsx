@@ -61,7 +61,7 @@ export function StatsCards({ metrics }: StatsCardsProps) {
     },
     {
       title: "Frequência de Vendas",
-      value: `${metrics.salesFrequency > 0 ? Math.round(metrics.salesFrequency) : 0} Dias`,
+      value: `${metrics.salesFrequency > 0 ? Math.floor(metrics.salesFrequency) : 0} Dias`,
       description: "Intervalo médio entre vendas",
       icon: Zap,
       color: "text-amber-600",
