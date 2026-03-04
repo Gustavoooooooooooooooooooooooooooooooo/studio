@@ -30,38 +30,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
   const stats = useMemo(() => {
     if (!officialBrokers || officialBrokers.length === 0) return [];
 
-    const targetMonth = 1; // Fevereiro (0-indexed)
-    const targetYear = 2026;
-    
     // BASE DE CÁLCULO FIXA: 427 dias (01/01/2025 até 02/03/2026)
     const totalDaysCount = 427;
-
-    const parseDate = (d: any) => {
-      if (!d) return null;
-      if (d instanceof Date) return d;
-      
-      const cleanStr = String(d).trim();
-      if (!cleanStr || cleanStr === "N/A" || cleanStr === "undefined" || cleanStr === "") return null;
-
-      const parts = cleanStr.split('/');
-      if (parts.length === 3) {
-        const day = parseInt(parts[0], 10);
-        const month = parseInt(parts[1], 10) - 1;
-        const yearPart = parts[2].trim();
-        const year = yearPart.length === 2 ? 2000 + parseInt(yearPart, 10) : parseInt(yearPart, 10);
-        const date = new Date(year, month, day);
-        if (!isNaN(date.getTime())) return date;
-      }
-
-      let val = cleanStr.replace(/\./g, '').replace(',', '.');
-      const num = parseFloat(val);
-      if (!isNaN(num) && num > 40000 && num < 60000) {
-        return new Date(Math.round((num - 25569) * 86400 * 1000));
-      }
-
-      const date = new Date(cleanStr);
-      return isNaN(date.getTime()) ? null : date;
-    };
 
     return officialBrokers.map(brokerDoc => {
       const displayName = brokerDoc.name;
@@ -73,29 +43,18 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         return bId === normName || bId.includes(normName);
       });
       
-      // Separa Venda e Locação
       const vPropsCount = bProps.filter(p => Number(p.saleValue || p.valorVenda) > 0).length;
       const lPropsCount = bProps.filter(p => Number(p.rentalValue || p.valorLocacao) > 0).length;
 
-      // 2. Leads (Fev/26)
-      const brokerLeads = leads.filter(l => {
+      // 2. Leads (Busca na aba Leads - total atendido)
+      const brokerLeadsCount = leads.filter(l => {
         const keys = Object.keys(l);
         const brokerKey = keys.find(k => {
           const nk = normalize(k);
-          return nk.includes("corretor") || nk.includes("responsavel") || nk.includes("atendente");
+          return nk.includes("corretor") || nk.includes("responsavel") || nk.includes("atendente") || nk.includes("venda");
         });
         if (!brokerKey) return false;
         return normalize(String(l[brokerKey])) === normName;
-      });
-
-      const leadsMonthCount = brokerLeads.filter(l => {
-        const keys = Object.keys(l);
-        const dateKey = keys.find(k => {
-          const nk = normalize(k);
-          return nk.includes("data") || nk.includes("carimbo") || nk.includes("criado");
-        });
-        const date = dateKey ? parseDate(l[dateKey]) : null;
-        return date && date.getMonth() === targetMonth && date.getFullYear() === targetYear;
       }).length;
 
       // 3. VENDAS (Aba Conclusão - vendas_imoveis)
@@ -112,7 +71,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
 
       return {
         name: displayName,
-        leads: leadsMonthCount,
+        leads: brokerLeadsCount,
         vProps: vPropsCount,
         lProps: lPropsCount,
         numSales,
@@ -141,7 +100,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
             <TableHeader>
               <TableRow className="bg-muted/5">
                 <TableHead className="font-bold border-r text-xs uppercase">Corretor</TableHead>
-                <TableHead className="text-center border-r text-xs uppercase">Leads (Fev/26)</TableHead>
+                <TableHead className="text-center border-r text-xs uppercase">Leads Atendidos</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase">Angariados</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase bg-primary/5">Vendas</TableHead>
                 <TableHead className="text-right border-r text-xs uppercase bg-amber-50/30">Frequência Venda</TableHead>
