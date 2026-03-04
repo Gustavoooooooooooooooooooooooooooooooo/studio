@@ -39,31 +39,39 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
 
       // 1. Angariações (Busca na aba Cadastro - properties)
       const bProps = properties.filter(p => {
-        // Verifica se o nome do corretor está em campos comuns de angariação
         const fields = [p.brokerId, p.angariador, p.captador, p.quemAngariou, p.responsavel];
-        return fields.some(f => normalize(String(f || "")) === normName || normalize(String(f || "")).includes(normName));
+        return fields.some(f => {
+          const nv = normalize(String(f || ""));
+          return nv === normName || (normName.length > 2 && nv.includes(normName));
+        });
       });
       
       const vPropsCount = bProps.filter(p => Number(p.saleValue || p.valorVenda) > 0).length;
       const lPropsCount = bProps.filter(p => Number(p.rentalValue || p.valorLocacao) > 0).length;
 
       // 2. Leads (Busca na aba Leads - total atendido)
-      // Procuramos o nome do corretor em qualquer valor da linha do lead para máxima compatibilidade
       const brokerLeadsCount = leads.filter(l => {
-        return Object.values(l).some(val => {
-          if (typeof val !== 'string' && typeof val !== 'number') return false;
-          const normVal = normalize(String(val));
-          return normVal === normName || (normVal.length > 3 && normVal.includes(normName));
+        const entries = Object.entries(l);
+        return entries.some(([key, val]) => {
+          const nk = normalize(key);
+          const nv = normalize(String(val || ""));
+          
+          // Se for uma coluna provável de corretor, fazemos match mais flexível
+          if (nk.includes("corretor") || nk.includes("responsavel") || nk.includes("atendente") || nk.includes("vendedor") || nk === "atendido" || nk === "quem") {
+             return nv === normName || (normName.length > 2 && nv.includes(normName));
+          }
+          // Caso contrário, apenas match exato para evitar falsos positivos
+          return nv === normName;
         });
       }).length;
 
       // 3. VENDAS (Aba Conclusão - vendas_imoveis)
-      // Buscamos especificamente por quem vendeu conforme solicitado
       const brokerSales = sales.filter(s => {
-        const sellerFields = [s.vendedor, s.corretor, s.vendas, s.venda, s.responsavel];
+        // Buscamos especificamente nas colunas comuns e na coluna "Vendas" solicitada
+        const sellerFields = [s.vendedor, s.vendas, s.corretor, s.venda, s.responsavel, s.vendas_corretor];
         return sellerFields.some(f => {
-          const normVal = normalize(String(f || ""));
-          return normVal === normName || (normVal.length > 3 && normVal.includes(normName));
+          const nv = normalize(String(f || ""));
+          return nv === normName || (normName.length > 2 && nv.includes(normName));
         });
       });
       
