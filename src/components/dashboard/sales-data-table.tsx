@@ -1,6 +1,6 @@
-
 "use client"
 
+import { useMemo } from "react";
 import { useCollection, useMemoFirebase, useFirebase } from "@/firebase";
 import { collection, query, orderBy, limit } from "firebase/firestore";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
