@@ -58,8 +58,9 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
     return officialBrokers.map(brokerDoc => {
       const normName = normalize(brokerDoc.name);
 
-      // 1. Filtro de Vendas Rigoroso na aba Conclusão
-      const bSalesRecords = sales.filter(s => {
+      // 1. Vendas da aba Conclusão (vendas_imoveis)
+      // Filtramos primeiro todas as vendas desse corretor
+      const brokerSalesRecords = sales.filter(s => {
         const type = normalize(s.tipoVenda || s.tipo || "");
         if (!type.includes('venda')) return false;
         
@@ -67,15 +68,23 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         return seller === normName;
       });
       
-      // Remove duplicatas por código de imóvel para garantir contagem única de vendas
-      const uniqueCodes = [...new Set(bSalesRecords.map(s => String(s.propertyCode || "").trim()))].filter(code => code !== "" && code !== "undefined");
-      const numSales = uniqueCodes.length;
+      // Removemos duplicatas por código de imóvel para ter a contagem REAL de vendas únicas
+      // Isso ignora linhas de referência ou registros repetidos na planilha
+      const uniquePropertyCodes = new Set();
+      brokerSalesRecords.forEach(s => {
+        const code = normalize(s.propertyCode || "");
+        if (code && code !== "undefined" && code !== "n/a") {
+          uniquePropertyCodes.add(code);
+        }
+      });
 
-      // 2. Cálculo da Frequência: Dias Totais / Vendas Únicas
+      const numSales = uniquePropertyCodes.size;
+
+      // 2. Cálculo da Frequência Exato: Math.floor(427 / Vendas)
       const avgFrequency = numSales > 0 ? Math.floor(totalDaysCount / numSales) : 0;
 
-      // 3. VGV Total das vendas únicas identificadas
-      const totalVgv = bSalesRecords.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
+      // 3. VGV Total
+      const totalVgv = brokerSalesRecords.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
 
       // 4. Angariações (Estoque)
       const bProps = properties.filter(p => normalize(p.brokerId || "") === normName);
