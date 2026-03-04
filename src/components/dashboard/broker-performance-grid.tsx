@@ -171,7 +171,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                 <TableHead className="text-center border-r text-xs uppercase">Leads (Mês Ant.)</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase">Visitas (Compra)</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase">Visitas (Aluguel)</TableHead>
-                <TableHead className="text-center border-r text-xs uppercase">Angariados (V/L)</TableHead>
+                <TableHead className="text-center border-r text-xs uppercase">Angariados</TableHead>
                 <TableHead className="text-right border-r text-xs uppercase">Tempo Médio</TableHead>
                 <TableHead className="text-right font-bold text-xs uppercase bg-primary/5">VGV Total</TableHead>
               </TableRow>
@@ -199,12 +199,10 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                     <div className="flex items-center justify-center gap-3 text-xs">
                       <div className="flex flex-col items-center">
                         <span className={`font-black ${row.vProps > 0 ? 'text-emerald-600' : 'text-muted-foreground/10'}`}>{row.vProps}</span>
-                        <span className="text-[8px] uppercase font-bold text-muted-foreground/40">V</span>
                       </div>
                       <div className="w-[1px] h-4 bg-muted/20" />
                       <div className="flex flex-col items-center">
                         <span className={`font-black ${row.rProps > 0 ? 'text-blue-600' : 'text-muted-foreground/10'}`}>{row.rProps}</span>
-                        <span className="text-[8px] uppercase font-bold text-muted-foreground/40">L</span>
                       </div>
                     </div>
                   </TableCell>
