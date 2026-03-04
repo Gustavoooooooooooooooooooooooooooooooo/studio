@@ -32,7 +32,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
 
     const targetMonth = 1; // Fevereiro (0-indexed)
     const targetYear = 2026;
-    const referenceNow = new Date(2026, 2, 2); // Data "hoje" do app
+    const referenceNow = new Date(2026, 2, 2); // Data "hoje" do app (Março 2, 2026)
     const fixedStartDate = new Date(2025, 0, 1); // Data fixa solicitada: 01/01/2025
 
     const parseDate = (d: any) => {
@@ -61,6 +61,10 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       const date = new Date(cleanStr);
       return isNaN(date.getTime()) ? null : date;
     };
+
+    // Calculamos o total de dias transcorridos desde 01/01/2025 (inclusivo)
+    const diffMs = referenceNow.getTime() - fixedStartDate.getTime();
+    const totalDaysCount = Math.floor(diffMs / (1000 * 3600 * 24)) + 1; // +1 para ser inclusive, resultando nos ~427 dias mostrados na imagem
 
     return officialBrokers.map(brokerDoc => {
       const displayName = brokerDoc.name;
@@ -124,15 +128,12 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         return vend === normName || vend.includes(normName);
       });
       const totalVgv = bSalesRecords.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
-      
-      // NOVA LÓGICA DE FREQUÊNCIA VENDA (Solicitada): (HOJE - 01/01/2025) / Número de Vendas
-      let avgFrequency = 0;
       const numSales = bSalesRecords.length;
       
+      // LÓGICA DE FREQUÊNCIA (GIRO): DIAS TOTAIS / NÚMERO DE VENDAS
+      let avgFrequency = 0;
       if (numSales > 0) {
-        const diffMs = referenceNow.getTime() - fixedStartDate.getTime();
-        const totalDays = diffMs / (1000 * 3600 * 24);
-        avgFrequency = totalDays / numSales;
+        avgFrequency = totalDaysCount / numSales;
       }
 
       return {
@@ -142,6 +143,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         visitsRent: visitsRealizedRent.length,
         vProps: vProps.length,
         rProps: rProps.length,
+        numSales,
+        totalDays: totalDaysCount,
         vgv: totalVgv,
         avgFrequency
       };
@@ -167,11 +170,12 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
             <TableHeader>
               <TableRow className="bg-muted/5">
                 <TableHead className="font-bold border-r text-xs uppercase">Corretor</TableHead>
-                <TableHead className="text-center border-r text-xs uppercase">Leads (Mês Ant.)</TableHead>
+                <TableHead className="text-center border-r text-xs uppercase">Leads (Fev/26)</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase">Visitas (Compra)</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase">Visitas (Aluguel)</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase">Angariados</TableHead>
-                <TableHead className="text-right border-r text-xs uppercase">Frequência Venda</TableHead>
+                <TableHead className="text-center border-r text-xs uppercase">Vendas</TableHead>
+                <TableHead className="text-right border-r text-xs uppercase bg-amber-50/30">Giro (Dias)</TableHead>
                 <TableHead className="text-right font-bold text-xs uppercase bg-primary/5">VGV Total</TableHead>
               </TableRow>
             </TableHeader>
@@ -205,7 +209,10 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell className="text-right border-r py-2 text-[10px] text-muted-foreground font-medium">
+                  <TableCell className="text-center border-r py-2 text-sm font-medium">
+                    {row.numSales}
+                  </TableCell>
+                  <TableCell className="text-right border-r py-2 text-xs font-bold text-amber-700 bg-amber-50/20">
                     {row.avgFrequency > 0 ? `${Math.round(row.avgFrequency)} dias` : "-"}
                   </TableCell>
                   <TableCell className="text-right py-2 font-bold text-primary bg-primary/5 text-sm">
