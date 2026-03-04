@@ -122,9 +122,9 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              // Deterministic ID to avoid duplicates on resync
+              // ID Único por linha para garantir que todas as vendas sejam contabilizadas sem sobreposição
               const vendedor = String(getVal(row, ["vendedor", "vendas", "corretor", "venda", "responsavel"]) || "N/A");
-              const safeSaleId = `sale-${normalize(vendedor)}-${normalize(propertyCode)}-${processedCount}`;
+              const safeSaleId = `sale-${normalize(vendedor)}-${processedCount}-${Date.now()}`;
               const saleRef = doc(firestore, "vendas_imoveis", safeSaleId);
               
               const dataVendaRaw = excelDateToJSDate(getVal(row, ["fechamento", "data venda", "data de venda", "data da venda", "carimbo", "data"]));
@@ -168,7 +168,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
 
   useEffect(() => {
     if (!autoSync || !url) return;
-    const interval = setInterval(() => handleSync(true), 120000); // Increased interval to reduce memory pressure
+    const interval = setInterval(() => handleSync(true), 120000);
     return () => clearInterval(interval);
   }, [autoSync, url, handleSync]);
 
@@ -221,7 +221,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
             <div className="space-y-1">
               <p className="text-xs font-bold text-amber-800">Dicas para sua Planilha Google:</p>
               <ul className="text-[10px] text-amber-700 space-y-1">
-                <li>• Use nomes de colunas claros (Ex: <b>Código</b>, <b>Vendedor</b>, <b>Data Venda</b>).</li>
+                <li>• Verifique se a coluna <b>Código</b> ou <b>Referência</b> está preenchida corretamente.</li>
                 <li>• Garanta que o link foi gerado em <b>Arquivo {'>'} Compartilhar {'>'} Publicar na Web {'>'} CSV</b>.</li>
                 <li>• A conta do Giro usa <b>427 dias</b>. Se Mila tem 8 vendas, o sistema mostrará <b>53 dias</b>.</li>
               </ul>
