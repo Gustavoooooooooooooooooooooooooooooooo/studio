@@ -32,6 +32,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
 
     const targetMonth = 1; // Fevereiro (0-indexed)
     const targetYear = 2026;
+    const referenceNow = new Date(2026, 2, 2); // Data "hoje" do app
+    const fixedStartDate = new Date(2025, 0, 1); // 01/01/2025 fixado pelo usuário
 
     const parseDate = (d: any) => {
       if (!d) return null;
@@ -116,26 +118,21 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         return activityVal.includes("realizada") && (natureVal.includes("locacao") || natureVal.includes("aluguel"));
       });
 
-      // VGV do corretor
+      // VGV do corretor e Frequência
       const bSalesRecords = sales.filter(s => {
         const vend = normalize(s.vendedor);
         return vend === normName || vend.includes(normName);
       });
       const totalVgv = bSalesRecords.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
       
-      // Nova Lógica de Frequência Venda (Intervalo real entre vendas)
+      // Lógica de Frequência Venda (Fixo desde 01/01/2025)
       let avgFrequency = 0;
-      const validSaleDates = bSalesRecords
-        .map(s => parseDate(s.saleDate))
-        .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
-        .sort((a, b) => a.getTime() - b.getTime());
-
-      if (validSaleDates.length >= 2) {
-        const firstSale = validSaleDates[0];
-        const lastSale = validSaleDates[validSaleDates.length - 1];
-        const diffMs = lastSale.getTime() - firstSale.getTime();
-        const diffDays = diffMs / (1000 * 3600 * 24);
-        avgFrequency = diffDays / (validSaleDates.length - 1);
+      const numSales = bSalesRecords.length;
+      
+      if (numSales > 0) {
+        const diffMs = referenceNow.getTime() - fixedStartDate.getTime();
+        const totalDays = diffMs / (1000 * 3600 * 24);
+        avgFrequency = totalDays / numSales;
       }
 
       return {
