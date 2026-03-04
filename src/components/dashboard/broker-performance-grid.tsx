@@ -32,8 +32,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
 
     const targetMonth = 1; // Fevereiro (0-indexed)
     const targetYear = 2026;
-    const referenceNow = new Date(2026, 2, 2); // Data "hoje" fixa do app
-    const fixedStartDate = new Date(2025, 0, 1); // Data inicial: 01/01/2025
+    const totalDaysCount = 426; // Fixado exato (01/01/2025 até 02/03/2026)
 
     const parseDate = (d: any) => {
       if (!d) return null;
@@ -62,14 +61,18 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       return isNaN(date.getTime()) ? null : date;
     };
 
-    // Total de dias transcorridos desde 01/01/2025 (Aproximadamente 426-427 dias)
-    const diffMs = referenceNow.getTime() - fixedStartDate.getTime();
-    const totalDaysCount = diffMs / (1000 * 3600 * 24);
-
-    // Desduplicar vendas globais
+    // Deduplicação ROBUSTA para evitar contagem inflada
     const uniqueSalesMap = new Map();
     sales.forEach(s => {
-      const key = `${normalize(s.propertyCode)}-${s.saleDate}`;
+      const type = String(s.tipoVenda || s.tipo || "").toLowerCase();
+      if (!type.includes('venda')) return;
+
+      const cleanCode = normalize(s.propertyCode).replace(/[^a-z0-9]/g, "");
+      const d = parseDate(s.saleDate);
+      const cleanDate = d ? d.toISOString().split('T')[0] : normalize(s.saleDate);
+      
+      // Chave única composta para garantir que a mesma venda não apareça 2x
+      const key = `${cleanCode}-${cleanDate}-${Math.round(Number(s.closedValue))}`;
       if (!uniqueSalesMap.has(key)) uniqueSalesMap.set(key, s);
     });
     const dedupedSales = Array.from(uniqueSalesMap.values());
@@ -129,17 +132,16 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         return activityVal.includes("realizada") && (natureVal.includes("locacao") || natureVal.includes("aluguel"));
       });
 
-      // Vendas do corretor: Filtrar APENAS o tipo 'Venda' para refletir a produtividade real
+      // Vendas do corretor (após deduplicação rigorosa)
       const bSalesRecords = dedupedSales.filter(s => {
         const vend = normalize(s.vendedor || s.corretor);
-        const isVenda = normalize(s.tipoVenda || s.tipo || "").includes('venda');
-        return (vend === normName || vend.includes(normName)) && isVenda;
+        return vend === normName || vend.includes(normName);
       });
       
       const totalVgv = bSalesRecords.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
       const numSales = bSalesRecords.length;
       
-      // FÓRMULA DE PRODUTIVIDADE: (Hoje - 01/01/2025) / Vendas_de_Corretor
+      // FÓRMULA DE PRODUTIVIDADE: 426 / Vendas
       let avgFrequency = 0;
       if (numSales > 0) {
         avgFrequency = totalDaysCount / numSales;
@@ -183,7 +185,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                 <TableHead className="text-center border-r text-xs uppercase">Visitas (Aluguel)</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase">Angariados</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase">Vendas</TableHead>
-                <TableHead className="text-right border-r text-xs uppercase bg-amber-50/30">Frequência Venda</TableHead>
+                <TableHead className="text-right border-r text-xs uppercase bg-amber-50/30">Giro (Dias)</TableHead>
                 <TableHead className="text-right font-bold text-xs uppercase bg-primary/5">VGV Total</TableHead>
               </TableRow>
             </TableHeader>
@@ -217,7 +219,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell className="text-center border-r py-2 text-sm font-medium">
+                  <TableCell className="text-center border-r py-2 text-sm font-bold bg-primary/5 text-primary">
                     {row.numSales}
                   </TableCell>
                   <TableCell className="text-right border-r py-2 text-xs font-bold text-amber-700 bg-amber-50/20">

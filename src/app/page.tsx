@@ -84,19 +84,26 @@ export default function AppContainer() {
       return isNaN(date.getTime()) ? null : date;
     };
 
+    const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
     const diffDays = (d1: Date, d2: Date) => {
       const t1 = Date.UTC(d1.getFullYear(), d1.getMonth(), d1.getDate());
       const t2 = Date.UTC(d2.getFullYear(), d2.getMonth(), d2.getDate());
       return Math.floor((t1 - t2) / (1000 * 60 * 60 * 24));
     };
 
-    // Desduplicar vendas globais E Filtrar APENAS o tipo 'Venda' para as métricas de Giro/Frequência
+    // Desduplicar vendas globais E Filtrar APENAS o tipo 'Venda'
     const uniqueSalesMap = new Map();
     sales.forEach(s => {
       const type = String(s.tipoVenda || s.tipo || "").toLowerCase();
-      if (!type.includes('venda')) return; // Ignorar locações no cálculo de giro de vendas
+      if (!type.includes('venda')) return;
+
+      const cleanCode = normalize(s.propertyCode).replace(/[^a-z0-9]/g, "");
+      const d = parseDate(s.saleDate);
+      const cleanDate = d ? d.toISOString().split('T')[0] : normalize(s.saleDate);
       
-      const key = `${s.propertyCode}-${s.saleDate}`;
+      // Chave robusta para evitar contagem duplicada por erro de formatação
+      const key = `${cleanCode}-${cleanDate}-${Math.round(Number(s.closedValue))}`;
       if (!uniqueSalesMap.has(key)) uniqueSalesMap.set(key, s);
     });
     const uniqueSalesList = Array.from(uniqueSalesMap.values());
@@ -113,10 +120,9 @@ export default function AppContainer() {
       daysSinceLastSaleDisplay = `${Math.max(0, diff)} Dias`;
     }
 
-    // LÓGICA DE PRODUTIVIDADE REAL: (HOJE - 01/01/2025) / TOTAL DE VENDAS
-    const fixedStartDate = new Date(2025, 0, 1);
-    const diffMsSinceFixed = now.getTime() - fixedStartDate.getTime();
-    const totalDaysSinceStart = diffMsSinceFixed / (1000 * 3600 * 24);
+    // LÓGICA DE PRODUTIVIDADE: (HOJE - 01/01/2025) / TOTAL DE VENDAS
+    // 01/01/2025 até 02/03/2026 = exatos 426 dias.
+    const totalDaysSinceStart = 426; 
 
     let salesFrequency = 0;
     if (uniqueSalesList.length > 0) {
