@@ -27,70 +27,62 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
 
   const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
+  const parseDate = (d: any) => {
+    if (!d) return null;
+    if (d instanceof Date) return d;
+    
+    const cleanStr = String(d).trim();
+    if (!cleanStr || ["N/A", "undefined", ""].includes(cleanStr)) return null;
+
+    const parts = cleanStr.split('/');
+    if (parts.length === 3) {
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const yearPart = parts[2].trim();
+      const year = yearPart.length === 2 ? 2000 + parseInt(yearPart, 10) : parseInt(yearPart, 10);
+      const date = new Date(year, month, day);
+      if (!isNaN(date.getTime())) return date;
+    }
+
+    const date = new Date(cleanStr);
+    return isNaN(date.getTime()) ? null : date;
+  };
+
   const stats = useMemo(() => {
     if (!officialBrokers || officialBrokers.length === 0) return [];
 
-    // Base de cálculo solicitada: 427 dias desde 01/01/2025
-    const totalDaysCount = 427; 
-    const targetMonth = 1; // Fevereiro (para o filtro de leads mensal)
+    const totalDaysCount = 427; // Fixo: 01/01/2025 até Hoje (02/03/2026)
+    const targetMonth = 1; // Fevereiro
     const targetYear = 2026;
 
-    const parseDate = (d: any) => {
-      if (!d) return null;
-      if (d instanceof Date) return d;
-      
-      const cleanStr = String(d).trim();
-      if (!cleanStr || ["N/A", "undefined", ""].includes(cleanStr)) return null;
-
-      const parts = cleanStr.split('/');
-      if (parts.length === 3) {
-        const day = parseInt(parts[0], 10);
-        const month = parseInt(parts[1], 10) - 1;
-        const yearPart = parts[2].trim();
-        const year = yearPart.length === 2 ? 2000 + parseInt(yearPart, 10) : parseInt(yearPart, 10);
-        const date = new Date(year, month, day);
-        if (!isNaN(date.getTime())) return date;
-      }
-
-      const date = new Date(cleanStr);
-      return isNaN(date.getTime()) ? null : date;
-    };
-
-    // Deduplicação de Vendas ÚNICAS baseada na aba de Conclusão (vendas_imoveis)
-    const uniqueSalesMap = new Map();
-    sales.forEach(s => {
-      const type = normalize(s.tipoVenda || s.tipo || "");
-      // Filtro rigoroso: apenas o que é Venda
-      if (!type.includes('venda')) return;
-
-      const pCode = String(s.propertyCode || "").trim();
-      if (!pCode || pCode === "undefined" || pCode === "N/A") return;
-
-      const cleanCode = normalize(pCode).replace(/[^a-z0-9]/g, "");
-      const d = parseDate(s.saleDate);
-      const cleanDate = d ? d.toISOString().split('T')[0] : normalize(s.saleDate);
-      
-      // Chave composta para evitar duplicatas de importação
-      const key = `${cleanCode}-${cleanDate}-${Math.round(Number(s.closedValue))}`;
-      if (!uniqueSalesMap.has(key)) {
-        uniqueSalesMap.set(key, s);
-      }
-    });
-    const dedupedSales = Array.from(uniqueSalesMap.values());
-
     return officialBrokers.map(brokerDoc => {
-      const displayName = brokerDoc.name;
-      const normName = normalize(displayName);
+      const normName = normalize(brokerDoc.name);
 
-      // Angariações (Estoque)
-      const bProps = properties.filter(p => {
-        const bId = normalize(p.brokerId || "");
-        return bId === normName || bId.includes(normName);
+      // 1. Filtro de Vendas Rigoroso na aba Conclusão
+      const bSalesRecords = sales.filter(s => {
+        const type = normalize(s.tipoVenda || s.tipo || "");
+        if (!type.includes('venda')) return false;
+        
+        const seller = normalize(s.vendedor || s.corretor || "");
+        return seller === normName;
       });
-      const vProps = bProps.filter(p => Number(p.saleValue) > 0);
-      const rProps = bProps.filter(p => Number(p.rentalValue) > 0);
+      
+      // Remove duplicatas por código de imóvel para garantir contagem única de vendas
+      const uniqueCodes = [...new Set(bSalesRecords.map(s => String(s.propertyCode || "").trim()))].filter(code => code !== "" && code !== "undefined");
+      const numSales = uniqueCodes.length;
 
-      // Leads (Fevereiro/2026 - Mês Alvo para demonstrar atividade recente)
+      // 2. Cálculo da Frequência: Dias Totais / Vendas Únicas
+      const avgFrequency = numSales > 0 ? Math.floor(totalDaysCount / numSales) : 0;
+
+      // 3. VGV Total das vendas únicas identificadas
+      const totalVgv = bSalesRecords.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
+
+      // 4. Angariações (Estoque)
+      const bProps = properties.filter(p => normalize(p.brokerId || "") === normName);
+      const vProps = bProps.filter(p => Number(p.saleValue) > 0).length;
+      const rProps = bProps.filter(p => Number(p.rentalValue) > 0).length;
+
+      // 5. Leads (Fev/26)
       const brokerLeads = leads.filter(l => {
         const keys = Object.keys(l);
         const brokerKey = keys.find(k => {
@@ -98,8 +90,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
           return nk.includes("corretor") || nk.includes("responsavel") || nk.includes("atendente");
         });
         if (!brokerKey) return false;
-        const leadBrokerVal = normalize(String(l[brokerKey]));
-        return leadBrokerVal && (leadBrokerVal === normName || leadBrokerVal.includes(normName));
+        return normalize(String(l[brokerKey])) === normName;
       });
 
       const leadsMonthPast = brokerLeads.filter(l => {
@@ -110,37 +101,18 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         });
         const date = dateKey ? parseDate(l[dateKey]) : null;
         return date && date.getMonth() === targetMonth && date.getFullYear() === targetYear;
-      });
-
-      // Vendas do corretor (Calculado a partir da aba Conclusão)
-      const bSalesRecords = dedupedSales.filter(s => {
-        const seller = normalize(s.vendedor || s.corretor || "");
-        return seller === normName || seller.includes(normName);
-      });
-      
-      const numSales = bSalesRecords.length;
-      const totalVgv = bSalesRecords.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
-      
-      // FÓRMULA DE PRODUTIVIDADE REAL: 427 / Vendas Reais Únicas
-      let avgFrequency = 0;
-      if (numSales > 0) {
-        // Usamos Math.floor para chegar aos números exatos: 427/8=53, 427/5=85, 427/4=106, 427/3=142
-        avgFrequency = Math.floor(totalDaysCount / numSales);
-      } else if (normName === 'felipe') {
-        // Garantindo base para corretor com vendas específicas não mapeadas ou unitárias
-        avgFrequency = 427;
-      }
+      }).length;
 
       return {
-        name: displayName,
-        leads: leadsMonthPast.length,
-        vProps: vProps.length,
-        rProps: rProps.length,
+        name: brokerDoc.name,
+        leads: leadsMonthPast,
+        vProps,
+        rProps,
         numSales,
         vgv: totalVgv,
         avgFrequency
       };
-    }).sort((a, b) => b.vgv - a.vgv);
+    }).sort((a, b) => b.numSales - a.numSales);
   }, [sales, leads, properties, officialBrokers]);
 
   const formatCurrency = (value: number) => {
@@ -193,7 +165,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                     {row.numSales}
                   </TableCell>
                   <TableCell className="text-right border-r py-2 text-xs font-bold text-amber-700 bg-amber-50/20">
-                    {row.numSales > 0 ? `${row.avgFrequency} dias` : row.name.toLowerCase() === 'felipe' ? '427 dias' : "-"}
+                    {row.numSales > 0 ? `${row.avgFrequency} dias` : "-"}
                   </TableCell>
                   <TableCell className="text-right py-2 font-bold text-primary bg-primary/5 text-sm">
                     {formatCurrency(row.vgv)}
