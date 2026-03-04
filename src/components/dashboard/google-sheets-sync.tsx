@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useCallback } from "react";
@@ -50,14 +49,14 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       .trim();
 
   const excelDateToJSDate = (serial: any) => {
-    if (!serial) return "";
+    if (serial === undefined || serial === null || String(serial).trim() === "") return "";
     const cleanSerial = String(serial).trim();
     if (cleanSerial.includes('/')) return cleanSerial;
     
     let val = cleanSerial.replace(/\./g, '').replace(',', '.');
     const num = parseFloat(val);
     
-    if (!isNaN(num) && num > 40000 && num < 60000) {
+    if (!isNaN(num) && num > 30000 && num < 60000) {
       const date = new Date(Math.round((num - 25569) * 86400 * 1000));
       return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
     }
@@ -87,7 +86,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
   };
 
   const parseCurrency = (val: any) => {
-    if (!val) return 0;
+    if (val === undefined || val === null || String(val).trim() === "") return 0;
     if (typeof val === 'number') return val;
     let s = String(val).trim().replace(/[R$ ]/g, "");
     if (s.includes('.') && s.includes(',')) s = s.replace(/\./g, "").replace(",", ".");
@@ -110,7 +109,9 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         for (const row of result.data) {
           try {
             const rawCode = getVal(row, ["codigo", "unidade", "referencia", "id imovel", "cod imovel", "codigo imovel", "id_imovel"]);
-            const propertyCode = String(rawCode || `REF-${processedCount}`).trim();
+            const propertyCode = rawCode !== undefined && String(rawCode).trim() !== "" 
+              ? String(rawCode).trim() 
+              : `REF-${processedCount + 1}`;
 
             if (mode === 'inventory') {
               const saleValue = parseCurrency(getVal(row, ["valor venda", "venda", "valor"]));
@@ -215,6 +216,20 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         <div className="flex items-center space-x-2">
           <Switch id="auto-sync" checked={autoSync} onCheckedChange={setAutoSync} />
           <Label htmlFor="auto-sync" className="text-xs">Sincronização automática ligada</Label>
+        </div>
+        
+        <div className="bg-amber-50 p-3 rounded-lg border border-amber-100 mt-4">
+          <div className="flex gap-2">
+            <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="text-xs font-bold text-amber-800">Dicas para sua Planilha Google:</p>
+              <ul className="text-[10px] text-amber-700 space-y-1">
+                <li>• Use nomes de colunas em Inglês ou Português (Ex: <b>ID</b> ou <b>Código</b>).</li>
+                <li>• Na coluna de Código, você pode usar: <code>{`=ARRAYFORMULA(IF(B2:B<>""; ROW(B2:B)-1; ""))`}</code></li>
+                <li>• Garanta que o link do CSV seja público (Arquivo &gt; Compartilhar &gt; Publicar na Web &gt; CSV).</li>
+              </ul>
+            </div>
+          </div>
         </div>
       </CardContent>
     </Card>

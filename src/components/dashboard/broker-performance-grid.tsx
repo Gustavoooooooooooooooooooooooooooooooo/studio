@@ -30,10 +30,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
   const stats = useMemo(() => {
     if (!officialBrokers || officialBrokers.length === 0) return [];
 
-    // Data de referência do app: 02 de Março de 2026
-    const nowRef = new Date(2026, 2, 2);
-    // Data inicial fixa solicitada: 01 de Janeiro de 2025
-    const fixedStart = new Date(2025, 0, 1);
     const targetMonth = 1; // Fevereiro (0-indexed)
     const targetYear = 2026;
 
@@ -42,7 +38,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       if (d instanceof Date) return d;
       
       const cleanStr = String(d).trim();
-      if (!cleanStr || cleanStr === "N/A" || cleanStr === "undefined") return null;
+      if (!cleanStr || cleanStr === "N/A" || cleanStr === "undefined" || cleanStr === "") return null;
 
       const parts = cleanStr.split('/');
       if (parts.length === 3) {
@@ -99,7 +95,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         return date && date.getMonth() === targetMonth && date.getFullYear() === targetYear;
       });
 
-      // Visitas Realizadas (Compra)
+      // Visitas Realizadas
       const visitsRealizedSale = brokerLeads.filter(l => {
         const keys = Object.keys(l);
         const activityStatusKey = keys.find(k => normalize(k).includes("status da atividade atual") || normalize(k).includes("status atividade"));
@@ -110,7 +106,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         return activityVal.includes("realizada") && natureVal.includes("compra");
       });
 
-      // Visitas Realizadas (Aluguel)
       const visitsRealizedRent = brokerLeads.filter(l => {
         const keys = Object.keys(l);
         const activityStatusKey = keys.find(k => normalize(k).includes("status da atividade atual") || normalize(k).includes("status atividade"));
@@ -121,20 +116,26 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         return activityVal.includes("realizada") && (natureVal.includes("locacao") || natureVal.includes("aluguel"));
       });
 
-      // VGV do corretor (Baseado na aba Conclusão / vendas_imoveis)
+      // VGV do corretor
       const bSalesRecords = sales.filter(s => {
         const vend = normalize(s.vendedor);
         return vend === normName || vend.includes(normName);
       });
       const totalVgv = bSalesRecords.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
       
-      // Nova Lógica de Frequência solicitada:
-      // (Data Atual [02/03/2026] - Data Fixa [01/01/2025]) / Total de Vendas do Corretor
-      const totalDaysElapsed = (nowRef.getTime() - fixedStart.getTime()) / (1000 * 3600 * 24);
-      
+      // Nova Lógica de Frequência Venda (Intervalo real entre vendas)
       let avgFrequency = 0;
-      if (bSalesRecords.length > 0) {
-        avgFrequency = totalDaysElapsed / bSalesRecords.length;
+      const validSaleDates = bSalesRecords
+        .map(s => parseDate(s.saleDate))
+        .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
+        .sort((a, b) => a.getTime() - b.getTime());
+
+      if (validSaleDates.length >= 2) {
+        const firstSale = validSaleDates[0];
+        const lastSale = validSaleDates[validSaleDates.length - 1];
+        const diffMs = lastSale.getTime() - firstSale.getTime();
+        const diffDays = diffMs / (1000 * 3600 * 24);
+        avgFrequency = diffDays / (validSaleDates.length - 1);
       }
 
       return {
