@@ -27,74 +27,55 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
 
   const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-  const parseDate = (val: any) => {
-    if (!val) return null;
-    if (val instanceof Date) return val;
-    
-    const strVal = String(val).trim();
-    
-    const cleanStr = strVal.replace(/[^\d]/g, '');
-    const num = Number(cleanStr);
-    if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('-')) {
-      return new Date(Math.round((num - 25569) * 86400 * 1000));
-    }
-
-    const brMatch = strVal.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
-    if (brMatch) {
-      const day = parseInt(brMatch[1], 10);
-      const month = parseInt(brMatch[2], 10) - 1;
-      let year = parseInt(brMatch[3], 10);
-      if (year < 100) year += 2000;
-      const d = new Date(year, month, day);
-      return isNaN(d.getTime()) ? null : d;
-    }
-
-    const isoMatch = strVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (isoMatch) {
-      const d = new Date(parseInt(isoMatch[1], 10), parseInt(isoMatch[2], 10) - 1, parseInt(isoMatch[3], 10));
-      return isNaN(d.getTime()) ? null : d;
-    }
-
-    const d = new Date(strVal);
-    return isNaN(d.getTime()) ? null : d;
-  };
-
   const stats = useMemo(() => {
     if (!officialBrokers || officialBrokers.length === 0) return [];
 
-    const totalDaysCount = 427; // Fixo: 01/01/2025 até Hoje (Aprox 02/03/2026)
-    const targetMonth = 1; // Fevereiro
+    const targetMonth = 1; // Fevereiro (0-indexed)
     const targetYear = 2026;
+    
+    // INTERVALO FIXO: 427 dias (01/01/2025 até Hoje)
+    const totalDaysCount = 427;
+
+    const parseDate = (d: any) => {
+      if (!d) return null;
+      if (d instanceof Date) return d;
+      
+      const cleanStr = String(d).trim();
+      if (!cleanStr || cleanStr === "N/A" || cleanStr === "undefined" || cleanStr === "") return null;
+
+      const parts = cleanStr.split('/');
+      if (parts.length === 3) {
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const yearPart = parts[2].trim();
+        const year = yearPart.length === 2 ? 2000 + parseInt(yearPart, 10) : parseInt(yearPart, 10);
+        const date = new Date(year, month, day);
+        if (!isNaN(date.getTime())) return date;
+      }
+
+      let val = cleanStr.replace(/\./g, '').replace(',', '.');
+      const num = parseFloat(val);
+      if (!isNaN(num) && num > 40000 && num < 60000) {
+        return new Date(Math.round((num - 25569) * 86400 * 1000));
+      }
+
+      const date = new Date(cleanStr);
+      return isNaN(date.getTime()) ? null : date;
+    };
 
     return officialBrokers.map(brokerDoc => {
-      const normName = normalize(brokerDoc.name);
+      const displayName = brokerDoc.name;
+      const normName = normalize(displayName);
 
-      // Filtro de Vendas: Buscar na coleção vendas_imoveis
-      const brokerSales = sales.filter(s => {
-        // Natureza: Venda (ignora aluguel)
-        const type = normalize(s.tipoVenda || s.tipo || "");
-        if (!type.includes('venda')) return false;
-        
-        // Vendedor: Comparação por nome
-        const seller = normalize(s.vendedor || s.corretor || s.venda || "");
-        return seller === normName || seller.includes(normName);
+      // 1. Angariações (Cadastro de Imóveis) - Filtro por Broker
+      const bProps = properties.filter(p => {
+        const bId = normalize(p.brokerId || p.angariador || "");
+        return bId === normName || bId.includes(normName);
       });
-      
-      // Contagem de vendas reais: Usamos o ID do documento Firestore como garantia de unicidade
-      // Se Mila tem 8 registros únicos na planilha, eles estarão aqui como 8 docs únicos.
-      const numSales = brokerSales.length;
-      
-      // Cálculo da Frequência: 427 dias / Número de Vendas
-      const avgFrequency = numSales > 0 ? Math.floor(totalDaysCount / numSales) : 0;
-      
-      const totalVgv = brokerSales.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
+      const vPropsCount = bProps.filter(p => Number(p.saleValue || p.valorVenda) > 0).length;
+      const rPropsCount = bProps.filter(p => Number(p.rentalValue || p.valorAluguel) > 0).length;
 
-      // Angariações (Estoque)
-      const bProps = properties.filter(p => normalize(p.brokerId || "") === normName);
-      const vProps = bProps.filter(p => Number(p.saleValue) > 0).length;
-      const rProps = bProps.filter(p => Number(p.rentalValue) > 0).length;
-
-      // Leads (Fev/26)
+      // 2. Leads (Mês Alvo: Fev/26)
       const brokerLeads = leads.filter(l => {
         const keys = Object.keys(l);
         const brokerKey = keys.find(k => {
@@ -105,23 +86,45 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         return normalize(String(l[brokerKey])) === normName;
       });
 
-      const leadsMonthPast = brokerLeads.filter(l => {
+      const leadsMonthPastCount = brokerLeads.filter(l => {
         const keys = Object.keys(l);
-        const dateKey = keys.find(k => normalize(k).includes("data") || normalize(k).includes("carimbo"));
+        const dateKey = keys.find(k => {
+          const nk = normalize(k);
+          return nk.includes("data") || nk.includes("carimbo") || nk.includes("criado");
+        });
         const date = dateKey ? parseDate(l[dateKey]) : null;
         return date && date.getMonth() === targetMonth && date.getFullYear() === targetYear;
       }).length;
 
+      // 3. VENDAS (Aba Conclusão / Collection: vendas_imoveis)
+      // Removida deduplicação global para contar cada transação individualmente por corretor
+      const brokerSales = sales.filter(s => {
+        // Natureza: Venda
+        const type = normalize(s.tipoVenda || s.tipo || "");
+        if (!type.includes('venda')) return false;
+        
+        // Vendedor: Comparação por nome
+        const seller = normalize(s.vendedor || s.corretor || s.venda || "");
+        return seller === normName || seller.includes(normName);
+      });
+      
+      const numSales = brokerSales.length;
+      const totalVgv = brokerSales.reduce((acc, s) => acc + (Number(s.closedValue || s.valorVenda) || 0), 0);
+      
+      // 4. CÁLCULO DO GIRO (Frequência): Dias Totais / Vendas Reais
+      // Usamos Math.floor para bater com os valores esperados (ex: 427/8 = 53)
+      const avgFrequency = numSales > 0 ? Math.floor(totalDaysCount / numSales) : 0;
+
       return {
-        name: brokerDoc.name,
-        leads: leadsMonthPast,
-        vProps,
-        rProps,
+        name: displayName,
+        leads: leadsMonthPastCount,
+        vProps: vPropsCount,
+        rProps: rPropsCount,
         numSales,
         vgv: totalVgv,
         avgFrequency
       };
-    }).sort((a, b) => b.numSales - a.numSales);
+    }).sort((a, b) => b.numSales - a.numSales || b.vgv - a.vgv);
   }, [sales, leads, properties, officialBrokers]);
 
   const formatCurrency = (value: number) => {
