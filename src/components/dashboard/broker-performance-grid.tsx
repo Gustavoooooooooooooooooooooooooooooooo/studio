@@ -97,6 +97,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
 
       // 3. VENDAS (Aba Conclusão)
       // Contabilizamos cada registro individual da coleção de vendas vinculada a este corretor
+      // Removida deduplicação agressiva para contar todas as linhas da planilha de conclusão
       const brokerSales = sales.filter(s => {
         const seller = normalize(s.vendedor || s.corretor || s.vendas || s.venda || s.responsavel || "");
         return seller === normName || seller.includes(normName);
@@ -106,8 +107,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       const totalVgv = brokerSales.reduce((acc, s) => acc + (Number(s.closedValue || s.valorVenda) || 0), 0);
       
       // 4. CÁLCULO DA FREQUÊNCIA: 427 / Vendas (Floor)
-      // Se não houver vendas, exibe o total de dias (427)
-      const avgFrequency = numSales > 0 ? Math.floor(totalDaysCount / numSales) : totalDaysCount;
+      const avgFrequency = numSales > 0 ? Math.floor(totalDaysCount / numSales) : 0;
 
       return {
         name: displayName,
@@ -164,7 +164,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                     {row.numSales}
                   </TableCell>
                   <TableCell className="text-right border-r py-2 text-xs font-bold text-amber-700 bg-amber-50/20">
-                    {row.avgFrequency} dias
+                    {row.numSales > 0 ? `${row.avgFrequency} dias` : "-"}
                   </TableCell>
                   <TableCell className="text-right py-2 font-bold text-primary bg-primary/5 text-sm">
                     {formatCurrency(row.vgv)}
@@ -182,3 +182,4 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
     </Card>
   );
 }
+
