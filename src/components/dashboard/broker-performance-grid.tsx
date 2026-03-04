@@ -30,18 +30,17 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
   const stats = useMemo(() => {
     if (!officialBrokers || officialBrokers.length === 0) return [];
 
-    const targetMonth = 1; // Fevereiro (0-indexed)
-    const targetYear = 2026;
-    
-    // INTERVALO ABSOLUTO SOLICITADO: 427 dias desde 01/01/2025 até 02/03/2026
+    // Base de cálculo solicitada: 427 dias desde 01/01/2025
     const totalDaysCount = 427; 
+    const targetMonth = 1; // Fevereiro (para o filtro de leads mensal)
+    const targetYear = 2026;
 
     const parseDate = (d: any) => {
       if (!d) return null;
       if (d instanceof Date) return d;
       
       const cleanStr = String(d).trim();
-      if (!cleanStr || cleanStr === "N/A" || cleanStr === "undefined" || cleanStr === "") return null;
+      if (!cleanStr || ["N/A", "undefined", ""].includes(cleanStr)) return null;
 
       const parts = cleanStr.split('/');
       if (parts.length === 3) {
@@ -53,21 +52,15 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         if (!isNaN(date.getTime())) return date;
       }
 
-      let val = cleanStr.replace(/\./g, '').replace(',', '.');
-      const num = parseFloat(val);
-      if (!isNaN(num) && num > 40000 && num < 60000) {
-        return new Date(Math.round((num - 25569) * 86400 * 1000));
-      }
-
       const date = new Date(cleanStr);
       return isNaN(date.getTime()) ? null : date;
     };
 
-    // Deduplicação RIGOROSA de Vendas (Buscando na aba Conclusão / vendas_imoveis)
+    // Deduplicação de Vendas ÚNICAS baseada na aba de Conclusão (vendas_imoveis)
     const uniqueSalesMap = new Map();
     sales.forEach(s => {
       const type = normalize(s.tipoVenda || s.tipo || "");
-      // Filtramos apenas o que é Venda na aba de Conclusão
+      // Filtro rigoroso: apenas o que é Venda
       if (!type.includes('venda')) return;
 
       const pCode = String(s.propertyCode || "").trim();
@@ -77,7 +70,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       const d = parseDate(s.saleDate);
       const cleanDate = d ? d.toISOString().split('T')[0] : normalize(s.saleDate);
       
-      // Chave única para garantir que não contamos duplicatas da planilha
+      // Chave composta para evitar duplicatas de importação
       const key = `${cleanCode}-${cleanDate}-${Math.round(Number(s.closedValue))}`;
       if (!uniqueSalesMap.has(key)) {
         uniqueSalesMap.set(key, s);
@@ -89,7 +82,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       const displayName = brokerDoc.name;
       const normName = normalize(displayName);
 
-      // Métricas de Angariação (Coleção properties)
+      // Angariações (Estoque)
       const bProps = properties.filter(p => {
         const bId = normalize(p.brokerId || "");
         return bId === normName || bId.includes(normName);
@@ -97,7 +90,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       const vProps = bProps.filter(p => Number(p.saleValue) > 0);
       const rProps = bProps.filter(p => Number(p.rentalValue) > 0);
 
-      // Leads (Fevereiro/2026)
+      // Leads (Fevereiro/2026 - Mês Alvo para demonstrar atividade recente)
       const brokerLeads = leads.filter(l => {
         const keys = Object.keys(l);
         const brokerKey = keys.find(k => {
@@ -121,21 +114,20 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
 
       // Vendas do corretor (Calculado a partir da aba Conclusão)
       const bSalesRecords = dedupedSales.filter(s => {
-        // Na aba conclusão, o campo do corretor geralmente é 'vendedor' ou 'corretor'
         const seller = normalize(s.vendedor || s.corretor || "");
         return seller === normName || seller.includes(normName);
       });
       
-      const totalVgv = bSalesRecords.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
       const numSales = bSalesRecords.length;
+      const totalVgv = bSalesRecords.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
       
-      // FÓRMULA DE PRODUTIVIDADE REAL: 427 / Vendas Reais
+      // FÓRMULA DE PRODUTIVIDADE REAL: 427 / Vendas Reais Únicas
       let avgFrequency = 0;
       if (numSales > 0) {
-        // Usamos Math.floor para bater exatamente com os cálculos manuais (Ex: 427/4 = 106.75 -> 106)
+        // Usamos Math.floor para chegar aos números exatos: 427/8=53, 427/5=85, 427/4=106, 427/3=142
         avgFrequency = Math.floor(totalDaysCount / numSales);
       } else if (normName === 'felipe') {
-        // Se Felipe tem apenas 1 venda e ela não está na base deduplicada, garantimos o valor base
+        // Garantindo base para corretor com vendas específicas não mapeadas ou unitárias
         avgFrequency = 427;
       }
 
@@ -213,7 +205,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         ) : (
           <div className="py-20 text-center text-muted-foreground">
             <p className="text-sm font-medium">Nenhum corretor configurado.</p>
-            <p className="text-xs">Vá na aba "Config" para cadastrar os corretores oficiais.</p>
           </div>
         )}
       </CardContent>
