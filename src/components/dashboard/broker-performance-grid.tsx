@@ -33,7 +33,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
     const targetMonth = 1; // Fevereiro (0-indexed)
     const targetYear = 2026;
     
-    // BASE DE CÁLCULO FIXA: 427 dias (01/01/2025 até Hoje)
+    // BASE DE CÁLCULO FIXA: 427 dias (01/01/2025 até 02/03/2026)
     const totalDaysCount = 427;
 
     const parseDate = (d: any) => {
@@ -67,13 +67,12 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       const displayName = brokerDoc.name;
       const normName = normalize(displayName);
 
-      // 1. Angariações (Cadastro de Imóveis)
+      // 1. Angariações
       const bProps = properties.filter(p => {
         const bId = normalize(p.brokerId || p.angariador || "");
         return bId === normName || bId.includes(normName);
       });
       const vPropsCount = bProps.filter(p => Number(p.saleValue || p.valorVenda) > 0).length;
-      const rPropsCount = bProps.filter(p => Number(p.rentalValue || p.valorAluguel) > 0).length;
 
       // 2. Leads (Fev/26)
       const brokerLeads = leads.filter(l => {
@@ -86,7 +85,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         return normalize(String(l[brokerKey])) === normName;
       });
 
-      const leadsMonthPastCount = brokerLeads.filter(l => {
+      const leadsMonthCount = brokerLeads.filter(l => {
         const keys = Object.keys(l);
         const dateKey = keys.find(k => {
           const nk = normalize(k);
@@ -97,8 +96,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       }).length;
 
       // 3. VENDAS (Aba Conclusão)
-      // Contabilizamos todos os registros individuais da aba de conclusão para este corretor
-      // Sem deduplicação de imóvel para garantir que todas as transações da planilha sejam contadas
       const brokerSales = sales.filter(s => {
         const seller = normalize(s.vendedor || s.corretor || s.vendas || s.venda || "");
         return seller === normName || seller.includes(normName);
@@ -107,15 +104,13 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       const numSales = brokerSales.length;
       const totalVgv = brokerSales.reduce((acc, s) => acc + (Number(s.closedValue || s.valorVenda) || 0), 0);
       
-      // 4. CÁLCULO DA FREQUÊNCIA (GIRO): Dias Totais / Vendas
-      // Com 8 vendas e 427 dias, o resultado é exatamente 53 (usando floor)
+      // 4. CÁLCULO DA FREQUÊNCIA: 427 / Vendas (Floor)
       const avgFrequency = numSales > 0 ? Math.floor(totalDaysCount / numSales) : 0;
 
       return {
         name: displayName,
-        leads: leadsMonthPastCount,
+        leads: leadsMonthCount,
         vProps: vPropsCount,
-        rProps: rPropsCount,
         numSales,
         vgv: totalVgv,
         avgFrequency
@@ -159,15 +154,9 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                     </Badge>
                   </TableCell>
                   <TableCell className="text-center border-r py-2">
-                    <div className="flex items-center justify-center gap-3 text-xs">
-                      <div className="flex flex-col items-center" title="Vendas Angariadas">
-                        <span className={`font-black ${row.vProps > 0 ? 'text-emerald-600' : 'text-muted-foreground/10'}`}>{row.vProps}</span>
-                      </div>
-                      <div className="w-[1px] h-4 bg-muted/20" />
-                      <div className="flex flex-col items-center" title="Locações Angariadas">
-                        <span className={`font-black ${row.rProps > 0 ? 'text-blue-600' : 'text-muted-foreground/10'}`}>{row.rProps}</span>
-                      </div>
-                    </div>
+                    <span className={`font-black text-xs ${row.vProps > 0 ? 'text-emerald-600' : 'text-muted-foreground/10'}`}>
+                      {row.vProps}
+                    </span>
                   </TableCell>
                   <TableCell className="text-center border-r py-2 text-sm font-bold bg-primary/5 text-primary">
                     {row.numSales}

@@ -122,20 +122,20 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              // GARANTIMOS QUE CADA LINHA É UM DOCUMENTO ÚNICO PARA NÃO SOBRESCREVER VENDAS
-              const safeSaleId = `sale-${processedCount}-${Date.now()}`;
+              // Deterministic ID to avoid duplicates on resync
+              const vendedor = String(getVal(row, ["vendedor", "vendas", "corretor", "venda", "responsavel"]) || "N/A");
+              const safeSaleId = `sale-${normalize(vendedor)}-${normalize(propertyCode)}-${processedCount}`;
               const saleRef = doc(firestore, "vendas_imoveis", safeSaleId);
               
               const dataVendaRaw = excelDateToJSDate(getVal(row, ["fechamento", "data venda", "data de venda", "data da venda", "carimbo", "data"]));
               const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "entrada", "data da entrada", "cadastro"]));
               const closedVal = parseCurrency(getVal(row, ["valor fechado", "valor venda", "fechamento"]));
-              const vendedor = String(getVal(row, ["vendas", "vendedor", "corretor", "venda", "responsavel"]) || "");
               const cliente = String(getVal(row, ["cliente", "comprador", "nome contrato"]) || "N/A");
               
               setDocumentNonBlocking(saleRef, {
                 vendedor,
                 angariador: String(getVal(row, ["angariador", "captador", "captacao"]) || "N/A"),
-                tipoVenda: "Venda", // Aba de conclusão é inerentemente de Vendas para este cálculo
+                tipoVenda: "Venda",
                 propertyCode,
                 neighborhood: String(getVal(row, ["bairro", "localizacao", "empreendimento"]) || "N/A"),
                 clientName: cliente,
@@ -148,7 +148,8 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'leads') {
-              const leadRef = doc(firestore, "leads", `lead-${processedCount}-${Date.now()}`);
+              const leadId = `lead-${processedCount}`;
+              const leadRef = doc(firestore, "leads", leadId);
               setDocumentNonBlocking(leadRef, { ...row, importedAt: serverTimestamp() }, { merge: true });
             }
             processedCount++;
@@ -167,7 +168,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
 
   useEffect(() => {
     if (!autoSync || !url) return;
-    const interval = setInterval(() => handleSync(true), 60000);
+    const interval = setInterval(() => handleSync(true), 120000); // Increased interval to reduce memory pressure
     return () => clearInterval(interval);
   }, [autoSync, url, handleSync]);
 
@@ -220,7 +221,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
             <div className="space-y-1">
               <p className="text-xs font-bold text-amber-800">Dicas para sua Planilha Google:</p>
               <ul className="text-[10px] text-amber-700 space-y-1">
-                <li>• Use nomes de colunas claros (Ex: <b>Código</b>, <b>Vendas</b>, <b>Valor Fechado</b>).</li>
+                <li>• Use nomes de colunas claros (Ex: <b>Código</b>, <b>Vendedor</b>, <b>Data Venda</b>).</li>
                 <li>• Garanta que o link foi gerado em <b>Arquivo {'>'} Compartilhar {'>'} Publicar na Web {'>'} CSV</b>.</li>
                 <li>• A conta do Giro usa <b>427 dias</b>. Se Mila tem 8 vendas, o sistema mostrará <b>53 dias</b>.</li>
               </ul>
