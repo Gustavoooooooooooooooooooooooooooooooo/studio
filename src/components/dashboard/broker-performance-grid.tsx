@@ -32,7 +32,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
 
     const targetMonth = 1; // Fevereiro (0-indexed)
     const targetYear = 2026;
-    const totalDaysCount = 426; // Fixado exato (01/01/2025 até 02/03/2026)
+    // INTERVALO FIXO: 01/01/2025 até 02/03/2026 = 427 dias
+    const totalDaysCount = 427; 
 
     const parseDate = (d: any) => {
       if (!d) return null;
@@ -61,17 +62,17 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       return isNaN(date.getTime()) ? null : date;
     };
 
-    // Deduplicação ROBUSTA para evitar contagem inflada
+    // Deduplicação RIGOROSA de Vendas
     const uniqueSalesMap = new Map();
     sales.forEach(s => {
       const type = String(s.tipoVenda || s.tipo || "").toLowerCase();
+      // FILTRO EXCLUSIVO DE VENDAS
       if (!type.includes('venda')) return;
 
       const cleanCode = normalize(s.propertyCode).replace(/[^a-z0-9]/g, "");
       const d = parseDate(s.saleDate);
       const cleanDate = d ? d.toISOString().split('T')[0] : normalize(s.saleDate);
       
-      // Chave única composta para garantir que a mesma venda não apareça 2x
       const key = `${cleanCode}-${cleanDate}-${Math.round(Number(s.closedValue))}`;
       if (!uniqueSalesMap.has(key)) uniqueSalesMap.set(key, s);
     });
@@ -89,7 +90,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       const vProps = bProps.filter(p => Number(p.saleValue) > 0);
       const rProps = bProps.filter(p => Number(p.rentalValue) > 0);
 
-      // Filtro de Leads (Fevereiro/2026)
+      // Leads (Fevereiro/2026)
       const brokerLeads = leads.filter(l => {
         const keys = Object.keys(l);
         const brokerKey = keys.find(k => {
@@ -132,7 +133,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         return activityVal.includes("realizada") && (natureVal.includes("locacao") || natureVal.includes("aluguel"));
       });
 
-      // Vendas do corretor (após deduplicação rigorosa)
+      // Vendas do corretor (após deduplicação e filtro de tipo "Venda")
       const bSalesRecords = dedupedSales.filter(s => {
         const vend = normalize(s.vendedor || s.corretor);
         return vend === normName || vend.includes(normName);
@@ -141,7 +142,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       const totalVgv = bSalesRecords.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
       const numSales = bSalesRecords.length;
       
-      // FÓRMULA DE PRODUTIVIDADE: 426 / Vendas
+      // FÓRMULA DE PRODUTIVIDADE: 427 / Vendas
       let avgFrequency = 0;
       if (numSales > 0) {
         avgFrequency = totalDaysCount / numSales;
@@ -184,8 +185,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                 <TableHead className="text-center border-r text-xs uppercase">Visitas (Compra)</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase">Visitas (Aluguel)</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase">Angariados</TableHead>
-                <TableHead className="text-center border-r text-xs uppercase">Vendas</TableHead>
-                <TableHead className="text-right border-r text-xs uppercase bg-amber-50/30">Giro (Dias)</TableHead>
+                <TableHead className="text-center border-r text-xs uppercase bg-primary/5">Vendas</TableHead>
+                <TableHead className="text-right border-r text-xs uppercase bg-amber-50/30">Frequência Venda</TableHead>
                 <TableHead className="text-right font-bold text-xs uppercase bg-primary/5">VGV Total</TableHead>
               </TableRow>
             </TableHeader>

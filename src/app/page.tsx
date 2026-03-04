@@ -121,8 +121,8 @@ export default function AppContainer() {
     }
 
     // LÓGICA DE PRODUTIVIDADE: (HOJE - 01/01/2025) / TOTAL DE VENDAS
-    // 01/01/2025 até 02/03/2026 = exatos 426 dias.
-    const totalDaysSinceStart = 426; 
+    // 01/01/2025 até 02/03/2026 = exatos 427 dias.
+    const totalDaysSinceStart = 427; 
 
     let salesFrequency = 0;
     if (uniqueSalesList.length > 0) {
