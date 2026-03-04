@@ -32,7 +32,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
 
     const targetMonth = 1; // Fevereiro (0-indexed)
     const targetYear = 2026;
-    // INTERVALO ABSOLUTO: 01/01/2025 até 02/03/2026 = 427 dias
+    // INTERVALO ABSOLUTO SOLICITADO: 427 dias desde 01/01/2025
     const totalDaysCount = 427; 
 
     const parseDate = (d: any) => {
@@ -62,13 +62,13 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       return isNaN(date.getTime()) ? null : date;
     };
 
-    // Deduplicação RIGOROSA de Vendas (Apenas tipo "Venda")
+    // Deduplicação RIGOROSA de Vendas (Apenas tipo "Venda" da aba de Conclusão)
     const uniqueSalesMap = new Map();
     sales.forEach(s => {
       const type = normalize(s.tipoVenda || s.tipo || "");
+      // Filtramos APENAS o que é explicitamente Venda
       if (!type.includes('venda')) return;
 
-      // Ignorar linhas que não possuem código de imóvel (linhas de referência de data)
       const pCode = String(s.propertyCode || "").trim();
       if (!pCode || pCode === "undefined" || pCode === "N/A") return;
 
@@ -76,9 +76,11 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       const d = parseDate(s.saleDate);
       const cleanDate = d ? d.toISOString().split('T')[0] : normalize(s.saleDate);
       
-      // Chave para evitar duplicatas da planilha
+      // Chave robusta para garantir contagem de vendas REAIS e ÚNICAS
       const key = `${cleanCode}-${cleanDate}-${Math.round(Number(s.closedValue))}`;
-      if (!uniqueSalesMap.has(key)) uniqueSalesMap.set(key, s);
+      if (!uniqueSalesMap.has(key)) {
+        uniqueSalesMap.set(key, s);
+      }
     });
     const dedupedSales = Array.from(uniqueSalesMap.values());
 
@@ -86,7 +88,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       const displayName = brokerDoc.name;
       const normName = normalize(displayName);
 
-      // Métricas de Cadastro (Angariação)
+      // Métricas de Cadastro (Angariação) baseadas no brokerId
       const bProps = properties.filter(p => {
         const bId = normalize(p.brokerId);
         return bId === normName || bId.includes(normName);
@@ -116,28 +118,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         return date && date.getMonth() === targetMonth && date.getFullYear() === targetYear;
       });
 
-      // Visitas Realizadas
-      const visitsRealizedSale = brokerLeads.filter(l => {
-        const keys = Object.keys(l);
-        const activityStatusKey = keys.find(k => normalize(k).includes("status da atividade atual") || normalize(k).includes("status atividade"));
-        const natureKey = keys.find(k => normalize(k).includes("natureza da negociacao") || normalize(k).includes("natureza"));
-        if (!activityStatusKey || !natureKey) return false;
-        const activityVal = normalize(String(l[activityStatusKey]));
-        const natureVal = normalize(String(l[natureKey]));
-        return activityVal.includes("realizada") && natureVal.includes("compra");
-      });
-
-      const visitsRealizedRent = brokerLeads.filter(l => {
-        const keys = Object.keys(l);
-        const activityStatusKey = keys.find(k => normalize(k).includes("status da atividade atual") || normalize(k).includes("status atividade"));
-        const natureKey = keys.find(k => normalize(k).includes("natureza da negociacao") || normalize(k).includes("natureza"));
-        if (!activityStatusKey || !natureKey) return false;
-        const activityVal = normalize(String(l[activityStatusKey]));
-        const natureVal = normalize(String(l[natureKey]));
-        return activityVal.includes("realizada") && (natureVal.includes("locacao") || natureVal.includes("aluguel"));
-      });
-
-      // Vendas do corretor (exclusivamente Vendas únicas)
+      // Vendas do corretor (exclusivamente Vendas únicas da aba Conclusão)
       const bSalesRecords = dedupedSales.filter(s => {
         const vend = normalize(s.vendedor || s.corretor);
         return vend === normName || vend.includes(normName);
@@ -146,17 +127,15 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       const totalVgv = bSalesRecords.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
       const numSales = bSalesRecords.length;
       
-      // FÓRMULA DE PRODUTIVIDADE REAL: 427 / Vendas (Usando floor para bater com o cálculo manual)
+      // FÓRMULA DE PRODUTIVIDADE REAL: 427 / Vendas (Usando Math.floor para bater com o cálculo manual)
       let avgFrequency = 0;
       if (numSales > 0) {
-        avgFrequency = totalDaysCount / numSales;
+        avgFrequency = Math.floor(totalDaysCount / numSales);
       }
 
       return {
         name: displayName,
         leads: leadsMonthPast.length,
-        visitsSale: visitsRealizedSale.length,
-        visitsRent: visitsRealizedRent.length,
         vProps: vProps.length,
         rProps: rProps.length,
         numSales,
@@ -186,8 +165,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
               <TableRow className="bg-muted/5">
                 <TableHead className="font-bold border-r text-xs uppercase">Corretor</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase">Leads (Fev/26)</TableHead>
-                <TableHead className="text-center border-r text-xs uppercase">Visitas (Compra)</TableHead>
-                <TableHead className="text-center border-r text-xs uppercase">Visitas (Aluguel)</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase">Angariados</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase bg-primary/5">Vendas</TableHead>
                 <TableHead className="text-right border-r text-xs uppercase bg-amber-50/30">Frequência Venda</TableHead>
@@ -204,16 +181,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                     </Badge>
                   </TableCell>
                   <TableCell className="text-center border-r py-2">
-                    <span className={`text-xs font-bold ${row.visitsSale > 0 ? 'text-emerald-600' : 'text-muted-foreground/20'}`}>
-                      {row.visitsSale}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-center border-r py-2">
-                    <span className={`text-xs font-bold ${row.visitsRent > 0 ? 'text-blue-600' : 'text-muted-foreground/20'}`}>
-                      {row.visitsRent}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-center border-r py-2">
                     <div className="flex items-center justify-center gap-3 text-xs">
                       <div className="flex flex-col items-center">
                         <span className={`font-black ${row.vProps > 0 ? 'text-emerald-600' : 'text-muted-foreground/10'}`}>{row.vProps}</span>
@@ -228,7 +195,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                     {row.numSales}
                   </TableCell>
                   <TableCell className="text-right border-r py-2 text-xs font-bold text-amber-700 bg-amber-50/20">
-                    {row.avgFrequency > 0 ? `${Math.floor(row.avgFrequency)} dias` : "-"}
+                    {row.numSales > 0 ? `${row.avgFrequency} dias` : "-"}
                   </TableCell>
                   <TableCell className="text-right py-2 font-bold text-primary bg-primary/5 text-sm">
                     {formatCurrency(row.vgv)}
