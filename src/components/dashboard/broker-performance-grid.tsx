@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useMemo } from "react";
@@ -118,13 +119,14 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         return activityVal.includes("realizada") && (natureVal.includes("locacao") || natureVal.includes("aluguel"));
       });
 
-      // VGV do corretor
+      // VGV do corretor (Baseado na aba Conclusão / vendas_imoveis)
       const bSalesRecords = sales.filter(s => {
         const vend = normalize(s.vendedor);
         return vend === normName || vend.includes(normName);
       });
       const totalVgv = bSalesRecords.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
       
+      // Cálculo do Tempo Médio (Captura -> Venda) baseado nos dados de Conclusão
       const validDiffs = bSalesRecords.map(s => {
         const start = parseDate(s.propertyCaptureDate);
         const end = parseDate(s.saleDate);
@@ -132,7 +134,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
           return (end.getTime() - start.getTime()) / (1000 * 3600 * 24);
         }
         return null;
-      }).filter(d => d !== null) as number[];
+      }).filter(d => d !== null && d >= 0) as number[];
 
       const avgTime = validDiffs.length > 0 ? validDiffs.reduce((a, b) => a + b, 0) / validDiffs.length : 0;
 
@@ -206,7 +208,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell className="text-right border-r py-2 text-[10px] text-muted-foreground">
+                  <TableCell className="text-right border-r py-2 text-[10px] text-muted-foreground font-medium">
                     {row.avgTime > 0 ? `${Math.round(row.avgTime)} dias` : "-"}
                   </TableCell>
                   <TableCell className="text-right py-2 font-bold text-primary bg-primary/5 text-sm">
