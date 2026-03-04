@@ -77,7 +77,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         const type = normalize(s.tipoVenda || s.tipo || "");
         if (!type.includes('venda')) return false;
         
-        const seller = normalize(s.vendedor || s.corretor || "");
+        const seller = normalize(s.vendedor || s.corretor || s.venda || "");
         return seller === normName;
       });
       

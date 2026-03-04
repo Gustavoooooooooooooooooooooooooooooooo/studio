@@ -77,7 +77,6 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     }
 
     // 2. Busca por correspondência PARCIAL seguindo a ordem de prioridade das searchKeys
-    // (Apenas se não encontrou correspondência exata para nenhuma chave)
     for (const sKey of normalizedSearchKeys) {
       const match = normalizedRowKeys.find(rk => rk.norm.includes(sKey));
       if (match) return row[match.original];
@@ -130,11 +129,13 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              // Ajuste rigoroso para evitar confusão entre a coluna de Nome e a coluna de Data
-              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "fechamento", "data da venda", "data de venda"]));
-              const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "entrada", "data da entrada"]));
-              const closedVal = parseCurrency(getVal(row, ["valor fechado", "valor venda", "venda", "fechamento"]));
-              const vendedor = String(getVal(row, ["vendedor", "corretor", "venda responsavel"]) || "");
+              // Ajuste de termos de busca para serem mais robustos e capturarem a data corretamente
+              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "fechamento", "data de venda", "data da venda", "data", "carimbo"]));
+              const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "entrada", "data da entrada", "cadastro"]));
+              const closedVal = parseCurrency(getVal(row, ["valor fechado", "valor venda", "fechamento"]));
+              
+              // O termo "venda" é usado para o corretor na sua planilha
+              const vendedor = String(getVal(row, ["vendedor", "corretor", "venda", "responsavel"]) || "");
               
               const dateKey = String(dataVendaRaw).replace(/\//g, '-');
               const safeSaleId = `sale-${propertyCode}-${dateKey}-${closedVal}`.replace(/[\/\.\#\$\/\[\]]/g, "-");
