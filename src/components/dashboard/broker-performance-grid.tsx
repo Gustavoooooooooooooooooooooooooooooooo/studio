@@ -67,12 +67,15 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       const displayName = brokerDoc.name;
       const normName = normalize(displayName);
 
-      // 1. Angariações
+      // 1. Angariações (Busca na aba Cadastro - properties)
       const bProps = properties.filter(p => {
         const bId = normalize(p.brokerId || p.angariador || "");
         return bId === normName || bId.includes(normName);
       });
+      
+      // Separa Venda e Locação
       const vPropsCount = bProps.filter(p => Number(p.saleValue || p.valorVenda) > 0).length;
+      const lPropsCount = bProps.filter(p => Number(p.rentalValue || p.valorLocacao) > 0).length;
 
       // 2. Leads (Fev/26)
       const brokerLeads = leads.filter(l => {
@@ -95,9 +98,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         return date && date.getMonth() === targetMonth && date.getFullYear() === targetYear;
       }).length;
 
-      // 3. VENDAS (Aba Conclusão)
-      // Contabilizamos cada registro individual da coleção de vendas vinculada a este corretor
-      // Removida deduplicação agressiva para contar todas as linhas da planilha de conclusão
+      // 3. VENDAS (Aba Conclusão - vendas_imoveis)
       const brokerSales = sales.filter(s => {
         const seller = normalize(s.vendedor || s.corretor || s.vendas || s.venda || s.responsavel || "");
         return seller === normName || seller.includes(normName);
@@ -113,6 +114,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         name: displayName,
         leads: leadsMonthCount,
         vProps: vPropsCount,
+        lProps: lPropsCount,
         numSales,
         vgv: totalVgv,
         avgFrequency
@@ -156,9 +158,15 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                     </Badge>
                   </TableCell>
                   <TableCell className="text-center border-r py-2">
-                    <span className={`font-black text-xs ${row.vProps > 0 ? 'text-emerald-600' : 'text-muted-foreground/10'}`}>
-                      {row.vProps}
-                    </span>
+                    <div className="flex flex-col items-center leading-tight">
+                      <span title="Angariações de Venda" className={`font-black text-xs ${row.vProps > 0 ? 'text-emerald-600' : 'text-muted-foreground/10'}`}>
+                        {row.vProps}
+                      </span>
+                      <div className="h-[1px] w-4 bg-muted/20 my-0.5" />
+                      <span title="Angariações de Locação" className={`font-black text-xs ${row.lProps > 0 ? 'text-blue-600' : 'text-muted-foreground/10'}`}>
+                        {row.lProps}
+                      </span>
+                    </div>
                   </TableCell>
                   <TableCell className="text-center border-r py-2 text-sm font-bold bg-primary/5 text-primary">
                     {row.numSales}
@@ -182,4 +190,3 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
     </Card>
   );
 }
-
