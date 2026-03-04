@@ -126,17 +126,24 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       });
       const totalVgv = bSalesRecords.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
       
-      // Cálculo do Tempo Médio (Captura -> Venda) baseado nos dados de Conclusão
-      const validDiffs = bSalesRecords.map(s => {
-        const start = parseDate(s.propertyCaptureDate);
-        const end = parseDate(s.saleDate);
-        if (start && end && !isNaN(start.getTime()) && !isNaN(end.getTime())) {
-          return (end.getTime() - start.getTime()) / (1000 * 3600 * 24);
-        }
-        return null;
-      }).filter(d => d !== null && d >= 0) as number[];
+      // Cálculo da Frequência de Vendas (Intervalo médio entre vendas em dias)
+      const saleDates = bSalesRecords
+        .map(s => parseDate(s.saleDate))
+        .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
+        .sort((a, b) => a.getTime() - b.getTime());
 
-      const avgTime = validDiffs.length > 0 ? validDiffs.reduce((a, b) => a + b, 0) / validDiffs.length : 0;
+      let avgFrequency = 0;
+      if (saleDates.length > 1) {
+        let totalInterval = 0;
+        for (let i = 0; i < saleDates.length - 1; i++) {
+          totalInterval += (saleDates[i + 1].getTime() - saleDates[i].getTime()) / (1000 * 3600 * 24);
+        }
+        avgFrequency = totalInterval / (saleDates.length - 1);
+      } else if (saleDates.length === 1) {
+        // Se houver apenas uma venda, não há intervalo médio entre vendas. 
+        // Poderia ser zero ou um indicador de "Venda única".
+        avgFrequency = 0;
+      }
 
       return {
         name: displayName,
@@ -146,7 +153,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         vProps: vProps.length,
         rProps: rProps.length,
         vgv: totalVgv,
-        avgTime
+        avgFrequency
       };
     }).sort((a, b) => b.vgv - a.vgv);
   }, [sales, leads, properties, officialBrokers]);
@@ -174,7 +181,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                 <TableHead className="text-center border-r text-xs uppercase">Visitas (Compra)</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase">Visitas (Aluguel)</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase">Angariados</TableHead>
-                <TableHead className="text-right border-r text-xs uppercase">Tempo Médio</TableHead>
+                <TableHead className="text-right border-r text-xs uppercase">Frequência Venda</TableHead>
                 <TableHead className="text-right font-bold text-xs uppercase bg-primary/5">VGV Total</TableHead>
               </TableRow>
             </TableHeader>
@@ -209,7 +216,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                     </div>
                   </TableCell>
                   <TableCell className="text-right border-r py-2 text-[10px] text-muted-foreground font-medium">
-                    {row.avgTime > 0 ? `${Math.round(row.avgTime)} dias` : "-"}
+                    {row.avgFrequency > 0 ? `a cada ${Math.round(row.avgFrequency)} dias` : (row.avgFrequency === 0 && row.vgv > 0 ? "Venda Única" : "-")}
                   </TableCell>
                   <TableCell className="text-right py-2 font-bold text-primary bg-primary/5 text-sm">
                     {formatCurrency(row.vgv)}
