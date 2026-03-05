@@ -23,7 +23,7 @@ import { collection, query, orderBy } from "firebase/firestore";
 
 export default function AppContainer() {
   const [mounted, setMounted] = useState(false);
-  // Fixamos Hoje em 02 de Março de 2026 para os cálculos de performance conforme solicitado.
+  // Fixamos Hoje em 02 de Março de 2026 para os cálculos de performance.
   const [now] = useState<Date>(new Date(2026, 2, 2)); 
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [selectedYear, setSelectedYear] = useState<string>("2026");
@@ -61,9 +61,11 @@ export default function AppContainer() {
     const allLeads = rawLeads || [];
     const allProperties = rawProperties || [];
 
+    const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
     const parseDate = (d: any) => {
       if (!d) return null;
-      if (d instanceof Date) return d;
+      if (d instanceof Date) return isNaN(d.getTime()) ? null : d;
       const strVal = String(d).trim();
       if (!strVal || strVal === "N/A" || strVal === "undefined" || strVal === "") return null;
 
@@ -97,15 +99,13 @@ export default function AppContainer() {
       return isNaN(date.getTime()) ? null : date;
     };
 
-    const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-
     const diffDays = (d1: Date, d2: Date) => {
       const t1 = Date.UTC(d1.getFullYear(), d1.getMonth(), d1.getDate());
       const t2 = Date.UTC(d2.getFullYear(), d2.getMonth(), d2.getDate());
       return Math.floor((t1 - t2) / (1000 * 60 * 60 * 24));
     };
 
-    // Filtro temporal
+    // Dados Filtrados
     const filterData = (list: any[], dateField: string) => {
       return list.filter(item => {
         const d = parseDate(item[dateField]);
@@ -116,7 +116,6 @@ export default function AppContainer() {
       });
     };
 
-    // Dados Filtrados
     const filteredSales = filterData(allSales, "saleDate");
     const filteredLeads = filterData(allLeads, "importedAt"); 
     const filteredProperties = filterData(allProperties, "captureDate");
@@ -125,11 +124,14 @@ export default function AppContainer() {
     const uniqueSalesMapTotal = new Map();
     allSales.forEach(s => {
       const type = normalize(s.tipoVenda || s.tipo || "");
-      if (!type.includes('vend')) return; // Aceita "venda", "vendido", "vendas"
+      const closedValue = Number(s.closedValue) || 0;
+      // Aceita como venda se o tipo incluir "vend" OU se tiver um valor fechado significativo
+      if (!type.includes('vend') && closedValue === 0) return;
+      
       const cleanCode = normalize(s.propertyCode).replace(/[^a-z0-9]/g, "");
       const d = parseDate(s.saleDate);
       const cleanDate = d ? d.toISOString().split('T')[0] : normalize(s.saleDate);
-      const key = `${cleanCode}-${cleanDate}-${Math.round(Number(s.closedValue))}`;
+      const key = `${cleanCode}-${cleanDate}-${Math.round(closedValue)}`;
       if (!uniqueSalesMapTotal.has(key)) uniqueSalesMapTotal.set(key, s);
     });
     const uniqueSalesListTotal = Array.from(uniqueSalesMapTotal.values());
@@ -157,18 +159,19 @@ export default function AppContainer() {
     const avgTicketRent = rentProps.length > 0 ? rentProps.reduce((acc, p) => acc + (Number(p.rentalValue) || 0), 0) / rentProps.length : 0;
 
     // Última Venda Realizada (Independente de Filtro de Mês para o card de Histórico)
-    const lastSaleDate = uniqueSalesListTotal
+    const sortedSalesDates = uniqueSalesListTotal
       .map(s => parseDate(s.saleDate))
-      .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
-      .sort((a, b) => b.getTime() - a.getTime())[0];
+      .filter((d): d is Date => d !== null)
+      .sort((a, b) => b.getTime() - a.getTime());
 
+    const lastSaleDate = sortedSalesDates[0];
     const daysSinceLastSale = lastSaleDate ? diffDays(now, lastSaleDate) : 0;
 
     return {
       avgDaysToSell,
       avgDaysToRent: 0,
       totalValue: totalVgvInventoryFiltered, 
-      lastSaleDisplay: `${Math.max(0, daysSinceLastSale)} Dias`,
+      lastSaleDisplay: lastSaleDate ? `${Math.max(0, daysSinceLastSale)} Dias` : "-",
       totalLeads: filteredLeads.length,
       totalSales: filteredSales.length,
       totalProperties: filteredProperties.length,
