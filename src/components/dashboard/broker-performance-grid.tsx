@@ -114,6 +114,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       // 5. CONVERSÕES
       const totalVisits = visitsVenda + visitsLocacao;
       const leadConversionToVisit = brokerLeads.length > 0 ? (totalVisits / brokerLeads.length) * 100 : 0;
+      const leadsPerVisit = totalVisits > 0 ? (brokerLeads.length / totalVisits) : 0;
       const leadsPerSale = numSales > 0 ? (brokerLeads.length / numSales) : 0;
 
       return {
@@ -124,6 +125,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         visitsVenda,
         visitsLocacao,
         conversionVisits: leadConversionToVisit,
+        leadsPerVisit,
         numSales,
         leadsPerSale,
         vgv: totalVgv,
@@ -155,7 +157,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                 <TableHead className="text-center border-r text-xs uppercase">Angariados</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase bg-indigo-50/20">Visitas Venda</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase bg-blue-50/20">Visitas Locação</TableHead>
-                <TableHead className="text-center border-r text-xs uppercase bg-emerald-50/20">% Conv. Visita</TableHead>
+                <TableHead className="text-center border-r text-xs uppercase bg-emerald-50/20">Leads / Visita</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase bg-primary/5">Vendas</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase bg-orange-50/10">Leads / Venda</TableHead>
                 <TableHead className="text-right border-r text-xs uppercase bg-amber-50/30">Frequência Venda</TableHead>
@@ -192,8 +194,17 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                       {row.visitsLocacao}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-center border-r py-2 bg-emerald-50/10 text-[10px] font-bold text-emerald-700">
-                    {row.leads > 0 ? `${row.conversionVisits.toFixed(1)}%` : "-"}
+                  <TableCell className="text-center border-r py-2 bg-emerald-50/10 relative">
+                    {row.leads > 0 && (row.visitsVenda + row.visitsLocacao) > 0 ? (
+                      <div className="flex flex-col items-center justify-center h-full pt-1">
+                        <span className="absolute top-1 left-1 text-[8px] font-bold text-emerald-600 opacity-60">
+                          {row.conversionVisits.toFixed(1)}%
+                        </span>
+                        <span className="text-[10px] font-bold text-emerald-700">
+                          {row.leadsPerVisit.toFixed(1)}
+                        </span>
+                      </div>
+                    ) : "-"}
                   </TableCell>
                   <TableCell className="text-center border-r py-2 text-sm font-bold bg-primary/5 text-primary">
                     {row.numSales}
