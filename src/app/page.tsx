@@ -19,7 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LayoutDashboard, TrendingUp, Loader2, Table2, Users, BadgeCheck, Settings, Calendar as CalendarIcon } from "lucide-react";
 import { useMemoFirebase, useCollection, useFirebase, initiateAnonymousSignIn } from "@/firebase";
-import { collection, query, orderBy } from "firebase/firestore";
+import { collection, query } from "firebase/firestore";
 
 export default function AppContainer() {
   const [mounted, setMounted] = useState(false);
@@ -37,19 +37,20 @@ export default function AppContainer() {
     }
   }, [auth]);
 
+  // Removemos o orderBy para garantir que pegamos TODOS os documentos, mesmo os sem o campo importedAt
   const salesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, "vendas_imoveis"), orderBy("importedAt", "desc"));
+    return query(collection(firestore, "vendas_imoveis"));
   }, [firestore]);
 
   const leadsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, "leads"), orderBy("importedAt", "desc"));
+    return query(collection(firestore, "leads"));
   }, [firestore]);
 
   const propertiesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, "properties"), orderBy("importedAt", "desc"));
+    return query(collection(firestore, "properties"));
   }, [firestore]);
 
   const { data: rawSales, isLoading: isSalesLoading } = useCollection(salesQuery);
@@ -103,7 +104,7 @@ export default function AppContainer() {
       return Math.floor((t1 - t2) / (1000 * 60 * 60 * 24));
     };
 
-    // Dados Filtrados
+    // Dados Filtrados para VGV e contagens mensais
     const filterData = (list: any[], dateField: string) => {
       return list.filter(item => {
         const d = parseDate(item[dateField]);
@@ -118,7 +119,7 @@ export default function AppContainer() {
     const filteredLeads = filterData(allLeads, "importedAt"); 
     const filteredProperties = filterData(allProperties, "captureDate");
 
-    // LÓGICA DE FREQUÊNCIA E CICLO: SEMPRE TOTAL
+    // LÓGICA DE FREQUÊNCIA E CICLO: SEMPRE SOBRE O TOTAL ACUMULADO
     const validSalesTotal = allSales.filter(s => {
       const d = parseDate(s.saleDate);
       const val = Number(s.closedValue) || 0;
@@ -138,7 +139,7 @@ export default function AppContainer() {
     }).filter((d): d is number => d !== null && d >= 0);
     const avgDaysToSell = validCyclesTotal.length > 0 ? validCyclesTotal.reduce((a, b) => a + b, 0) / validCyclesTotal.length : 0;
 
-    // Métricas Filtradas para exibição
+    // VGV Somado do Cadastro filtrado
     const totalVgvInventoryFiltered = filteredProperties.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0);
     
     const saleProps = filteredProperties.filter(p => (Number(p.saleValue) || 0) > 0);
@@ -147,7 +148,7 @@ export default function AppContainer() {
     const rentProps = filteredProperties.filter(p => (Number(p.rentalValue) || 0) > 0);
     const avgTicketRent = rentProps.length > 0 ? rentProps.reduce((acc, p) => acc + (Number(p.rentalValue) || 0), 0) / rentProps.length : 0;
 
-    // Última Venda Realizada (Independente de Filtro para o card de Histórico)
+    // Última Venda Realizada (Busca no total sem filtro para precisão do histórico)
     const allSaleDates = allSales
       .map(s => parseDate(s.saleDate))
       .filter((d): d is Date => d !== null)

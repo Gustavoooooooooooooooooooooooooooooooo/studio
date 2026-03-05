@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useCollection, useMemoFirebase, useFirebase } from "@/firebase";
-import { collection, query, orderBy } from "firebase/firestore";
+import { collection, query } from "firebase/firestore";
 import { Loader2 } from "lucide-react";
 
 interface BrokerPerformanceGridProps {
@@ -20,9 +20,10 @@ interface BrokerPerformanceGridProps {
 export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth, selectedYear }: BrokerPerformanceGridProps) {
   const { firestore } = useFirebase();
   
+  // Consulta simples sem orderBy para garantir que pegamos todos os corretores
   const brokersQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, "brokers"), orderBy("name", "asc"));
+    return query(collection(firestore, "brokers"));
   }, [firestore]);
 
   const { data: officialBrokers, isLoading: isBrokersLoading } = useCollection(brokersQuery);
@@ -31,31 +32,48 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
 
   const parseDate = (d: any) => {
     if (!d) return null;
-    if (d instanceof Date) return d;
-    const cleanStr = String(d).trim();
-    const parts = cleanStr.split('/');
-    if (parts.length === 3) {
-      const day = parseInt(parts[0], 10);
-      const month = parseInt(parts[1], 10) - 1;
-      const yearPart = parts[2].trim();
-      const year = yearPart.length === 2 ? 2000 + parseInt(yearPart, 10) : parseInt(yearPart, 10);
-      return new Date(year, month, day);
+    if (d instanceof Date) return isNaN(d.getTime()) ? null : d;
+    const strVal = String(d).trim();
+    if (!strVal || ["n/a", "undefined", "null", ""].includes(strVal.toLowerCase())) return null;
+
+    // 1. Tentar DD/MM/YYYY ou DD.MM.YYYY ou DD-MM-YYYY
+    const dmyMatch = strVal.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
+    if (dmyMatch) {
+      const day = parseInt(dmyMatch[1], 10);
+      const month = parseInt(dmyMatch[2], 10) - 1;
+      let year = parseInt(dmyMatch[3], 10);
+      if (year < 100) year += 2000;
+      const date = new Date(year, month, day);
+      if (!isNaN(date.getTime())) return date;
     }
-    const date = new Date(cleanStr);
+
+    // 2. Tentar ISO YYYY-MM-DD
+    const isoMatch = strVal.match(/^(\d{4})[./-](\d{2})[./-](\d{2})/);
+    if (isoMatch) {
+      const date = new Date(parseInt(isoMatch[1], 10), parseInt(isoMatch[2], 10) - 1, parseInt(isoMatch[3], 10));
+      if (!isNaN(date.getTime())) return date;
+    }
+
+    // 3. Serial Excel
+    const cleanNumStr = strVal.replace(/[^\d]/g, '');
+    const num = Number(cleanNumStr);
+    if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('-') && !strVal.includes('.')) {
+      return new Date(Math.round((num - 25569) * 86400 * 1000));
+    }
+
+    const date = new Date(strVal);
     return isNaN(date.getTime()) ? null : date;
   };
 
   const stats = useMemo(() => {
     if (!officialBrokers || officialBrokers.length === 0) return [];
 
-    // BASE DE CÁLCULO FIXA PARA FREQUÊNCIA: 427 dias (01/01/2025 até 02/03/2026)
-    const totalDaysCount = 427;
+    const totalDaysCount = 427; // Base de cálculo histórica (01/01/2025 até 02/03/2026)
 
     return officialBrokers.map(brokerDoc => {
       const displayName = brokerDoc.name;
       const normName = normalize(displayName);
 
-      // Função auxiliar para filtrar por mês/ano
       const filterByPeriod = (item: any, dateField: string) => {
         const d = parseDate(item[dateField]);
         if (!d) return false;
@@ -64,7 +82,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
         return monthMatch && yearMatch;
       };
 
-      // 1. Angariações Filtradas
+      // 1. Angariações Filtradas (Aba Cadastro)
       const bProps = properties.filter(p => {
         const fields = [p.brokerId, p.angariador, p.captador, p.quemAngariou, p.responsavel];
         return fields.some(f => {
@@ -78,13 +96,13 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
       const vPropsCount = bPropsFiltered.filter(p => Number(p.saleValue || 0) > 0).length;
       const lPropsCount = bPropsFiltered.filter(p => Number(p.rentalValue || 0) > 0).length;
 
-      // 2. Leads & Visitas Filtrados
+      // 2. Leads & Visitas (Aba Leads)
       const brokerLeads = leads.filter(l => {
         const entries = Object.entries(l);
         return entries.some(([key, val]) => {
           const nk = normalize(key);
           const nv = normalize(String(val || ""));
-          if (nk.includes("corretor") || nk.includes("responsavel") || nk.includes("atendente")) {
+          if (nk.includes("corretor") || nk.includes("responsavel") || nk.includes("atendente") || nk.includes("vendedor")) {
              return nv === normName || (normName.length > 2 && nv.includes(normName));
           }
           return nv === normName;
@@ -120,7 +138,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
         }
       });
 
-      // 3. VENDAS FILTRADAS E TOTAIS (PARA FREQUÊNCIA)
+      // 3. Vendas (Aba Conclusão)
       const brokerSalesAll = sales.filter(s => {
         const sellerFields = [s.vendedor, s.vendas, s.corretor, s.venda, s.responsavel];
         return sellerFields.some(f => {
@@ -134,11 +152,13 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
       const numSalesFiltered = brokerSalesFiltered.length;
       const totalVgvFiltered = brokerSalesFiltered.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
       
-      // FREQUÊNCIA: SEMPRE SOBRE O TOTAL (Mila 8 vendas em 427 dias = 53 dias)
+      // FREQUÊNCIA: SEMPRE SOBRE O TOTAL (Base de 427 dias)
       const numSalesTotal = brokerSalesAll.length;
       const avgFrequency = numSalesTotal > 0 ? Math.floor(totalDaysCount / numSalesTotal) : 0;
 
       const totalVisitsFiltered = visitsVenda + visitsLocacao;
+      
+      // Métricas de Conversão
       const leadsPerVisit = totalVisitsFiltered > 0 ? (brokerLeadsFiltered.length / totalVisitsFiltered) : 0;
       const conversionLeadsToVisit = brokerLeadsFiltered.length > 0 ? (totalVisitsFiltered / brokerLeadsFiltered.length) * 100 : 0;
       
@@ -192,10 +212,19 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
                 <TableHead className="text-center border-r text-xs uppercase">Angariados</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase bg-indigo-50/20">Visitas Venda</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase bg-blue-50/20">Visitas Locação</TableHead>
-                <TableHead className="text-center border-r text-xs uppercase bg-emerald-50/20">Leads / Visita</TableHead>
+                <TableHead className="text-center border-r text-xs uppercase bg-emerald-50/20 relative">
+                   <span className="absolute top-1 left-1 text-[8px] opacity-40">%</span>
+                   Leads / Visita
+                </TableHead>
                 <TableHead className="text-center border-r text-xs uppercase bg-primary/5">Vendas</TableHead>
-                <TableHead className="text-center border-r text-xs uppercase bg-orange-50/10">Leads / Venda</TableHead>
-                <TableHead className="text-center border-r text-xs uppercase bg-rose-50/10">Visitas / Venda</TableHead>
+                <TableHead className="text-center border-r text-xs uppercase bg-orange-50/10 relative">
+                   <span className="absolute top-1 left-1 text-[8px] opacity-40">%</span>
+                   Leads / Venda
+                </TableHead>
+                <TableHead className="text-center border-r text-xs uppercase bg-rose-50/10 relative">
+                   <span className="absolute top-1 left-1 text-[8px] opacity-40">%</span>
+                   Visitas / Venda
+                </TableHead>
                 <TableHead className="text-right border-r text-xs uppercase bg-amber-50/20">Frequência Venda (Total)</TableHead>
                 <TableHead className="text-right font-bold text-xs uppercase bg-primary/5">VGV Período</TableHead>
               </TableRow>
