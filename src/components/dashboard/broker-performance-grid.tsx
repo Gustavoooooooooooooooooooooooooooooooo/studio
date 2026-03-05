@@ -46,28 +46,58 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         });
       });
       
-      const vPropsCount = bProps.filter(p => Number(p.saleValue || p.valorVenda) > 0).length;
-      const lPropsCount = bProps.filter(p => Number(p.rentalValue || p.valorLocacao) > 0).length;
+      const vPropsCount = bProps.filter(p => {
+          const val = Number(p.saleValue || p.valorVenda || 0);
+          return val > 0;
+      }).length;
+      
+      const lPropsCount = bProps.filter(p => {
+          const val = Number(p.rentalValue || p.valorLocacao || 0);
+          return val > 0;
+      }).length;
 
-      // 2. Leads (Busca na aba Leads - total atendido)
-      const brokerLeadsCount = leads.filter(l => {
+      // 2. Leads & Visitas (Busca na aba Leads)
+      const brokerLeads = leads.filter(l => {
         const entries = Object.entries(l);
         return entries.some(([key, val]) => {
           const nk = normalize(key);
           const nv = normalize(String(val || ""));
           
-          // Se for uma coluna provável de corretor, fazemos match mais flexível
           if (nk.includes("corretor") || nk.includes("responsavel") || nk.includes("atendente") || nk.includes("vendedor") || nk === "atendido" || nk === "quem") {
              return nv === normName || (normName.length > 2 && nv.includes(normName));
           }
-          // Caso contrário, apenas match exato para evitar falsos positivos
           return nv === normName;
         });
-      }).length;
+      });
+
+      let visitsVenda = 0;
+      let visitsLocacao = 0;
+
+      brokerLeads.forEach(l => {
+        const entries = Object.entries(l);
+        // Verifica se Status da atividade atual é Realizada
+        const hasVisit = entries.some(([key, val]) => {
+          const nk = normalize(key);
+          const nv = normalize(String(val || ""));
+          return nk.includes("status da atividade atual") && nv.includes("realizada");
+        });
+
+        if (hasVisit) {
+          // Determina se é Venda ou Locação
+          const isLocacao = entries.some(([key, val]) => {
+            const nk = normalize(key);
+            const nv = normalize(String(val || ""));
+            return (nk.includes("natureza") || nk.includes("negociacao") || nk === "tipo") && 
+                   (nv.includes("loca") || nv.includes("alug"));
+          });
+
+          if (isLocacao) visitsLocacao++;
+          else visitsVenda++;
+        }
+      });
 
       // 3. VENDAS (Aba Conclusão - vendas_imoveis)
       const brokerSales = sales.filter(s => {
-        // Buscamos especificamente nas colunas comuns e na coluna "Vendas" solicitada
         const sellerFields = [s.vendedor, s.vendas, s.corretor, s.venda, s.responsavel, s.vendas_corretor];
         return sellerFields.some(f => {
           const nv = normalize(String(f || ""));
@@ -83,9 +113,11 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
 
       return {
         name: displayName,
-        leads: brokerLeadsCount,
+        leads: brokerLeads.length,
         vProps: vPropsCount,
         lProps: lPropsCount,
+        visitsVenda,
+        visitsLocacao,
         numSales,
         vgv: totalVgv,
         avgFrequency
@@ -114,6 +146,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                 <TableHead className="font-bold border-r text-xs uppercase">Corretor</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase">Leads Atendidos</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase">Angariados</TableHead>
+                <TableHead className="text-center border-r text-xs uppercase bg-indigo-50/20">Visitas Venda</TableHead>
+                <TableHead className="text-center border-r text-xs uppercase bg-blue-50/20">Visitas Locação</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase bg-primary/5">Vendas</TableHead>
                 <TableHead className="text-right border-r text-xs uppercase bg-amber-50/30">Frequência Venda</TableHead>
                 <TableHead className="text-right font-bold text-xs uppercase bg-primary/5">VGV Total</TableHead>
@@ -138,6 +172,16 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                         {row.lProps}
                       </span>
                     </div>
+                  </TableCell>
+                  <TableCell className="text-center border-r py-2 bg-indigo-50/10">
+                    <Badge variant="outline" className={`border-indigo-200 text-indigo-700 text-[10px] ${row.visitsVenda === 0 && 'opacity-20'}`}>
+                      {row.visitsVenda}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-center border-r py-2 bg-blue-50/10">
+                    <Badge variant="outline" className={`border-blue-200 text-blue-700 text-[10px] ${row.visitsLocacao === 0 && 'opacity-20'}`}>
+                      {row.visitsLocacao}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-center border-r py-2 text-sm font-bold bg-primary/5 text-primary">
                     {row.numSales}
