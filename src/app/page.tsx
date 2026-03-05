@@ -64,23 +64,36 @@ export default function AppContainer() {
     const parseDate = (d: any) => {
       if (!d) return null;
       if (d instanceof Date) return d;
-      const cleanStr = String(d).trim();
-      if (!cleanStr || cleanStr === "N/A" || cleanStr === "undefined" || cleanStr === "") return null;
-      const parts = cleanStr.split('/');
-      if (parts.length === 3) {
-        const day = parseInt(parts[0], 10);
-        const month = parseInt(parts[1], 10) - 1;
-        const yearPart = parts[2].trim();
-        const year = yearPart.length === 2 ? 2000 + parseInt(yearPart, 10) : parseInt(yearPart, 10);
+      const strVal = String(d).trim();
+      if (!strVal || strVal === "N/A" || strVal === "undefined" || strVal === "") return null;
+
+      // 1. Tentar DD/MM/YYYY ou DD-MM-YYYY
+      const dmyMatch = strVal.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+      if (dmyMatch) {
+        const day = parseInt(dmyMatch[1], 10);
+        const month = parseInt(dmyMatch[2], 10) - 1;
+        let year = parseInt(dmyMatch[3], 10);
+        if (year < 100) year += 2000;
         const date = new Date(year, month, day);
         if (!isNaN(date.getTime())) return date;
       }
-      let val = cleanStr.replace(/\./g, '').replace(',', '.');
-      const num = parseFloat(val);
-      if (!isNaN(num) && num > 40000 && num < 60000) {
+
+      // 2. Tentar ISO YYYY-MM-DD
+      const isoMatch = strVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (isoMatch) {
+        const date = new Date(parseInt(isoMatch[1], 10), parseInt(isoMatch[2], 10) - 1, parseInt(isoMatch[3], 10));
+        if (!isNaN(date.getTime())) return date;
+      }
+
+      // 3. Tentar Serial do Excel (número puro)
+      const cleanNumStr = strVal.replace(/[^\d]/g, '');
+      const num = Number(cleanNumStr);
+      if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('-')) {
         return new Date(Math.round((num - 25569) * 86400 * 1000));
       }
-      const date = new Date(cleanStr);
+
+      // 4. Fallback genérico
+      const date = new Date(strVal);
       return isNaN(date.getTime()) ? null : date;
     };
 
@@ -112,7 +125,7 @@ export default function AppContainer() {
     const uniqueSalesMapTotal = new Map();
     allSales.forEach(s => {
       const type = normalize(s.tipoVenda || s.tipo || "");
-      if (!type.includes('venda')) return;
+      if (!type.includes('vend')) return; // Aceita "venda", "vendido", "vendas"
       const cleanCode = normalize(s.propertyCode).replace(/[^a-z0-9]/g, "");
       const d = parseDate(s.saleDate);
       const cleanDate = d ? d.toISOString().split('T')[0] : normalize(s.saleDate);
@@ -135,7 +148,6 @@ export default function AppContainer() {
     const avgDaysToSell = validCyclesTotal.length > 0 ? validCyclesTotal.reduce((a, b) => a + b, 0) / validCyclesTotal.length : 0;
 
     // Métricas Filtradas para exibição
-    // Agora o totalValue (VGV Acumulado no card) soma os valores de VENDA da aba CADASTRO (properties) filtrada
     const totalVgvInventoryFiltered = filteredProperties.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0);
     
     const saleProps = filteredProperties.filter(p => (Number(p.saleValue) || 0) > 0);
@@ -144,6 +156,7 @@ export default function AppContainer() {
     const rentProps = filteredProperties.filter(p => (Number(p.rentalValue) || 0) > 0);
     const avgTicketRent = rentProps.length > 0 ? rentProps.reduce((acc, p) => acc + (Number(p.rentalValue) || 0), 0) / rentProps.length : 0;
 
+    // Última Venda Realizada (Independente de Filtro de Mês para o card de Histórico)
     const lastSaleDate = uniqueSalesListTotal
       .map(s => parseDate(s.saleDate))
       .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
@@ -154,7 +167,7 @@ export default function AppContainer() {
     return {
       avgDaysToSell,
       avgDaysToRent: 0,
-      totalValue: totalVgvInventoryFiltered, // Valor vindo da aba Cadastro (estoque)
+      totalValue: totalVgvInventoryFiltered, 
       lastSaleDisplay: `${Math.max(0, daysSinceLastSale)} Dias`,
       totalLeads: filteredLeads.length,
       totalSales: filteredSales.length,
