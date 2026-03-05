@@ -75,7 +75,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
 
       brokerLeads.forEach(l => {
         const entries = Object.entries(l);
-        // Verifica se Status da atividade atual é Realizada
         const hasVisit = entries.some(([key, val]) => {
           const nk = normalize(key);
           const nv = normalize(String(val || ""));
@@ -83,7 +82,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         });
 
         if (hasVisit) {
-          // Determina se é Venda ou Locação
           const isLocacao = entries.some(([key, val]) => {
             const nk = normalize(key);
             const nv = normalize(String(val || ""));
@@ -108,14 +106,16 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       const numSales = brokerSales.length;
       const totalVgv = brokerSales.reduce((acc, s) => acc + (Number(s.closedValue || s.valorVenda) || 0), 0);
       
-      // 4. CÁLCULO DA FREQUÊNCIA: 427 / Vendas (Floor)
       const avgFrequency = numSales > 0 ? Math.floor(totalDaysCount / numSales) : 0;
 
-      // 5. CONVERSÕES
       const totalVisits = visitsVenda + visitsLocacao;
       const leadConversionToVisit = brokerLeads.length > 0 ? (totalVisits / brokerLeads.length) * 100 : 0;
       const leadsPerVisit = totalVisits > 0 ? (brokerLeads.length / totalVisits) : 0;
       const leadsPerSale = numSales > 0 ? (brokerLeads.length / numSales) : 0;
+      
+      // Nova métrica: Visitas para Venda
+      const visitsPerSale = numSales > 0 ? (totalVisits / numSales) : 0;
+      const visitConversionToSale = totalVisits > 0 ? (numSales / totalVisits) * 100 : 0;
 
       return {
         name: displayName,
@@ -124,10 +124,13 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         lProps: lPropsCount,
         visitsVenda,
         visitsLocacao,
+        totalVisits,
         conversionVisits: leadConversionToVisit,
         leadsPerVisit,
         numSales,
         leadsPerSale,
+        visitsPerSale,
+        visitConversionToSale,
         vgv: totalVgv,
         avgFrequency
       };
@@ -160,7 +163,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                 <TableHead className="text-center border-r text-xs uppercase bg-emerald-50/20">Leads / Visita</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase bg-primary/5">Vendas</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase bg-orange-50/10">Leads / Venda</TableHead>
-                <TableHead className="text-right border-r text-xs uppercase bg-amber-50/30">Frequência Venda</TableHead>
+                <TableHead className="text-center border-r text-xs uppercase bg-rose-50/10">Visitas / Venda</TableHead>
+                <TableHead className="text-right border-r text-xs uppercase bg-amber-50/20">Frequência Venda</TableHead>
                 <TableHead className="text-right font-bold text-xs uppercase bg-primary/5">VGV Total</TableHead>
               </TableRow>
             </TableHeader>
@@ -195,7 +199,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                     </Badge>
                   </TableCell>
                   <TableCell className="text-center border-r py-2 bg-emerald-50/10 relative">
-                    {row.leads > 0 && (row.visitsVenda + row.visitsLocacao) > 0 ? (
+                    {row.leads > 0 && row.totalVisits > 0 ? (
                       <div className="flex flex-col items-center justify-center h-full pt-1">
                         <span className="absolute top-1 left-1 text-[8px] font-bold text-emerald-600 opacity-60">
                           {row.conversionVisits.toFixed(1)}%
@@ -217,6 +221,18 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                         </span>
                         <span className="text-[10px] font-bold text-orange-700">
                           {row.leadsPerSale.toFixed(1)}
+                        </span>
+                      </div>
+                    ) : "-"}
+                  </TableCell>
+                  <TableCell className="text-center border-r py-2 bg-rose-50/10 text-[10px] font-bold text-rose-700 relative">
+                    {row.numSales > 0 && row.totalVisits > 0 ? (
+                      <div className="flex flex-col items-center justify-center h-full pt-1">
+                        <span className="absolute top-1 left-1 text-[8px] font-bold text-rose-600 opacity-60">
+                          {row.visitConversionToSale.toFixed(1)}%
+                        </span>
+                        <span className="text-[10px] font-bold text-rose-700">
+                          {row.visitsPerSale.toFixed(1)}
                         </span>
                       </div>
                     ) : "-"}
