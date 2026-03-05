@@ -105,7 +105,7 @@ export default function AppContainer() {
 
     // Dados Filtrados
     const filteredSales = filterData(allSales, "saleDate");
-    const filteredLeads = filterData(allLeads, "importedAt"); // Leads usam importedAt ou data se disponível
+    const filteredLeads = filterData(allLeads, "importedAt"); 
     const filteredProperties = filterData(allProperties, "captureDate");
 
     // LÓGICA DE FREQUÊNCIA E CICLO: SEMPRE TOTAL (2025-01-01 até Hoje)
@@ -135,9 +135,14 @@ export default function AppContainer() {
     const avgDaysToSell = validCyclesTotal.length > 0 ? validCyclesTotal.reduce((a, b) => a + b, 0) / validCyclesTotal.length : 0;
 
     // Métricas Filtradas para exibição
-    const totalVgvFiltered = filteredSales.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
+    // Agora o totalValue (VGV Acumulado no card) soma os valores de VENDA da aba CADASTRO (properties) filtrada
+    const totalVgvInventoryFiltered = filteredProperties.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0);
+    
     const saleProps = filteredProperties.filter(p => (Number(p.saleValue) || 0) > 0);
     const avgTicket = saleProps.length > 0 ? saleProps.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0) / saleProps.length : 0;
+
+    const rentProps = filteredProperties.filter(p => (Number(p.rentalValue) || 0) > 0);
+    const avgTicketRent = rentProps.length > 0 ? rentProps.reduce((acc, p) => acc + (Number(p.rentalValue) || 0), 0) / rentProps.length : 0;
 
     const lastSaleDate = uniqueSalesListTotal
       .map(s => parseDate(s.saleDate))
@@ -148,12 +153,14 @@ export default function AppContainer() {
 
     return {
       avgDaysToSell,
-      totalValue: totalVgvFiltered,
+      avgDaysToRent: 0,
+      totalValue: totalVgvInventoryFiltered, // Valor vindo da aba Cadastro (estoque)
       lastSaleDisplay: `${Math.max(0, daysSinceLastSale)} Dias`,
       totalLeads: filteredLeads.length,
       totalSales: filteredSales.length,
       totalProperties: filteredProperties.length,
       avgTicket,
+      avgTicketRent,
       salesFrequency
     };
   }, [rawSales, rawLeads, rawProperties, now, selectedMonth, selectedYear]);
