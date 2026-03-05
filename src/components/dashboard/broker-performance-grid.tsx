@@ -209,8 +209,17 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                   <TableCell className="text-center border-r py-2 text-sm font-bold bg-primary/5 text-primary">
                     {row.numSales}
                   </TableCell>
-                  <TableCell className="text-center border-r py-2 bg-orange-50/10 text-[10px] font-bold text-orange-700">
-                    {row.numSales > 0 ? row.leadsPerSale.toFixed(1) : "-"}
+                  <TableCell className="text-center border-r py-2 bg-orange-50/10 text-[10px] font-bold text-orange-700 relative">
+                    {row.numSales > 0 ? (
+                      <div className="flex flex-col items-center justify-center h-full pt-1">
+                        <span className="absolute top-1 left-1 text-[8px] font-bold text-orange-600 opacity-60">
+                          {((row.numSales / row.leads) * 100).toFixed(1)}%
+                        </span>
+                        <span className="text-[10px] font-bold text-orange-700">
+                          {row.leadsPerSale.toFixed(1)}
+                        </span>
+                      </div>
+                    ) : "-"}
                   </TableCell>
                   <TableCell className="text-right border-r py-2 text-xs font-bold text-amber-700 bg-amber-50/20">
                     {row.numSales > 0 ? `${row.avgFrequency} dias` : "-"}
