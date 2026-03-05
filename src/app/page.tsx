@@ -61,16 +61,14 @@ export default function AppContainer() {
     const allLeads = rawLeads || [];
     const allProperties = rawProperties || [];
 
-    const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-
     const parseDate = (d: any) => {
       if (!d) return null;
       if (d instanceof Date) return isNaN(d.getTime()) ? null : d;
       const strVal = String(d).trim();
-      if (!strVal || strVal === "N/A" || strVal === "undefined" || strVal === "") return null;
+      if (!strVal || ["n/a", "undefined", "null", ""].includes(strVal.toLowerCase())) return null;
 
-      // 1. Tentar DD/MM/YYYY ou DD-MM-YYYY
-      const dmyMatch = strVal.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+      // 1. Tentar DD/MM/YYYY ou DD.MM.YYYY ou DD-MM-YYYY
+      const dmyMatch = strVal.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
       if (dmyMatch) {
         const day = parseInt(dmyMatch[1], 10);
         const month = parseInt(dmyMatch[2], 10) - 1;
@@ -81,7 +79,7 @@ export default function AppContainer() {
       }
 
       // 2. Tentar ISO YYYY-MM-DD
-      const isoMatch = strVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      const isoMatch = strVal.match(/^(\d{4})[./-](\d{2})[./-](\d{2})/);
       if (isoMatch) {
         const date = new Date(parseInt(isoMatch[1], 10), parseInt(isoMatch[2], 10) - 1, parseInt(isoMatch[3], 10));
         if (!isNaN(date.getTime())) return date;
@@ -90,7 +88,7 @@ export default function AppContainer() {
       // 3. Tentar Serial do Excel (número puro)
       const cleanNumStr = strVal.replace(/[^\d]/g, '');
       const num = Number(cleanNumStr);
-      if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('-')) {
+      if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('-') && !strVal.includes('.')) {
         return new Date(Math.round((num - 25569) * 86400 * 1000));
       }
 
@@ -120,28 +118,19 @@ export default function AppContainer() {
     const filteredLeads = filterData(allLeads, "importedAt"); 
     const filteredProperties = filterData(allProperties, "captureDate");
 
-    // LÓGICA DE FREQUÊNCIA E CICLO: SEMPRE TOTAL (2025-01-01 até Hoje)
-    const uniqueSalesMapTotal = new Map();
-    allSales.forEach(s => {
-      const type = normalize(s.tipoVenda || s.tipo || "");
-      const closedValue = Number(s.closedValue) || 0;
-      // Aceita como venda se o tipo incluir "vend" OU se tiver um valor fechado significativo
-      if (!type.includes('vend') && closedValue === 0) return;
-      
-      const cleanCode = normalize(s.propertyCode).replace(/[^a-z0-9]/g, "");
+    // LÓGICA DE FREQUÊNCIA E CICLO: SEMPRE TOTAL
+    const validSalesTotal = allSales.filter(s => {
       const d = parseDate(s.saleDate);
-      const cleanDate = d ? d.toISOString().split('T')[0] : normalize(s.saleDate);
-      const key = `${cleanCode}-${cleanDate}-${Math.round(closedValue)}`;
-      if (!uniqueSalesMapTotal.has(key)) uniqueSalesMapTotal.set(key, s);
+      const val = Number(s.closedValue) || 0;
+      return d !== null && val > 0;
     });
-    const uniqueSalesListTotal = Array.from(uniqueSalesMapTotal.values());
 
-    // Frequência Total (Base 427 dias)
+    // Frequência Total (Base 427 dias: 01/01/2025 até 02/03/2026)
     const totalDaysSinceStart = 427; 
-    const salesFrequency = uniqueSalesListTotal.length > 0 ? totalDaysSinceStart / uniqueSalesListTotal.length : 0;
+    const salesFrequency = validSalesTotal.length > 0 ? totalDaysSinceStart / validSalesTotal.length : 0;
 
     // Ciclo Médio Total
-    const validCyclesTotal = uniqueSalesListTotal.map(s => {
+    const validCyclesTotal = validSalesTotal.map(s => {
       const start = parseDate(s.propertyCaptureDate);
       const end = parseDate(s.saleDate);
       if (start && end) return diffDays(end, start);
@@ -158,20 +147,20 @@ export default function AppContainer() {
     const rentProps = filteredProperties.filter(p => (Number(p.rentalValue) || 0) > 0);
     const avgTicketRent = rentProps.length > 0 ? rentProps.reduce((acc, p) => acc + (Number(p.rentalValue) || 0), 0) / rentProps.length : 0;
 
-    // Última Venda Realizada (Independente de Filtro de Mês para o card de Histórico)
-    const sortedSalesDates = uniqueSalesListTotal
+    // Última Venda Realizada (Independente de Filtro para o card de Histórico)
+    const allSaleDates = allSales
       .map(s => parseDate(s.saleDate))
       .filter((d): d is Date => d !== null)
       .sort((a, b) => b.getTime() - a.getTime());
 
-    const lastSaleDate = sortedSalesDates[0];
-    const daysSinceLastSale = lastSaleDate ? diffDays(now, lastSaleDate) : 0;
+    const lastSaleDate = allSaleDates[0];
+    const daysSinceLastSale = lastSaleDate ? diffDays(now, lastSaleDate) : null;
 
     return {
       avgDaysToSell,
       avgDaysToRent: 0,
       totalValue: totalVgvInventoryFiltered, 
-      lastSaleDisplay: lastSaleDate ? `${Math.max(0, daysSinceLastSale)} Dias` : "-",
+      lastSaleDisplay: daysSinceLastSale !== null ? `${Math.max(0, daysSinceLastSale)} Dias` : "-",
       totalLeads: filteredLeads.length,
       totalSales: filteredSales.length,
       totalProperties: filteredProperties.length,
