@@ -111,6 +111,11 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
       // 4. CÁLCULO DA FREQUÊNCIA: 427 / Vendas (Floor)
       const avgFrequency = numSales > 0 ? Math.floor(totalDaysCount / numSales) : 0;
 
+      // 5. CONVERSÕES
+      const totalVisits = visitsVenda + visitsLocacao;
+      const leadConversionToVisit = brokerLeads.length > 0 ? (totalVisits / brokerLeads.length) * 100 : 0;
+      const leadsPerSale = numSales > 0 ? (brokerLeads.length / numSales) : 0;
+
       return {
         name: displayName,
         leads: brokerLeads.length,
@@ -118,7 +123,9 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         lProps: lPropsCount,
         visitsVenda,
         visitsLocacao,
+        conversionVisits: leadConversionToVisit,
         numSales,
+        leadsPerSale,
         vgv: totalVgv,
         avgFrequency
       };
@@ -148,7 +155,9 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                 <TableHead className="text-center border-r text-xs uppercase">Angariados</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase bg-indigo-50/20">Visitas Venda</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase bg-blue-50/20">Visitas Locação</TableHead>
+                <TableHead className="text-center border-r text-xs uppercase bg-emerald-50/20">% Conv. Visita</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase bg-primary/5">Vendas</TableHead>
+                <TableHead className="text-center border-r text-xs uppercase bg-orange-50/10">Leads / Venda</TableHead>
                 <TableHead className="text-right border-r text-xs uppercase bg-amber-50/30">Frequência Venda</TableHead>
                 <TableHead className="text-right font-bold text-xs uppercase bg-primary/5">VGV Total</TableHead>
               </TableRow>
@@ -183,8 +192,14 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                       {row.visitsLocacao}
                     </Badge>
                   </TableCell>
+                  <TableCell className="text-center border-r py-2 bg-emerald-50/10 text-[10px] font-bold text-emerald-700">
+                    {row.leads > 0 ? `${row.conversionVisits.toFixed(1)}%` : "-"}
+                  </TableCell>
                   <TableCell className="text-center border-r py-2 text-sm font-bold bg-primary/5 text-primary">
                     {row.numSales}
+                  </TableCell>
+                  <TableCell className="text-center border-r py-2 bg-orange-50/10 text-[10px] font-bold text-orange-700">
+                    {row.numSales > 0 ? row.leadsPerSale.toFixed(1) : "-"}
                   </TableCell>
                   <TableCell className="text-right border-r py-2 text-xs font-bold text-amber-700 bg-amber-50/20">
                     {row.numSales > 0 ? `${row.avgFrequency} dias` : "-"}
