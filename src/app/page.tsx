@@ -16,7 +16,8 @@ import { SalesDataTable } from "@/components/dashboard/sales-data-table";
 import { LeadsDataTable } from "@/components/dashboard/leads-data-table";
 import { BrokerSettings } from "@/components/dashboard/broker-settings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LayoutDashboard, TrendingUp, Loader2, Table2, Users, BadgeCheck, Settings } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { LayoutDashboard, TrendingUp, Loader2, Table2, Users, BadgeCheck, Settings, Calendar as CalendarIcon } from "lucide-react";
 import { useMemoFirebase, useCollection, useFirebase, initiateAnonymousSignIn } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
 
@@ -24,6 +25,9 @@ export default function AppContainer() {
   const [mounted, setMounted] = useState(false);
   // Fixamos Hoje em 02 de Março de 2026 para os cálculos de performance conforme solicitado.
   const [now] = useState<Date>(new Date(2026, 2, 2)); 
+  const [selectedMonth, setSelectedMonth] = useState<string>("all");
+  const [selectedYear, setSelectedYear] = useState<string>("2026");
+
   const { auth, firestore } = useFirebase();
 
   useEffect(() => {
@@ -53,17 +57,15 @@ export default function AppContainer() {
   const { data: rawProperties, isLoading: isPropertiesLoading } = useCollection(propertiesQuery);
 
   const metrics = useMemo(() => {
-    const sales = rawSales || [];
-    const leads = rawLeads || [];
-    const properties = rawProperties || [];
+    const allSales = rawSales || [];
+    const allLeads = rawLeads || [];
+    const allProperties = rawProperties || [];
 
     const parseDate = (d: any) => {
       if (!d) return null;
       if (d instanceof Date) return d;
-      
       const cleanStr = String(d).trim();
       if (!cleanStr || cleanStr === "N/A" || cleanStr === "undefined" || cleanStr === "") return null;
-
       const parts = cleanStr.split('/');
       if (parts.length === 3) {
         const day = parseInt(parts[0], 10);
@@ -73,13 +75,11 @@ export default function AppContainer() {
         const date = new Date(year, month, day);
         if (!isNaN(date.getTime())) return date;
       }
-
       let val = cleanStr.replace(/\./g, '').replace(',', '.');
       const num = parseFloat(val);
       if (!isNaN(num) && num > 40000 && num < 60000) {
         return new Date(Math.round((num - 25569) * 86400 * 1000));
       }
-
       const date = new Date(cleanStr);
       return isNaN(date.getTime()) ? null : date;
     };
@@ -92,73 +92,71 @@ export default function AppContainer() {
       return Math.floor((t1 - t2) / (1000 * 60 * 60 * 24));
     };
 
-    // Desduplicar vendas globais E Filtrar APENAS o tipo 'Venda'
-    const uniqueSalesMap = new Map();
-    sales.forEach(s => {
+    // Filtro temporal
+    const filterData = (list: any[], dateField: string) => {
+      return list.filter(item => {
+        const d = parseDate(item[dateField]);
+        if (!d) return false;
+        const monthMatch = selectedMonth === "all" || d.getMonth() === parseInt(selectedMonth);
+        const yearMatch = selectedYear === "all" || d.getFullYear() === parseInt(selectedYear);
+        return monthMatch && yearMatch;
+      });
+    };
+
+    // Dados Filtrados
+    const filteredSales = filterData(allSales, "saleDate");
+    const filteredLeads = filterData(allLeads, "importedAt"); // Leads usam importedAt ou data se disponível
+    const filteredProperties = filterData(allProperties, "captureDate");
+
+    // LÓGICA DE FREQUÊNCIA E CICLO: SEMPRE TOTAL (2025-01-01 até Hoje)
+    const uniqueSalesMapTotal = new Map();
+    allSales.forEach(s => {
       const type = normalize(s.tipoVenda || s.tipo || "");
       if (!type.includes('venda')) return;
-
       const cleanCode = normalize(s.propertyCode).replace(/[^a-z0-9]/g, "");
       const d = parseDate(s.saleDate);
       const cleanDate = d ? d.toISOString().split('T')[0] : normalize(s.saleDate);
-      
-      // Chave robusta para evitar contagem duplicada por erro de formatação
       const key = `${cleanCode}-${cleanDate}-${Math.round(Number(s.closedValue))}`;
-      if (!uniqueSalesMap.has(key)) uniqueSalesMap.set(key, s);
+      if (!uniqueSalesMapTotal.has(key)) uniqueSalesMapTotal.set(key, s);
     });
-    const uniqueSalesList = Array.from(uniqueSalesMap.values());
+    const uniqueSalesListTotal = Array.from(uniqueSalesMapTotal.values());
 
-    const validSalesDates = uniqueSalesList
-      .map(s => parseDate(s.saleDate))
-      .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
-      .sort((a, b) => a.getTime() - b.getTime());
-
-    const lastSale = validSalesDates.length > 0 ? validSalesDates[validSalesDates.length - 1] : null;
-    let daysSinceLastSaleDisplay = "0 Dias";
-    if (lastSale && now) {
-      const diff = diffDays(now, lastSale);
-      daysSinceLastSaleDisplay = `${Math.max(0, diff)} Dias`;
-    }
-
-    // LÓGICA DE PRODUTIVIDADE REAL: (HOJE - 01/01/2025) / TOTAL DE VENDAS
-    // 01/01/2025 até 02/03/2026 = 427 dias.
+    // Frequência Total (Base 427 dias)
     const totalDaysSinceStart = 427; 
+    const salesFrequency = uniqueSalesListTotal.length > 0 ? totalDaysSinceStart / uniqueSalesListTotal.length : 0;
 
-    let salesFrequency = 0;
-    if (uniqueSalesList.length > 0) {
-      salesFrequency = totalDaysSinceStart / uniqueSalesList.length;
-    }
-
-    const validCycles = uniqueSalesList.map(s => {
+    // Ciclo Médio Total
+    const validCyclesTotal = uniqueSalesListTotal.map(s => {
       const start = parseDate(s.propertyCaptureDate);
       const end = parseDate(s.saleDate);
       if (start && end) return diffDays(end, start);
       return null;
     }).filter((d): d is number => d !== null && d >= 0);
-    
-    const avgDaysToSell = validCycles.length > 0 ? validCycles.reduce((a, b) => a + b, 0) / validCycles.length : 0;
+    const avgDaysToSell = validCyclesTotal.length > 0 ? validCyclesTotal.reduce((a, b) => a + b, 0) / validCyclesTotal.length : 0;
 
-    const totalInventoryVgv = properties.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0);
-    
-    const saleProps = properties.filter(p => Number(p.saleValue) > 0);
+    // Métricas Filtradas para exibição
+    const totalVgvFiltered = filteredSales.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
+    const saleProps = filteredProperties.filter(p => (Number(p.saleValue) || 0) > 0);
     const avgTicket = saleProps.length > 0 ? saleProps.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0) / saleProps.length : 0;
 
-    const rentProps = properties.filter(p => Number(p.rentalValue) > 0);
-    const avgTicketRent = rentProps.length > 0 ? rentProps.reduce((acc, p) => acc + (Number(p.rentalValue) || 0), 0) / rentProps.length : 0;
+    const lastSaleDate = uniqueSalesListTotal
+      .map(s => parseDate(s.saleDate))
+      .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
+      .sort((a, b) => b.getTime() - a.getTime())[0];
+
+    const daysSinceLastSale = lastSaleDate ? diffDays(now, lastSaleDate) : 0;
 
     return {
       avgDaysToSell,
-      avgDaysToRent: 0,
-      totalValue: totalInventoryVgv,
-      lastSaleDisplay: daysSinceLastSaleDisplay,
-      totalLeads: leads.length,
-      totalSales: uniqueSalesList.length,
-      totalProperties: properties.length,
+      totalValue: totalVgvFiltered,
+      lastSaleDisplay: `${Math.max(0, daysSinceLastSale)} Dias`,
+      totalLeads: filteredLeads.length,
+      totalSales: filteredSales.length,
+      totalProperties: filteredProperties.length,
       avgTicket,
-      avgTicketRent,
       salesFrequency
     };
-  }, [rawSales, rawLeads, rawProperties, now]);
+  }, [rawSales, rawLeads, rawProperties, now, selectedMonth, selectedYear]);
 
   if (!mounted || isSalesLoading || isLeadsLoading || isPropertiesLoading) {
     return (
@@ -180,6 +178,45 @@ export default function AppContainer() {
               ImmoSales <span className="text-accent">Insight</span>
             </h1>
           </div>
+          
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 bg-muted/30 px-3 py-1.5 rounded-lg border">
+              <CalendarIcon className="h-4 w-4 text-primary" />
+              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                <SelectTrigger className="w-[140px] h-8 border-none bg-transparent shadow-none focus:ring-0">
+                  <SelectValue placeholder="Mês" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os Meses</SelectItem>
+                  <SelectItem value="0">Janeiro</SelectItem>
+                  <SelectItem value="1">Fevereiro</SelectItem>
+                  <SelectItem value="2">Março</SelectItem>
+                  <SelectItem value="3">Abril</SelectItem>
+                  <SelectItem value="4">Maio</SelectItem>
+                  <SelectItem value="5">Junho</SelectItem>
+                  <SelectItem value="6">Julho</SelectItem>
+                  <SelectItem value="7">Agosto</SelectItem>
+                  <SelectItem value="8">Setembro</SelectItem>
+                  <SelectItem value="9">Outubro</SelectItem>
+                  <SelectItem value="10">Novembro</SelectItem>
+                  <SelectItem value="11">Dezembro</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <div className="w-[1px] h-4 bg-muted-foreground/20 mx-1" />
+              
+              <Select value={selectedYear} onValueChange={setSelectedYear}>
+                <SelectTrigger className="w-[100px] h-8 border-none bg-transparent shadow-none focus:ring-0">
+                  <SelectValue placeholder="Ano" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="2025">2025</SelectItem>
+                  <SelectItem value="2026">2026</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -199,7 +236,13 @@ export default function AppContainer() {
             <InventoryHealth />
             <div className="space-y-6">
               <MonthlyTrends sales={rawSales || []} leads={rawLeads || []} properties={rawProperties || []} />
-              <BrokerPerformanceGrid sales={rawSales || []} leads={rawLeads || []} properties={rawProperties || []} />
+              <BrokerPerformanceGrid 
+                sales={rawSales || []} 
+                leads={rawLeads || []} 
+                properties={rawProperties || []} 
+                selectedMonth={selectedMonth}
+                selectedYear={selectedYear}
+              />
               <ChannelPerformance leads={rawLeads || []} />
             </div>
           </TabsContent>

@@ -13,9 +13,11 @@ interface BrokerPerformanceGridProps {
   sales: any[];
   leads: any[];
   properties: any[];
+  selectedMonth: string;
+  selectedYear: string;
 }
 
-export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerformanceGridProps) {
+export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth, selectedYear }: BrokerPerformanceGridProps) {
   const { firestore } = useFirebase();
   
   const brokersQuery = useMemoFirebase(() => {
@@ -27,17 +29,42 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
 
   const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
+  const parseDate = (d: any) => {
+    if (!d) return null;
+    if (d instanceof Date) return d;
+    const cleanStr = String(d).trim();
+    const parts = cleanStr.split('/');
+    if (parts.length === 3) {
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const yearPart = parts[2].trim();
+      const year = yearPart.length === 2 ? 2000 + parseInt(yearPart, 10) : parseInt(yearPart, 10);
+      return new Date(year, month, day);
+    }
+    const date = new Date(cleanStr);
+    return isNaN(date.getTime()) ? null : date;
+  };
+
   const stats = useMemo(() => {
     if (!officialBrokers || officialBrokers.length === 0) return [];
 
-    // BASE DE CÁLCULO FIXA: 427 dias (01/01/2025 até 02/03/2026)
+    // BASE DE CÁLCULO FIXA PARA FREQUÊNCIA: 427 dias (01/01/2025 até 02/03/2026)
     const totalDaysCount = 427;
 
     return officialBrokers.map(brokerDoc => {
       const displayName = brokerDoc.name;
       const normName = normalize(displayName);
 
-      // 1. Angariações (Busca na aba Cadastro - properties)
+      // Função auxiliar para filtrar por mês/ano
+      const filterByPeriod = (item: any, dateField: string) => {
+        const d = parseDate(item[dateField]);
+        if (!d) return false;
+        const monthMatch = selectedMonth === "all" || d.getMonth() === parseInt(selectedMonth);
+        const yearMatch = selectedYear === "all" || d.getFullYear() === parseInt(selectedYear);
+        return monthMatch && yearMatch;
+      };
+
+      // 1. Angariações Filtradas
       const bProps = properties.filter(p => {
         const fields = [p.brokerId, p.angariador, p.captador, p.quemAngariou, p.responsavel];
         return fields.some(f => {
@@ -46,34 +73,34 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
         });
       });
       
-      const vPropsCount = bProps.filter(p => {
-          const val = Number(p.saleValue || p.valorVenda || 0);
-          return val > 0;
-      }).length;
+      const bPropsFiltered = bProps.filter(p => filterByPeriod(p, "captureDate"));
       
-      const lPropsCount = bProps.filter(p => {
-          const val = Number(p.rentalValue || p.valorLocacao || 0);
-          return val > 0;
-      }).length;
+      const vPropsCount = bPropsFiltered.filter(p => Number(p.saleValue || 0) > 0).length;
+      const lPropsCount = bPropsFiltered.filter(p => Number(p.rentalValue || 0) > 0).length;
 
-      // 2. Leads & Visitas (Busca na aba Leads)
+      // 2. Leads & Visitas Filtrados
       const brokerLeads = leads.filter(l => {
         const entries = Object.entries(l);
         return entries.some(([key, val]) => {
           const nk = normalize(key);
           const nv = normalize(String(val || ""));
-          
-          if (nk.includes("corretor") || nk.includes("responsavel") || nk.includes("atendente") || nk.includes("vendedor") || nk === "atendido" || nk === "quem") {
+          if (nk.includes("corretor") || nk.includes("responsavel") || nk.includes("atendente")) {
              return nv === normName || (normName.length > 2 && nv.includes(normName));
           }
           return nv === normName;
         });
       });
 
+      const brokerLeadsFiltered = brokerLeads.filter(l => {
+        const keys = Object.keys(l);
+        const dateKey = keys.find(k => normalize(k).includes("data") || normalize(k).includes("carimbo"));
+        return dateKey ? filterByPeriod(l, dateKey) : true;
+      });
+
       let visitsVenda = 0;
       let visitsLocacao = 0;
 
-      brokerLeads.forEach(l => {
+      brokerLeadsFiltered.forEach(l => {
         const entries = Object.entries(l);
         const hasVisit = entries.some(([key, val]) => {
           const nk = normalize(key);
@@ -88,54 +115,59 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
             return (nk.includes("natureza") || nk.includes("negociacao") || nk === "tipo") && 
                    (nv.includes("loca") || nv.includes("alug"));
           });
-
           if (isLocacao) visitsLocacao++;
           else visitsVenda++;
         }
       });
 
-      // 3. VENDAS (Aba Conclusão - vendas_imoveis)
-      const brokerSales = sales.filter(s => {
-        const sellerFields = [s.vendedor, s.vendas, s.corretor, s.venda, s.responsavel, s.vendas_corretor];
+      // 3. VENDAS FILTRADAS E TOTAIS (PARA FREQUÊNCIA)
+      const brokerSalesAll = sales.filter(s => {
+        const sellerFields = [s.vendedor, s.vendas, s.corretor, s.venda, s.responsavel];
         return sellerFields.some(f => {
           const nv = normalize(String(f || ""));
           return nv === normName || (normName.length > 2 && nv.includes(normName));
         });
       });
-      
-      const numSales = brokerSales.length;
-      const totalVgv = brokerSales.reduce((acc, s) => acc + (Number(s.closedValue || s.valorVenda) || 0), 0);
-      
-      const avgFrequency = numSales > 0 ? Math.floor(totalDaysCount / numSales) : 0;
 
-      const totalVisits = visitsVenda + visitsLocacao;
-      const leadConversionToVisit = brokerLeads.length > 0 ? (totalVisits / brokerLeads.length) * 100 : 0;
-      const leadsPerVisit = totalVisits > 0 ? (brokerLeads.length / totalVisits) : 0;
-      const leadsPerSale = numSales > 0 ? (brokerLeads.length / numSales) : 0;
+      const brokerSalesFiltered = brokerSalesAll.filter(s => filterByPeriod(s, "saleDate"));
       
-      // Nova métrica: Visitas para Venda
-      const visitsPerSale = numSales > 0 ? (totalVisits / numSales) : 0;
-      const visitConversionToSale = totalVisits > 0 ? (numSales / totalVisits) * 100 : 0;
+      const numSalesFiltered = brokerSalesFiltered.length;
+      const totalVgvFiltered = brokerSalesFiltered.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
+      
+      // FREQUÊNCIA: SEMPRE SOBRE O TOTAL (Mila 8 vendas em 427 dias = 53 dias)
+      const numSalesTotal = brokerSalesAll.length;
+      const avgFrequency = numSalesTotal > 0 ? Math.floor(totalDaysCount / numSalesTotal) : 0;
+
+      const totalVisitsFiltered = visitsVenda + visitsLocacao;
+      const leadsPerVisit = totalVisitsFiltered > 0 ? (brokerLeadsFiltered.length / totalVisitsFiltered) : 0;
+      const conversionLeadsToVisit = brokerLeadsFiltered.length > 0 ? (totalVisitsFiltered / brokerLeadsFiltered.length) * 100 : 0;
+      
+      const leadsPerSale = numSalesFiltered > 0 ? (brokerLeadsFiltered.length / numSalesFiltered) : 0;
+      const conversionLeadsToSale = brokerLeadsFiltered.length > 0 ? (numSalesFiltered / brokerLeadsFiltered.length) * 100 : 0;
+
+      const visitsPerSale = numSalesFiltered > 0 ? (totalVisitsFiltered / numSalesFiltered) : 0;
+      const conversionVisitToSale = totalVisitsFiltered > 0 ? (numSalesFiltered / totalVisitsFiltered) * 100 : 0;
 
       return {
         name: displayName,
-        leads: brokerLeads.length,
+        leads: brokerLeadsFiltered.length,
         vProps: vPropsCount,
         lProps: lPropsCount,
         visitsVenda,
         visitsLocacao,
-        totalVisits,
-        conversionVisits: leadConversionToVisit,
+        totalVisits: totalVisitsFiltered,
         leadsPerVisit,
-        numSales,
+        conversionLeadsToVisit,
+        numSales: numSalesFiltered,
         leadsPerSale,
+        conversionLeadsToSale,
         visitsPerSale,
-        visitConversionToSale,
-        vgv: totalVgv,
+        conversionVisitToSale,
+        vgv: totalVgvFiltered,
         avgFrequency
       };
     }).sort((a, b) => b.numSales - a.numSales || b.vgv - a.vgv);
-  }, [sales, leads, properties, officialBrokers]);
+  }, [sales, leads, properties, officialBrokers, selectedMonth, selectedYear]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
@@ -144,7 +176,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
   return (
     <Card className="border-none shadow-sm overflow-hidden bg-white">
       <CardHeader className="bg-muted/10 border-b py-3">
-        <CardTitle className="text-base font-bold text-primary">Performance Real por Corretor (Desde 01/01/2025)</CardTitle>
+        <CardTitle className="text-base font-bold text-primary">Performance por Corretor</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
         {isBrokersLoading ? (
@@ -164,8 +196,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                 <TableHead className="text-center border-r text-xs uppercase bg-primary/5">Vendas</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase bg-orange-50/10">Leads / Venda</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase bg-rose-50/10">Visitas / Venda</TableHead>
-                <TableHead className="text-right border-r text-xs uppercase bg-amber-50/20">Frequência Venda</TableHead>
-                <TableHead className="text-right font-bold text-xs uppercase bg-primary/5">VGV Total</TableHead>
+                <TableHead className="text-right border-r text-xs uppercase bg-amber-50/20">Frequência Venda (Total)</TableHead>
+                <TableHead className="text-right font-bold text-xs uppercase bg-primary/5">VGV Período</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -179,11 +211,11 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                   </TableCell>
                   <TableCell className="text-center border-r py-2">
                     <div className="flex flex-col items-center leading-tight">
-                      <span title="Angariações de Venda" className={`font-black text-xs ${row.vProps > 0 ? 'text-emerald-600' : 'text-muted-foreground/10'}`}>
+                      <span className={`font-black text-xs ${row.vProps > 0 ? 'text-emerald-600' : 'text-muted-foreground/10'}`}>
                         {row.vProps}
                       </span>
                       <div className="h-[1px] w-4 bg-muted/20 my-0.5" />
-                      <span title="Angariações de Locação" className={`font-black text-xs ${row.lProps > 0 ? 'text-blue-600' : 'text-muted-foreground/10'}`}>
+                      <span className={`font-black text-xs ${row.lProps > 0 ? 'text-blue-600' : 'text-muted-foreground/10'}`}>
                         {row.lProps}
                       </span>
                     </div>
@@ -199,10 +231,10 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                     </Badge>
                   </TableCell>
                   <TableCell className="text-center border-r py-2 bg-emerald-50/10 relative">
-                    {row.leads > 0 && row.totalVisits > 0 ? (
+                    {row.totalVisits > 0 ? (
                       <div className="flex flex-col items-center justify-center h-full pt-1">
                         <span className="absolute top-1 left-1 text-[8px] font-bold text-emerald-600 opacity-60">
-                          {row.conversionVisits.toFixed(1)}%
+                          {row.conversionLeadsToVisit.toFixed(1)}%
                         </span>
                         <span className="text-[10px] font-bold text-emerald-700">
                           {row.leadsPerVisit.toFixed(1)}
@@ -217,7 +249,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                     {row.numSales > 0 ? (
                       <div className="flex flex-col items-center justify-center h-full pt-1">
                         <span className="absolute top-1 left-1 text-[8px] font-bold text-orange-600 opacity-60">
-                          {((row.numSales / row.leads) * 100).toFixed(1)}%
+                          {row.conversionLeadsToSale.toFixed(1)}%
                         </span>
                         <span className="text-[10px] font-bold text-orange-700">
                           {row.leadsPerSale.toFixed(1)}
@@ -229,7 +261,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                     {row.numSales > 0 && row.totalVisits > 0 ? (
                       <div className="flex flex-col items-center justify-center h-full pt-1">
                         <span className="absolute top-1 left-1 text-[8px] font-bold text-rose-600 opacity-60">
-                          {row.visitConversionToSale.toFixed(1)}%
+                          {row.conversionVisitToSale.toFixed(1)}%
                         </span>
                         <span className="text-[10px] font-bold text-rose-700">
                           {row.visitsPerSale.toFixed(1)}
@@ -238,7 +270,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
                     ) : "-"}
                   </TableCell>
                   <TableCell className="text-right border-r py-2 text-xs font-bold text-amber-700 bg-amber-50/20">
-                    {row.numSales > 0 ? `${row.avgFrequency} dias` : "-"}
+                    {row.avgFrequency > 0 ? `${row.avgFrequency} dias` : "-"}
                   </TableCell>
                   <TableCell className="text-right py-2 font-bold text-primary bg-primary/5 text-sm">
                     {formatCurrency(row.vgv)}
@@ -249,7 +281,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties }: BrokerPerfor
           </Table>
         ) : (
           <div className="py-20 text-center text-muted-foreground">
-            <p className="text-sm font-medium">Nenhum corretor configurado.</p>
+            <p className="text-sm font-medium">Nenhum dado encontrado para o período.</p>
           </div>
         )}
       </CardContent>
