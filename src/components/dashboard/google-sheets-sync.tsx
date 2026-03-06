@@ -38,21 +38,19 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       .replace(/[\u0300-\u036f]/g, "")
       .trim();
 
-  // Implementação fiel da lógica de tratamento de datas solicitada
   const excelDateToJSDate = (val: any) => {
     if (!val || val === "N/A" || String(val).trim() === "") return "N/A";
-
     const strVal = String(val).trim();
-
-    // 2️⃣ Se não tiver número não é data (Blindagem Crítica)
+    
+    // Blindagem Crítica: se não tiver número não é data
     if (!/\d/.test(strVal)) return "N/A";
 
-    // 3️⃣ DD.MM.YYYY → DD/MM/YYYY
+    // 1. DD.MM.YYYY -> DD/MM/YYYY
     if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
       return strVal.replace(/\./g, '/');
     }
 
-    // 4️⃣ Serial do Excel (45961, 46037 etc.)
+    // 2. Serial Excel
     const cleanStr = strVal.replace(/[^\d]/g, '');
     const num = Number(cleanStr);
     if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('.') && !strVal.includes('-')) {
@@ -61,44 +59,42 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       return `${String(date.getUTCDate()).padStart(2,'0')}/${String(date.getUTCMonth()+1).padStart(2,'0')}/${date.getUTCFullYear()}`;
     }
 
-    // 5️⃣ DD/MM/YYYY
-    if (strVal.match(/^\d{1,2}\/\d{1,2}\/\d{2,4}$/)) return strVal;
-
-    // 6️⃣ ISO YYYY-MM-DD
+    // 3. ISO YYYY-MM-DD
     const isoMatch = strVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (isoMatch) {
       return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
     }
 
-    return "N/A";
+    return strVal;
   };
 
   const getVal = (row: any, searchKeys: string[], excludeKeys: string[] = []) => {
     if (!row) return undefined;
     const rowKeys = Object.keys(row);
-    const normalizedRowKeys = rowKeys.map(k => ({ original: k, norm: normalize(k) }));
-    const normalizedSearchKeys = searchKeys.map(normalize);
-    const normalizedExcludeKeys = excludeKeys.map(normalize);
+    const normalizedSearch = searchKeys.map(normalize);
+    const normalizedExclude = excludeKeys.map(normalize);
 
-    // Prioridade 1: Match exato não excluído
-    for (const sKey of normalizedSearchKeys) {
-      const match = normalizedRowKeys.find(rk => 
-        rk.norm === sKey && !normalizedExcludeKeys.some(ex => rk.norm.includes(ex))
-      );
-      if (match) return row[match.original];
+    // Prioridade Máxima: Match Exato não excluído
+    for (const sKey of normalizedSearch) {
+      const match = rowKeys.find(rk => {
+        const nrk = normalize(rk);
+        return nrk === sKey && !normalizedExclude.some(ex => nrk.includes(ex));
+      });
+      if (match) return row[match];
     }
 
-    // Prioridade 2: Match parcial não excluído (Blindagem para chaves curtas)
-    for (const sKey of normalizedSearchKeys) {
-      const match = normalizedRowKeys.find(rk => {
-        // Se a chave de busca for "r" (Coluna R), exigimos que seja exato ou contenha termos de data
-        if (sKey === "r" && rk.norm !== "r") return false;
+    // Prioridade 2: Match Parcial inteligente
+    for (const sKey of normalizedSearch) {
+      const match = rowKeys.find(rk => {
+        const nrk = normalize(rk);
+        // Se a chave de busca for curta (como "r"), exige match exato ou blindagem
+        if (sKey === "r" && nrk !== "r") return false;
         
-        const isMatch = rk.norm.includes(sKey);
-        const isExcluded = normalizedExcludeKeys.some(ex => rk.norm.includes(ex));
+        const isMatch = nrk.includes(sKey);
+        const isExcluded = normalizedExclude.some(ex => nrk.includes(ex));
         return isMatch && !isExcluded;
       });
-      if (match) return row[match.original];
+      if (match) return row[match];
     }
 
     return undefined;
@@ -127,7 +123,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         
         for (const row of result.data) {
           try {
-            const rawCode = getVal(row, ["codigo", "unidade", "referencia", "id imovel", "cod imovel", "id_imovel"]);
+            const rawCode = getVal(row, ["codigo", "unidade", "referencia", "id_imovel"]);
             const propertyCode = rawCode !== undefined && String(rawCode).trim() !== "" 
               ? String(rawCode).trim() 
               : `REF-${processedCount + 1}`;
@@ -137,40 +133,37 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               const propRef = doc(firestore, "properties", safeId);
               setDocumentNonBlocking(propRef, {
                 propertyCode,
-                neighborhood: String(getVal(row, ["bairro", "localizacao", "bairros"]) || "N/A"),
-                saleValue: parseCurrency(getVal(row, ["valor venda", "venda", "valor"])),
-                rentalValue: parseCurrency(getVal(row, ["valor locacao", "locacao", "aluguel", "valor aluguel"])),
-                brokerId: String(getVal(row, ["angariador", "corretor", "captador", "quem angariou"]) || "N/A"),
-                captureDate: excelDateToJSDate(getVal(row, ["data entrada", "entrada", "data"])),
+                neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
+                saleValue: parseCurrency(getVal(row, ["valor venda", "venda"])),
+                rentalValue: parseCurrency(getVal(row, ["valor locacao", "aluguel"])),
+                brokerId: String(getVal(row, ["angariador", "corretor", "captador"]) || "N/A"),
+                captureDate: excelDateToJSDate(getVal(row, ["data entrada", "entrada", "cadastro"])),
                 status: String(getVal(row, ["status", "situacao"]) || "Disponível"),
                 importedAt: serverTimestamp(),
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              const vendedor = String(getVal(row, ["vendedor", "corretor", "responsavel", "atendente"]) || "N/A");
+              // ESTRATÉGIA NOVA: Foco total em "Data do venda"
+              const rawDataVenda = getVal(row, ["data do venda", "data venda", "fechamento", "r"], ["vendedor", "corretor", "nome"]);
+              const dataVenda = excelDateToJSDate(rawDataVenda);
               
-              // DATA VENDA (COLUNA R) - Foco Total em capturar data e ignorar nomes
-              const dataVendaRaw = excelDateToJSDate(getVal(row, 
-                ["data venda", "fechamento", "data fechamento", "r", "venda"], 
-                ["vendedor", "corretor", "cliente", "nome", "anuncio"]
-              ));
-              
-              const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "entrada", "cadastro"]));
+              const vendedor = String(getVal(row, ["vendedor", "corretor", "responsavel"]) || "N/A");
+              const dataEntrada = excelDateToJSDate(getVal(row, ["data entrada", "entrada", "cadastro"]));
               
               const safeSaleId = `sale-${processedCount}-${Date.now()}`;
               const saleRef = doc(firestore, "vendas_imoveis", safeSaleId);
               
               setDocumentNonBlocking(saleRef, {
                 vendedor,
-                angariador: String(getVal(row, ["angariador", "captador", "captacao"]) || "N/A"),
+                angariador: String(getVal(row, ["angariador", "captador"]) || "N/A"),
                 tipoVenda: "Venda",
                 propertyCode,
                 neighborhood: String(getVal(row, ["bairro", "localizacao", "empreendimento"]) || "N/A"),
                 clientName: String(getVal(row, ["cliente", "comprador", "nome contrato"]) || "N/A"),
-                advertisedValue: parseCurrency(getVal(row, ["valor anuncio", "valor inicial", "anuncio"])),
-                closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda", "fechamento"])),
-                saleDate: dataVendaRaw,
-                propertyCaptureDate: dataEntradaRaw,
+                advertisedValue: parseCurrency(getVal(row, ["valor anuncio", "anuncio"])),
+                closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda"])),
+                saleDate: dataVenda,
+                propertyCaptureDate: dataEntrada,
                 status: "Vendido",
                 importedAt: serverTimestamp(),
               }, { merge: true });
@@ -221,7 +214,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
           <div className="flex items-center gap-2">
             <div className="p-2 bg-primary/10 rounded-lg"><Zap className="h-5 w-5 text-primary" /></div>
             <div>
-              <CardTitle className="text-lg">Sincronização em Tempo Real</CardTitle>
+              <CardTitle className="text-lg">Sincronização Inteligente</CardTitle>
               {lastSync && <p className="text-[10px] text-muted-foreground">Último: {lastSync.toLocaleTimeString()}</p>}
             </div>
           </div>
@@ -247,11 +240,11 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
           <div className="flex gap-2">
             <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
             <div className="space-y-1">
-              <p className="text-xs font-bold text-amber-800">Dicas para sua Planilha Google:</p>
+              <p className="text-xs font-bold text-amber-800">Instruções de Importação:</p>
               <ul className="text-[10px] text-amber-700 space-y-1">
-                <li>• Verifique se a coluna <b>Código</b> ou <b>Referência</b> está preenchida corretamente.</li>
-                <li>• Garanta que o link foi gerado em <b>Arquivo &gt; Compartilhar &gt; Publicar na Web &gt; CSV</b>.</li>
-                <li>• A Data de Venda (Coluna R) agora é espelhada com precisão absoluta ignorando nomes.</li>
+                <li>• O app agora busca especificamente a coluna <b>"Data do venda"</b>.</li>
+                <li>• Certifique-se de que o link foi gerado em <b>Arquivo &gt; Compartilhar &gt; Publicar na Web &gt; CSV</b>.</li>
+                <li>• Formatos aceitos: 15.01.2026, 15/01/2026 ou seriais do Excel.</li>
               </ul>
             </div>
           </div>
