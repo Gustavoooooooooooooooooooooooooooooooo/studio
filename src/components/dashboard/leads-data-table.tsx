@@ -10,6 +10,34 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Loader2, Users, AlertCircle } from "lucide-react";
 import { useMemo } from "react";
 
+const formatDateDisplay = (val: any) => {
+  if (!val || val === "N/A" || String(val).trim() === "") return "-";
+
+  if (val?.toDate) {
+    const date = val.toDate();
+    return `${String(date.getDate()).padStart(2,'0')}/${String(date.getMonth()+1).padStart(2,'0')}/${date.getFullYear()}`;
+  }
+
+  const strVal = String(val).trim();
+
+  if (!/\d/.test(strVal)) return strVal;
+
+  if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
+    return strVal.replace(/\./g, '/');
+  }
+
+  const cleanStr = strVal.replace(/[^\d]/g, '');
+  const num = Number(cleanStr);
+
+  if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('.') && !strVal.includes('-')) {
+    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+    const date = new Date(excelEpoch.getTime() + num * 86400000);
+    return `${String(date.getUTCDate()).padStart(2,'0')}/${String(date.getUTCMonth()+1).padStart(2,'0')}/${date.getUTCFullYear()}`;
+  }
+
+  return strVal;
+};
+
 export function LeadsDataTable() {
   const { firestore, user } = useFirebase();
   
@@ -36,15 +64,6 @@ export function LeadsDataTable() {
     
     return Array.from(allKeys);
   }, [leads]);
-
-  // Função auxiliar de tratamento de data para a tabela
-  const formatDateValue = (val: any) => {
-    if (!val || val === "N/A" || String(val).trim() === "") return "-";
-    const strVal = String(val).trim();
-    // Se parecer uma data com pontos, converte para barra para exibição
-    if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) return strVal.replace(/\./g, '/');
-    return strVal;
-  };
 
   return (
     <Card className="border-none shadow-md overflow-hidden">
@@ -85,7 +104,7 @@ export function LeadsDataTable() {
                       {columns.map((col) => (
                         <TableCell key={`${lead.id}-${col}`} className="text-xs py-3">
                           {lead[col] !== undefined && lead[col] !== null 
-                            ? formatDateValue(lead[col]) 
+                            ? formatDateDisplay(lead[col]) 
                             : "-"}
                         </TableCell>
                       ))}

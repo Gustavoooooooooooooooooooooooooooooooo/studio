@@ -50,20 +50,16 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       .replace(/[\u0300-\u036f]/g, "")
       .trim();
 
-  // Motor de tratamento de data para importação
   const excelDateToJSDate = (val: any) => {
     if (!val || val === "N/A" || String(val).trim() === "") return "N/A";
     const strVal = String(val).trim();
     
-    // Se for texto puro sem números (como nome de corretor), descarta
     if (!/\d/.test(strVal)) return "N/A";
 
-    // DD.MM.YYYY
     if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
       return strVal.replace(/\./g, '/');
     }
 
-    // Serial Excel
     const cleanStr = strVal.replace(/[^\d]/g, '');
     const num = Number(cleanStr);
     if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('.') && !strVal.includes('-')) {
@@ -90,7 +86,6 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       });
       if (match) {
         const val = row[match];
-        // Trava para datas: se a chave indica data mas o valor não tem números, ignora
         if (sKey.includes("data") && val && !/\d/.test(String(val))) continue;
         return val;
       }
@@ -165,7 +160,6 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'leads') {
-              // ID Determinístico para Leads para permitir atualizações automáticas sem duplicatas
               const rowValues = Object.values(row).map(v => String(v || "").trim()).join("|");
               const leadIdSeed = rowValues.substring(0, 100).replace(/[\/\.\#\$\/\[\] ]/g, "-");
               const leadId = `lead-${leadIdSeed}`;
@@ -193,9 +187,8 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     }
   }, [mode, firestore, user, toast]);
 
-  // Sincronização automática contínua
   useEffect(() => {
-    if (!autoSync || !url || !user) return;
+    if (!autoSync || !url || !user || !firestore) return;
     
     lastUrlRef.current = url;
     handleSync(true);
@@ -205,7 +198,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     }, 60000); 
     
     return () => clearInterval(intervalId);
-  }, [autoSync, url, user, handleSync]);
+  }, [autoSync, url, user, firestore, handleSync]);
 
   const handleClearData = async () => {
     if (!firestore || !user) return;
