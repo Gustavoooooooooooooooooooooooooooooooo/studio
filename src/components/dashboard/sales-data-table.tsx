@@ -40,6 +40,9 @@ export function SalesDataTable() {
     
     const strVal = String(val).trim();
 
+    // Se o valor não contiver números, provavelmente é um erro de mapeamento (ex: nome de corretor)
+    if (!/\d/.test(strVal)) return "N/A";
+
     // Suporte a DD.MM.YYYY
     if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
       return strVal.replace(/\./g, '/');
@@ -75,7 +78,7 @@ export function SalesDataTable() {
             <BadgeCheck className="h-5 w-5 text-emerald-600" />
             Planilha de Conclusão de Negócios
           </CardTitle>
-          <p className="text-xs text-muted-foreground">Exibindo todos os registros espelhados da planilha original.</p>
+          <p className="text-xs text-muted-foreground">Exibindo todos os fechamentos registrados com espelhamento da Coluna R.</p>
         </div>
         <Badge variant="outline" className="text-emerald-600 font-bold bg-white">
           {vendas?.length || 0} Registros

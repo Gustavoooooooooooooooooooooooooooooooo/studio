@@ -42,6 +42,9 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     if (val === undefined || val === null || String(val).trim() === "") return "";
     const strVal = String(val).trim();
     
+    // Filtro Crítico: Se não houver NENHUM número, não pode ser uma data (evita nomes de corretores)
+    if (!/\d/.test(strVal)) return "";
+    
     // Suporte a DD.MM.YYYY
     if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
       return strVal.replace(/\./g, '/');
@@ -73,7 +76,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     const normalizedSearchKeys = searchKeys.map(normalize);
     const normalizedExcludeKeys = excludeKeys.map(normalize);
 
-    // Primeiro tenta match exato, ignorando excluídos
+    // 1. Tenta match exato primeiro (mais seguro)
     for (const sKey of normalizedSearchKeys) {
       const match = normalizedRowKeys.find(rk => 
         rk.norm === sKey && !normalizedExcludeKeys.some(ex => rk.norm.includes(ex))
@@ -81,7 +84,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       if (match) return row[match.original];
     }
 
-    // Depois tenta match parcial, ignorando excluídos
+    // 2. Tenta match parcial apenas se não for exato
     for (const sKey of normalizedSearchKeys) {
       const match = normalizedRowKeys.find(rk => {
         const isMatch = rk.norm.includes(sKey);
@@ -137,15 +140,18 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              const vendedor = String(getVal(row, ["vendedor", "corretor", "responsavel", "vendas"]) || "N/A");
-              const safeSaleId = `sale-${processedCount}-${Date.now()}`;
-              const saleRef = doc(firestore, "vendas_imoveis", safeSaleId);
+              // Vendedor: Procura colunas de nome
+              const vendedor = String(getVal(row, ["vendedor", "corretor", "responsavel", "atendente"]) || "N/A");
               
-              // Busca específica para Data Venda excluindo colunas de nome
-              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "fechamento", "data de venda", "r"], ["vendedor", "corretor", "nome", "atendente"]));
+              // Data Venda (COLUNA R): Procura especificamente colunas de data e EXCLUI colunas de nome
+              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "fechamento", "data de venda", "r"], ["vendedor", "corretor", "nome", "atendente", "cliente"]));
+              
               const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "entrada", "cadastro"]));
               const closedVal = parseCurrency(getVal(row, ["valor fechado", "valor venda", "fechamento"]));
               const cliente = String(getVal(row, ["cliente", "comprador", "nome contrato"]) || "N/A");
+              
+              const safeSaleId = `sale-${processedCount}-${Date.now()}`;
+              const saleRef = doc(firestore, "vendas_imoveis", safeSaleId);
               
               setDocumentNonBlocking(saleRef, {
                 vendedor,
@@ -237,8 +243,8 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               <p className="text-xs font-bold text-amber-800">Dicas para sua Planilha Google:</p>
               <ul className="text-[10px] text-amber-700 space-y-1">
                 <li>• Verifique se a coluna <b>Código</b> ou <b>Referência</b> está preenchida corretamente.</li>
-                <li>• Garanta que o link foi gerado em <b>Arquivo Compartilhar Publicar na Web CSV</b>.</li>
-                <li>• A Data de Venda (Coluna R) é processada automaticamente.</li>
+                <li>• Garanta que o link foi gerado em <b>Arquivo &gt; Compartilhar &gt; Publicar na Web &gt; CSV</b>.</li>
+                <li>• A Data de Venda (Coluna R) agora é espelhada com precisão.</li>
               </ul>
             </div>
           </div>
