@@ -152,7 +152,7 @@ export default function AppContainer() {
               propertyCode,
               neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
               saleValue: parseCurrency(getVal(row, ["valor venda", "venda"])),
-              rentalValue: parseCurrency(getVal(row, ["valor locacao", "aluguel"])),
+              rentalValue: parseCurrency(getVal(row, ["valor locacao", "aluguel", "locacao", "valor aluguel"])),
               brokerId: String(getVal(row, ["angariador", "corretor", "captador"]) || "N/A"),
               captureDate: formatDateDisplay(getVal(row, ["data entrada", "entrada", "cadastro"])),
               status: String(getVal(row, ["status", "situacao"]) || "Disponível"),
@@ -208,7 +208,7 @@ export default function AppContainer() {
 
   // Auto-sync effect
   useEffect(() => {
-    if (!urls.inventory || !urls.leads || !urls.sales) return;
+    if (!urls.inventory && !urls.leads && !urls.sales) return;
 
     handleSync(true); // Initial sync
     const intervalId = setInterval(() => handleSync(true), 60000); // Sync every 60 seconds
