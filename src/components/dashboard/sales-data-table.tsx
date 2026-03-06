@@ -36,14 +36,14 @@ export function SalesDataTable() {
   };
 
   const formatDateDisplay = (val: any) => {
-    if (!val || val === "N/A") return "N/A";
+    if (!val || val === "N/A" || String(val).trim() === "") return "N/A";
     
     const strVal = String(val).trim();
 
-    // Filtro crítico: Se não houver números, o dado está errado (veio nome no lugar da data)
+    // Filtro de segurança: Se não houver números, o dado é texto e não data
     if (!/\d/.test(strVal)) return "N/A";
 
-    // 1. Suporte a DD.MM.YYYY (com pontos)
+    // 1. DD.MM.YYYY para DD/MM/YYYY
     if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
       return strVal.replace(/\./g, '/');
     }
@@ -65,12 +65,6 @@ export function SalesDataTable() {
       return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
     }
 
-    // Fallback Date object
-    const date = new Date(strVal);
-    if (!isNaN(date.getTime()) && strVal.length > 5) {
-        return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
-    }
-
     return strVal;
   };
 
@@ -82,7 +76,7 @@ export function SalesDataTable() {
             <BadgeCheck className="h-5 w-5 text-emerald-600" />
             Planilha de Conclusão de Negócios
           </CardTitle>
-          <p className="text-xs text-muted-foreground">Exibindo todos os fechamentos registrados com espelhamento preciso da Coluna R.</p>
+          <p className="text-xs text-muted-foreground">Exibindo todos os fechamentos registrados com espelhamento da Coluna R.</p>
         </div>
         <Badge variant="outline" className="text-emerald-600 font-bold bg-white">
           {vendas?.length || 0} Registros
@@ -96,25 +90,18 @@ export function SalesDataTable() {
           </div>
         ) : vendas && vendas.length > 0 ? (
           <ScrollArea className="w-full h-[600px]">
-            <div className="min-w-[2500px]">
+            <div className="min-w-[2000px]">
               <Table>
                 <TableHeader className="bg-muted/50 sticky top-0 z-10">
                   <TableRow>
-                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Data Entrada</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Data Venda</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[120px]">Data Entrada</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[120px]">Data Venda</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Vendedor</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Tipo Venda</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[120px]">Tipo Venda</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Angariador</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[120px]">Cód Imóvel</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Imobiliária/Corretor</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase min-w-[120px] text-right">% Canto</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Construtora</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[200px]">Empreendimento</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase min-w-[100px]">Unidade</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[200px]">Nome Contrato</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Telefone</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">E-mail</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Origem Lead</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[150px] text-right">Valor Anúncio</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[150px] text-right">Valor Venda</TableHead>
                   </TableRow>
@@ -128,15 +115,8 @@ export function SalesDataTable() {
                       <TableCell className="text-xs">{venda.tipoVenda || "N/A"}</TableCell>
                       <TableCell className="text-xs">{venda.angariador || "N/A"}</TableCell>
                       <TableCell className="text-xs font-mono">{venda.propertyCode || "N/A"}</TableCell>
-                      <TableCell className="text-xs">{venda.imobiliariaCorretor || "N/A"}</TableCell>
-                      <TableCell className="text-xs text-right font-medium">{venda.percentualCanto ? `${venda.percentualCanto}%` : "-"}</TableCell>
-                      <TableCell className="text-xs">{venda.construtora || "N/A"}</TableCell>
                       <TableCell className="text-xs font-semibold">{venda.neighborhood || "N/A"}</TableCell>
-                      <TableCell className="text-xs">{venda.unit || "N/A"}</TableCell>
                       <TableCell className="text-xs font-bold">{venda.clientName || "N/A"}</TableCell>
-                      <TableCell className="text-xs">{venda.telefone || "N/A"}</TableCell>
-                      <TableCell className="text-xs">{venda.email || "N/A"}</TableCell>
-                      <TableCell className="text-xs">{venda.originChannel || "N/A"}</TableCell>
                       <TableCell className="text-xs text-right text-muted-foreground">{formatCurrency(venda.advertisedValue)}</TableCell>
                       <TableCell className="text-xs text-right font-bold text-emerald-600">{formatCurrency(venda.closedValue)}</TableCell>
                     </TableRow>
