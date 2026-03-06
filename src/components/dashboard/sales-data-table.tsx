@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Loader2, BadgeCheck } from "lucide-react";
 
-// Motor de tratamento de datas especializado (Ponto, Serial Excel, ISO)
 const formatDateDisplay = (val: any) => {
   if (!val || val === "N/A" || String(val).trim() === "") return "N/A";
 
@@ -19,11 +18,8 @@ const formatDateDisplay = (val: any) => {
   }
 
   const strVal = String(val).trim();
-
-  // Ignora se não contiver números (provavelmente nome do corretor capturado por erro)
   if (!/\d/.test(strVal)) return "N/A";
 
-  // Suporte a ponto: 15.01.2026 -> 15/01/2026
   if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
     return strVal.replace(/\./g, '/');
   }
@@ -31,17 +27,14 @@ const formatDateDisplay = (val: any) => {
   const cleanStr = strVal.replace(/[^\d]/g, '');
   const num = Number(cleanStr);
 
-  // Suporte a Serial do Excel
   if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('.') && !strVal.includes('-')) {
     const excelEpoch = new Date(Date.UTC(1899, 11, 30));
     const date = new Date(excelEpoch.getTime() + num * 86400000);
     return `${String(date.getUTCDate()).padStart(2,'0')}/${String(date.getUTCMonth()+1).padStart(2,'0')}/${date.getUTCFullYear()}`;
   }
 
-  // Suporte a DD/MM/YYYY
   if (strVal.match(/^\d{1,2}\/\d{1,2}\/\d{2,4}$/)) return strVal;
 
-  // Suporte a ISO YYYY-MM-DD
   const isoMatch = strVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (isoMatch) {
     return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;

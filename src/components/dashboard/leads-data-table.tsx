@@ -10,7 +10,6 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Loader2, Users, AlertCircle } from "lucide-react";
 import { useMemo } from "react";
 
-// Padronização de tratamento de datas solicitado
 const formatDateDisplay = (val: any) => {
   if (!val || val === "N/A" || String(val).trim() === "") return "-";
 
@@ -20,7 +19,6 @@ const formatDateDisplay = (val: any) => {
   }
 
   const strVal = String(val).trim();
-
   if (!/\d/.test(strVal)) return strVal;
 
   if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
@@ -51,8 +49,6 @@ export function LeadsDataTable() {
 
   const columns = useMemo(() => {
     if (!leads || leads.length === 0) return [];
-    
-    // Identifica colunas reais presentes nos leads importados
     const allKeys = new Set<string>();
     leads.slice(0, 50).forEach(lead => {
       Object.keys(lead).forEach(key => {
@@ -61,7 +57,6 @@ export function LeadsDataTable() {
         }
       });
     });
-    
     return Array.from(allKeys);
   }, [leads]);
 
@@ -73,7 +68,7 @@ export function LeadsDataTable() {
             <Users className="h-5 w-5 text-indigo-600" />
             Base de Leads Espelhada
           </CardTitle>
-          <p className="text-xs text-muted-foreground">Sincronização automática ativa (qualquer alteração na planilha atualiza aqui).</p>
+          <p className="text-xs text-muted-foreground">Sincronização automática ativa (atualiza toda vez que você muda a planilha).</p>
         </div>
         <Badge variant="outline" className="text-indigo-600 font-bold bg-white">
           {leads?.length || 0} Registros

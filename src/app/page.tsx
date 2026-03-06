@@ -21,9 +21,45 @@ import { LayoutDashboard, TrendingUp, Loader2, Table2, Users, BadgeCheck, Settin
 import { useMemoFirebase, useCollection, useFirebase, initiateAnonymousSignIn } from "@/firebase";
 import { collection, query } from "firebase/firestore";
 
+// Helper de parsing otimizado para evitar lentidão
+const fastParseDate = (d: any): Date | null => {
+  if (!d || d === "N/A") return null;
+  if (d instanceof Date) return isNaN(d.getTime()) ? null : d;
+  const strVal = String(d).trim();
+  if (!/\d/.test(strVal)) return null;
+
+  if (strVal.includes('.')) {
+    const parts = strVal.split('.');
+    if (parts.length === 3) {
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      let year = parseInt(parts[2], 10);
+      if (year < 100) year += 2000;
+      return new Date(year, month, day);
+    }
+  }
+
+  const dmyMatch = strVal.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
+  if (dmyMatch) {
+    const day = parseInt(dmyMatch[1], 10);
+    const month = parseInt(dmyMatch[2], 10) - 1;
+    let year = parseInt(dmyMatch[3], 10);
+    if (year < 100) year += 2000;
+    return new Date(year, month, day);
+  }
+
+  const cleanNumStr = strVal.replace(/[^\d]/g, '');
+  const num = Number(cleanNumStr);
+  if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('-')) {
+    return new Date(Math.round((num - 25569) * 86400 * 1000));
+  }
+
+  const date = new Date(strVal);
+  return isNaN(date.getTime()) ? null : date;
+};
+
 export default function AppContainer() {
   const [mounted, setMounted] = useState(false);
-  // Fixamos Hoje em 02 de Março de 2026 para os cálculos de performance.
   const [now] = useState<Date>(new Date(2026, 2, 2)); 
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [selectedYear, setSelectedYear] = useState<string>("2026");
@@ -57,61 +93,14 @@ export default function AppContainer() {
   const { data: rawProperties, isLoading: isPropertiesLoading } = useCollection(propertiesQuery);
 
   const metrics = useMemo(() => {
-    const allSales = rawSales || [];
-    const allLeads = rawLeads || [];
-    const allProperties = rawProperties || [];
+    if (!rawSales || !rawLeads || !rawProperties) return null;
 
-    const parseDate = (d: any) => {
-      if (!d || d === "N/A") return null;
-      if (d instanceof Date) return isNaN(d.getTime()) ? null : d;
-      const strVal = String(d).trim();
-      
-      if (!/\d/.test(strVal)) return null;
-
-      if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
-        const parts = strVal.split('.');
-        const day = parseInt(parts[0], 10);
-        const month = parseInt(parts[1], 10) - 1;
-        let year = parseInt(parts[2], 10);
-        if (year < 100) year += 2000;
-        const date = new Date(year, month, day);
-        if (!isNaN(date.getTime())) return date;
-      }
-
-      const dmyMatch = strVal.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
-      if (dmyMatch) {
-        const day = parseInt(dmyMatch[1], 10);
-        const month = parseInt(dmyMatch[2], 10) - 1;
-        let year = parseInt(dmyMatch[3], 10);
-        if (year < 100) year += 2000;
-        const date = new Date(year, month, day);
-        if (!isNaN(date.getTime())) return date;
-      }
-
-      const isoMatch = strVal.match(/^(\d{4})[./-](\d{2})[./-](\d{2})/);
-      if (isoMatch) {
-        const date = new Date(parseInt(isoMatch[1], 10), parseInt(isoMatch[2], 10) - 1, parseInt(isoMatch[3], 10));
-        if (!isNaN(date.getTime())) return date;
-      }
-
-      const cleanNumStr = strVal.replace(/[^\d]/g, '');
-      const num = Number(cleanNumStr);
-      if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('-') && !strVal.includes('.')) {
-        return new Date(Math.round((num - 25569) * 86400 * 1000));
-      }
-
-      const date = new Date(strVal);
-      return isNaN(date.getTime()) ? null : date;
-    };
-
-    const diffDays = (d1: Date, d2: Date) => {
-      const t1 = Date.UTC(d1.getFullYear(), d1.getMonth(), d1.getDate());
-      const t2 = Date.UTC(d2.getFullYear(), d2.getMonth(), d2.getDate());
-      return Math.floor((t1 - t2) / (1000 * 60 * 60 * 24));
-    };
+    const allSales = rawSales;
+    const allLeads = rawLeads;
+    const allProperties = rawProperties;
 
     const filteredSales = allSales.filter(item => {
-      const d = parseDate(item.saleDate);
+      const d = fastParseDate(item.saleDate);
       if (!d) return false;
       const monthMatch = selectedMonth === "all" || d.getMonth() === parseInt(selectedMonth);
       const yearMatch = selectedYear === "all" || d.getFullYear() === parseInt(selectedYear);
@@ -119,40 +108,39 @@ export default function AppContainer() {
     });
 
     const filteredProperties = allProperties.filter(item => {
-      const d = parseDate(item.captureDate);
+      const d = fastParseDate(item.captureDate);
       if (!d) return false;
       const monthMatch = selectedMonth === "all" || d.getMonth() === parseInt(selectedMonth);
       const yearMatch = selectedYear === "all" || d.getFullYear() === parseInt(selectedYear);
       return monthMatch && yearMatch;
     });
 
-    const validSalesTotal = allSales.filter(s => parseDate(s.saleDate) !== null);
+    const validSalesTotal = allSales.filter(s => fastParseDate(s.saleDate) !== null);
     const totalDaysSinceStart = 427; 
     const salesFrequency = validSalesTotal.length > 0 ? totalDaysSinceStart / validSalesTotal.length : 0;
 
     const validCyclesTotal = validSalesTotal.map(s => {
-      const start = parseDate(s.propertyCaptureDate);
-      const end = parseDate(s.saleDate);
-      if (start && end) return diffDays(end, start);
+      const start = fastParseDate(s.propertyCaptureDate);
+      const end = fastParseDate(s.saleDate);
+      if (start && end) return Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
       return null;
     }).filter((d): d is number => d !== null && d >= 0);
     const avgDaysToSell = validCyclesTotal.length > 0 ? validCyclesTotal.reduce((a, b) => a + b, 0) / validCyclesTotal.length : 0;
 
     const totalVgvInventoryFiltered = filteredProperties.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0);
-    
     const saleProps = filteredProperties.filter(p => (Number(p.saleValue) || 0) > 0);
-    const avgTicket = saleProps.length > 0 ? saleProps.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0) / saleProps.length : 0;
+    const avgTicket = saleProps.length > 0 ? totalVgvInventoryFiltered / saleProps.length : 0;
 
     const rentProps = filteredProperties.filter(p => (Number(p.rentalValue) || 0) > 0);
     const avgTicketRent = rentProps.length > 0 ? rentProps.reduce((acc, p) => acc + (Number(p.rentalValue) || 0), 0) / rentProps.length : 0;
 
     const allSaleDates = allSales
-      .map(s => parseDate(s.saleDate))
+      .map(s => fastParseDate(s.saleDate))
       .filter((d): d is Date => d !== null)
       .sort((a, b) => b.getTime() - a.getTime());
 
     const lastSaleDate = allSaleDates[0];
-    const daysSinceLastSale = lastSaleDate ? diffDays(now, lastSaleDate) : null;
+    const daysSinceLastSale = lastSaleDate ? Math.floor((now.getTime() - lastSaleDate.getTime()) / (1000 * 60 * 60 * 24)) : null;
 
     return {
       avgDaysToSell,
@@ -168,7 +156,7 @@ export default function AppContainer() {
     };
   }, [rawSales, rawLeads, rawProperties, now, selectedMonth, selectedYear]);
 
-  if (!mounted || isSalesLoading || isLeadsLoading || isPropertiesLoading) {
+  if (!mounted || isSalesLoading || isLeadsLoading || isPropertiesLoading || !metrics) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

@@ -53,10 +53,8 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
   const excelDateToJSDate = (val: any) => {
     if (!val || val === "N/A" || String(val).trim() === "") return "N/A";
     const strVal = String(val).trim();
-    
     if (!/\d/.test(strVal)) return "N/A";
 
-    // Suporte a pontos: 15.01.2026 -> 15/01/2026
     if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
       return strVal.replace(/\./g, '/');
     }
@@ -87,7 +85,6 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       });
       if (match) {
         const val = row[match];
-        // Se estiver procurando data e o valor não contiver números, ignora (provavelmente é nome do corretor)
         if (sKey.includes("data") && val && !/\d/.test(String(val))) continue;
         return val;
       }
@@ -140,7 +137,6 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              // PRIORIDADE: "Data do venda" e ignora nomes de corretores
               const dataVenda = excelDateToJSDate(getVal(row, ["data do venda", "data venda", "fechamento", "venda"], ["vendedor", "corretor"]));
               const vendedor = String(getVal(row, ["vendedor", "corretor", "responsavel"]) || "N/A");
               
@@ -163,7 +159,6 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'leads') {
-              // ID Determinístico para Leads: Permite atualizar alterações na planilha sem duplicar
               const rowValues = Object.values(row).map(v => String(v || "").trim()).join("|");
               const leadIdSeed = rowValues.substring(0, 100).replace(/[\/\.\#\$\/\[\] ]/g, "-");
               const leadId = `lead-${leadIdSeed}`;
@@ -191,16 +186,12 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     }
   }, [mode, firestore, user, toast]);
 
-  // Motor de sincronização automática blindado
   useEffect(() => {
     if (!autoSync || !url || !user || !firestore) return;
     
     lastUrlRef.current = url;
-    
-    // Carga inicial imediata
     handleSync(true);
 
-    // Intervalo resiliente de 60 segundos
     const intervalId = setInterval(() => {
       handleSync(true);
     }, 60000); 
