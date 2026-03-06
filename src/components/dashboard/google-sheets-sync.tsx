@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -32,7 +31,13 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
   useEffect(() => {
     const savedUrl = localStorage.getItem(`sheet_url_${mode}`);
     if (savedUrl) setUrl(savedUrl);
+    const savedAutoSync = localStorage.getItem(`auto_sync_${mode}`);
+    if (savedAutoSync !== null) setAutoSync(savedAutoSync === 'true');
   }, [mode]);
+
+  useEffect(() => {
+    localStorage.setItem(`auto_sync_${mode}`, String(autoSync));
+  }, [autoSync, mode]);
 
   const normalize = (s: string) => 
     String(s || "").toLowerCase()
@@ -75,21 +80,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     for (const sKey of normalizedSearch) {
       const match = rowKeys.find(rk => {
         const nrk = normalize(rk);
-        return nrk === sKey && !normalizedExclude.some(ex => nrk.includes(ex));
-      });
-      if (match) {
-        const val = row[match];
-        if (sKey.includes("data")) {
-          if (val && !/\d/.test(String(val))) continue;
-        }
-        return val;
-      }
-    }
-
-    for (const sKey of normalizedSearch) {
-      const match = rowKeys.find(rk => {
-        const nrk = normalize(rk);
-        const isMatch = nrk.includes(sKey);
+        const isMatch = nrk === sKey || nrk.includes(sKey);
         const isExcluded = normalizedExclude.some(ex => nrk.includes(ex));
         return isMatch && !isExcluded;
       });
@@ -101,7 +92,6 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         return val;
       }
     }
-
     return undefined;
   };
 
@@ -150,11 +140,8 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              const rawDataVenda = getVal(row, ["data do venda", "data venda", "fechamento"], ["vendedor", "corretor", "responsavel", "nome"]);
-              const dataVenda = excelDateToJSDate(rawDataVenda);
-              
+              const dataVenda = excelDateToJSDate(getVal(row, ["data do venda", "data venda", "fechamento"], ["vendedor", "corretor"]));
               const vendedor = String(getVal(row, ["vendedor", "corretor", "responsavel"]) || "N/A");
-              const dataEntrada = excelDateToJSDate(getVal(row, ["data entrada", "entrada", "cadastro"]));
               
               const saleIdSeed = `${propertyCode}-${vendedor}-${dataVenda}`;
               const safeSaleId = `sale-${saleIdSeed.replace(/[\/\.\#\$\/\[\] ]/g, "-")}`;
@@ -163,20 +150,19 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               setDocumentNonBlocking(saleRef, {
                 vendedor,
                 angariador: String(getVal(row, ["angariador", "captador"]) || "N/A"),
-                tipoVenda: "Venda",
                 propertyCode,
-                neighborhood: String(getVal(row, ["bairro", "localizacao", "empreendimento"]) || "N/A"),
-                clientName: String(getVal(row, ["cliente", "comprador", "nome contrato"]) || "N/A"),
+                neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
+                clientName: String(getVal(row, ["cliente", "comprador"]) || "N/A"),
                 advertisedValue: parseCurrency(getVal(row, ["valor anuncio", "anuncio"])),
                 closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda"])),
                 saleDate: dataVenda,
-                propertyCaptureDate: dataEntrada,
+                propertyCaptureDate: excelDateToJSDate(getVal(row, ["data entrada", "entrada", "cadastro"])),
                 status: "Vendido",
                 importedAt: serverTimestamp(),
               }, { merge: true });
 
             } else if (mode === 'leads') {
-              // Gerar um hash único baseado no conteúdo da linha para permitir atualizações em vez de duplicatas
+              // Gerar um ID baseado no conteúdo da linha para evitar duplicatas e permitir atualizações
               const rowHash = Object.values(row).join("").substring(0, 80).replace(/[\/\.\#\$\/\[\] ]/g, "-");
               const leadId = `lead-${rowHash}`;
               const leadRef = doc(firestore, "leads", leadId);
@@ -191,7 +177,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
 
         setLastSync(new Date());
         if (!silent) {
-          toast({ title: "Sincronização Concluída", description: `${processedCount} registros atualizados na aba ${mode}.` });
+          toast({ title: "Sincronização Concluída", description: `${processedCount} registros sincronizados.` });
         }
       }
     } catch (error: any) {
@@ -202,17 +188,16 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     }
   }, [url, mode, firestore, user, toast]);
 
-  // Efeito de sincronização automática aprimorado
+  // Monitoramento contínuo
   useEffect(() => {
     if (!autoSync || !url || !user) return;
     
-    // Sincronização inicial
+    // Sincronização imediata
     handleSync(true);
 
-    // Intervalo de 60 segundos
     const intervalId = setInterval(() => {
       handleSync(true);
-    }, 60000);
+    }, 60000); // 60 segundos
     
     return () => clearInterval(intervalId);
   }, [autoSync, url, user, handleSync]);
@@ -239,7 +224,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
             <div className="p-2 bg-primary/10 rounded-lg"><Zap className="h-5 w-5 text-primary" /></div>
             <div>
               <CardTitle className="text-lg">Sincronização de {mode === 'leads' ? 'Leads' : mode === 'inventory' ? 'Cadastro' : 'Vendas'}</CardTitle>
-              {lastSync && <p className="text-[10px] text-muted-foreground">Último: {lastSync.toLocaleTimeString()}</p>}
+              {lastSync && <p className="text-[10px] text-muted-foreground">Sincronizado em: {lastSync.toLocaleTimeString()}</p>}
             </div>
           </div>
           <Button variant="outline" size="sm" onClick={handleClearData} disabled={clearing} className="text-xs text-destructive">
@@ -258,16 +243,18 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         <div className="flex items-center space-x-2">
           <Switch id={`auto-sync-${mode}`} checked={autoSync} onCheckedChange={setAutoSync} />
           <Label htmlFor={`auto-sync-${mode}`} className="text-xs">Sincronização automática ativa (60s)</Label>
+          {syncing && <span className="text-[10px] text-primary animate-pulse font-bold uppercase ml-2">Atualizando...</span>}
         </div>
         
         <div className="bg-amber-50 p-3 rounded-lg border border-amber-100 mt-4">
           <div className="flex gap-2">
             <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
             <div className="space-y-1">
-              <p className="text-xs font-bold text-amber-800">Dica de Importação:</p>
+              <p className="text-xs font-bold text-amber-800">Instruções para Espelhamento:</p>
               <ul className="text-[10px] text-amber-700 space-y-1">
-                <li>• No Google Sheets: Arquivo &gt; Compartilhar &gt; Publicar na Web &gt; CSV.</li>
-                <li>• O app detecta mudanças na planilha e atualiza os dados automaticamente.</li>
+                <li>• No Google Sheets: Arquivo &amp;gt; Compartilhar &amp;gt; Publicar na Web &amp;gt; CSV.</li>
+                <li>• Qualquer alteração na planilha será refletida aqui automaticamente.</li>
+                <li>• Para Vendas, certifique-se da coluna "Data do venda".</li>
               </ul>
             </div>
           </div>

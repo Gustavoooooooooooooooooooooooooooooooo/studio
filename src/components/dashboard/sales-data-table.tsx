@@ -1,7 +1,5 @@
-
 "use client"
 
-import { useMemo } from "react";
 import { useCollection, useMemoFirebase, useFirebase } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -10,9 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Loader2, BadgeCheck } from "lucide-react";
 
+/**
+ * Motor de tratamento de datas especializado.
+ * Suporta pontos, seriais do Excel e ISO.
+ */
 const formatDateDisplay = (val: any) => {
   if (!val || val === "N/A" || String(val).trim() === "") return "N/A";
 
+  // 1️⃣ Firebase Timestamp
   if (val?.toDate) {
     const date = val.toDate();
     return `${String(date.getDate()).padStart(2,'0')}/${String(date.getMonth()+1).padStart(2,'0')}/${date.getFullYear()}`;
@@ -20,12 +23,15 @@ const formatDateDisplay = (val: any) => {
 
   const strVal = String(val).trim();
 
+  // 2️⃣ Se não tiver número não é data
   if (!/\d/.test(strVal)) return "N/A";
 
+  // 3️⃣ DD.MM.YYYY → DD/MM/YYYY
   if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
     return strVal.replace(/\./g, '/');
   }
 
+  // 4️⃣ Serial do Excel (45961, 46037 etc.)
   const cleanStr = strVal.replace(/[^\d]/g, '');
   const num = Number(cleanStr);
 
@@ -35,8 +41,10 @@ const formatDateDisplay = (val: any) => {
     return `${String(date.getUTCDate()).padStart(2,'0')}/${String(date.getUTCMonth()+1).padStart(2,'0')}/${date.getUTCFullYear()}`;
   }
 
+  // 5️⃣ DD/MM/YYYY
   if (strVal.match(/^\d{1,2}\/\d{1,2}\/\d{2,4}$/)) return strVal;
 
+  // 6️⃣ ISO YYYY-MM-DD
   const isoMatch = strVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (isoMatch) {
     return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
@@ -77,7 +85,7 @@ export function SalesDataTable() {
             <BadgeCheck className="h-5 w-5 text-emerald-600" />
             Planilha de Conclusão de Negócios
           </CardTitle>
-          <p className="text-xs text-muted-foreground">Exibindo todos os fechamentos registrados com tratamento de datas.</p>
+          <p className="text-xs text-muted-foreground">Exibindo fechamentos com espelhamento total de datas.</p>
         </div>
         <Badge variant="outline" className="text-emerald-600 font-bold bg-white">
           {vendas?.length || 0} Registros
@@ -87,23 +95,20 @@ export function SalesDataTable() {
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
             <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
-            <p className="text-sm text-muted-foreground">Carregando fechamentos...</p>
+            <p className="text-sm text-muted-foreground">Carregando dados...</p>
           </div>
         ) : vendas && vendas.length > 0 ? (
           <ScrollArea className="w-full h-[600px]">
-            <div className="min-w-[1800px]">
+            <div className="min-w-[1500px]">
               <Table>
                 <TableHeader className="bg-muted/50 sticky top-0 z-10">
                   <TableRow>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[120px]">Data Entrada</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[120px] bg-emerald-100/50">Data Venda</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Vendedor</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase min-w-[120px]">Tipo Venda</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Angariador</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[120px]">Cód Imóvel</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase min-w-[200px]">Bairro/Local</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase min-w-[200px]">Nome Contrato</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px] text-right">Valor Anúncio</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Bairro</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[200px]">Cliente</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[150px] text-right">Valor Venda</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -115,12 +120,9 @@ export function SalesDataTable() {
                         {formatDateDisplay(venda.saleDate)}
                       </TableCell>
                       <TableCell className="text-xs">{venda.vendedor || "N/A"}</TableCell>
-                      <TableCell className="text-xs">{venda.tipoVenda || "N/A"}</TableCell>
-                      <TableCell className="text-xs">{venda.angariador || "N/A"}</TableCell>
                       <TableCell className="text-xs font-mono">{venda.propertyCode || "N/A"}</TableCell>
                       <TableCell className="text-xs font-semibold">{venda.neighborhood || "N/A"}</TableCell>
                       <TableCell className="text-xs font-bold">{venda.clientName || "N/A"}</TableCell>
-                      <TableCell className="text-xs text-right text-muted-foreground">{formatCurrency(venda.advertisedValue)}</TableCell>
                       <TableCell className="text-xs text-right font-bold text-emerald-600">{formatCurrency(venda.closedValue)}</TableCell>
                     </TableRow>
                   ))}
@@ -135,7 +137,7 @@ export function SalesDataTable() {
             <div className="bg-muted/30 w-16 h-16 rounded-full flex items-center justify-center mx-auto opacity-20">
                <BadgeCheck className="h-8 w-8" />
             </div>
-            <p className="text-sm font-medium">Sincronize a aba de Conclusão para visualizar os dados.</p>
+            <p className="text-sm font-medium">Sincronize os dados para visualizar o espelhamento.</p>
           </div>
         )}
       </CardContent>

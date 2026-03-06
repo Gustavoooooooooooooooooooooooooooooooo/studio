@@ -1,8 +1,7 @@
-
 'use server';
 /**
  * @fileOverview Genkit flow to sync Google Sheets CSV data to Firestore.
- * Improved to handle different delimiters and force fresh data using aggressive cache-busting.
+ * Improved with aggressive cache-busting to ensure fresh data from Google.
  */
 
 import { ai } from '@/ai/genkit';
@@ -70,26 +69,20 @@ const syncSheetsFlow = ai.defineFlow(
         throw new Error('O link não aponta para um CSV público. No Google Sheets, vá em Arquivo > Compartilhar > Publicar na Web e escolha o formato CSV.');
       }
 
-      // Tenta detectar automaticamente o delimitador (vírgula ou ponto-e-vírgula)
       const parsed = Papa.parse(csvText, {
         header: true,
         skipEmptyLines: 'greedy',
         dynamicTyping: true,
-        transformHeader: (h) => h.trim(), // Remove espaços extras nos cabeçalhos
+        transformHeader: (h) => h.trim(),
       });
 
       if (parsed.errors.length > 0 && parsed.data.length === 0) {
         return {
           success: false,
           recordsProcessed: 0,
-          message: 'Erro ao processar o conteúdo do CSV. Verifique a estrutura da planilha.',
+          message: 'Erro ao processar o conteúdo do CSV.',
           errors: parsed.errors.map(e => e.message),
         };
-      }
-
-      // Validação mínima: a planilha deve ter colunas
-      if (parsed.data.length > 0 && Object.keys(parsed.data[0]).length < 2) {
-        throw new Error('A planilha parece ter apenas uma coluna ou o delimitador não foi reconhecido. Verifique se o link é realmente um CSV.');
       }
 
       return {
