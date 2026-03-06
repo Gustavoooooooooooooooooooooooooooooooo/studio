@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useCollection, useMemoFirebase, useFirebase } from "@/firebase";
+import { useCollection, useMemoFirebase, useFirebase, useUser } from "@/firebase";
 import { collection, query } from "firebase/firestore";
 import { Loader2 } from "lucide-react";
 
@@ -19,12 +19,12 @@ interface BrokerPerformanceGridProps {
 
 export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth, selectedYear }: BrokerPerformanceGridProps) {
   const { firestore } = useFirebase();
+  const { user, isUserLoading: isAuthLoading } = useUser();
   
-  // Consulta simples sem orderBy para garantir que pegamos todos os corretores
   const brokersQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null;
     return query(collection(firestore, "brokers"));
-  }, [firestore]);
+  }, [firestore, user]);
 
   const { data: officialBrokers, isLoading: isBrokersLoading } = useCollection(brokersQuery);
 
@@ -199,7 +199,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
         <CardTitle className="text-base font-bold text-primary">Performance por Corretor</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
-        {isBrokersLoading ? (
+        {(isBrokersLoading || isAuthLoading) ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
@@ -310,7 +310,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
           </Table>
         ) : (
           <div className="py-20 text-center text-muted-foreground">
-            <p className="text-sm font-medium">Nenhum dado encontrado para o período.</p>
+            <p className="text-sm font-medium">Nenhum corretor encontrado ou configurado.</p>
+            <p className="text-xs text-muted-foreground/80">Vá na aba 'Config' para adicionar corretores à lista oficial.</p>
           </div>
         )}
       </CardContent>

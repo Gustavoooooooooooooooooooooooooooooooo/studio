@@ -19,9 +19,9 @@ export function BrokerSettings() {
   const { toast } = useToast();
 
   const brokersQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null;
     return query(collection(firestore, "brokers"), orderBy("name", "asc"));
-  }, [firestore]);
+  }, [firestore, user]);
 
   const { data: brokersList, isLoading: isListLoading } = useCollection(brokersQuery);
 
@@ -69,7 +69,7 @@ export function BrokerSettings() {
   };
 
   const handleDeleteBroker = (id: string, name: string) => {
-    if (!firestore) return;
+    if (!firestore || !user) return;
     const brokerRef = doc(firestore, "brokers", id);
     deleteDocumentNonBlocking(brokerRef);
     toast({
@@ -108,11 +108,11 @@ export function BrokerSettings() {
                 value={newBrokerName} 
                 onChange={(e) => setNewBrokerName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAddBroker()}
-                disabled={isListLoading}
+                disabled={isListLoading || isUserLoading}
               />
             </div>
-            <Button onClick={handleAddBroker} disabled={!newBrokerName.trim() || isListLoading} className="bg-primary hover:bg-primary/90">
-              {isListLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
+            <Button onClick={handleAddBroker} disabled={!newBrokerName.trim() || isListLoading || isUserLoading} className="bg-primary hover:bg-primary/90">
+              {(isListLoading || isUserLoading) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
               Adicionar
             </Button>
           </div>
