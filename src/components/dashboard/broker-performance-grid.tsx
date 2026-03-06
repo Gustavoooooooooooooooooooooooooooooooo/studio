@@ -71,7 +71,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
       };
 
       // 1. Angariações Filtradas
-      const bProps = properties.filter(p => normalize(p.brokerId) === normName);
+      const bProps = properties.filter(p => normalize(p.brokerId).split(' ')[0] === normName.split(' ')[0]);
       const bPropsFiltered = bProps.filter(p => filterByPeriod(p, "captureDate"));
       
       const vPropsCount = bPropsFiltered.filter(p => Number(p.saleValue || 0) > 0).length;
@@ -87,7 +87,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
           // Chaves abrangentes para identificar o corretor em qualquer coluna na planilha de leads.
           const isBrokerColumn = nk.includes("corretor") || nk.includes("responsavel") || nk.includes("atendente") || nk.includes("vendedor") || nk.includes("broker");
           if (isBrokerColumn) {
-             return nv === normName;
+             return nv.split(' ')[0] === normName.split(' ')[0];
           }
           return false;
         });
@@ -123,7 +123,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
       });
 
       // 3. Vendas
-      const brokerSalesAll = sales.filter(s => normalize(s.vendedor) === normName);
+      const brokerSalesAll = sales.filter(s => normalize(s.vendedor).split(' ')[0] === normName.split(' ')[0]);
       const brokerSalesFiltered = brokerSalesAll.filter(s => filterByPeriod(s, "saleDate"));
       
       const numSalesFiltered = brokerSalesFiltered.length;
@@ -289,3 +289,5 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
     </Card>
   );
 }
+
+    

@@ -192,7 +192,7 @@ export default function AppContainer() {
             };
           } else { // leads
             const rowValues = Object.values(row).map((v) => String(v || "").trim()).join("|");
-            const leadIdSeed = rowValues.substring(0, 100).replace(/[\\/\\.\\#\\$\/\[\] ]/g, "-");
+            const leadIdSeed = rowValues.substring(0, 100).replace(/[\/\.\#\$\/\[\] ]/g, "-");
             return {
               id: `lead-${leadIdSeed}`,
               ...row
@@ -300,10 +300,25 @@ export default function AppContainer() {
   }, [processedSales, leads, processedInventory, inventory, now, selectedMonth, selectedYear]);
 
   const allBrokers = useMemo(() => {
-      const brokerSet = new Set<string>();
       const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
       
-      manualBrokers.forEach(b => brokerSet.add(normalize(b)));
+      // A map to hold the shortest version of a name, keyed by the normalized first name.
+      const brokersMap = new Map<string, string>();
+
+      const addBrokerToMap = (name: string) => {
+          const trimmedName = String(name || "").trim();
+          if (!trimmedName || trimmedName === 'N/A' || trimmedName.length <= 1) return;
+          
+          const normalizedName = normalize(trimmedName);
+          const firstName = normalizedName.split(' ')[0];
+
+          if (!brokersMap.has(firstName) || normalizedName.length < normalize(brokersMap.get(firstName)!).length) {
+              brokersMap.set(firstName, trimmedName);
+          }
+      };
+
+      // Prioritize manual brokers
+      manualBrokers.forEach(addBrokerToMap);
 
       const brokerKeySubstrings = ['corretor', 'broker', 'responsavel', 'atendente', 'vendedor', 'angariador', 'captador'];
 
@@ -312,19 +327,18 @@ export default function AppContainer() {
         Object.entries(item).forEach(([key, value]) => {
           const normalizedKey = normalize(key);
           if (brokerKeySubstrings.some(sub => normalizedKey.includes(sub))) {
-            const brokerName = String(value || '').trim();
-            if (brokerName && brokerName !== 'N/A' && brokerName.length > 1) {
-              brokerSet.add(normalize(brokerName));
-            }
+            addBrokerToMap(String(value || ''));
           }
         });
       };
 
       [...inventory, ...sales, ...leads].forEach(processItem);
-      
-      return Array.from(brokerSet)
-        .filter(b => b)
-        .map(b => b.charAt(0).toUpperCase() + b.slice(1))
+
+      return Array.from(brokersMap.values())
+        .map(name => {
+            // Capitalize each word in the name
+            return name.split(' ').map(n => n.charAt(0).toUpperCase() + n.slice(1).toLowerCase()).join(' ');
+        })
         .sort();
   }, [inventory, sales, leads, manualBrokers]);
 
@@ -447,3 +461,5 @@ export default function AppContainer() {
     </div>
   );
 }
+
+    
