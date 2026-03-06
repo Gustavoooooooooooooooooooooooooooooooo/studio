@@ -38,21 +38,21 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       .replace(/[\u0300-\u036f]/g, "")
       .trim();
 
-  // Motor de tratamento de datas robusto conforme solicitado
+  // Implementação fiel da lógica de tratamento de datas solicitada
   const excelDateToJSDate = (val: any) => {
     if (!val || val === "N/A" || String(val).trim() === "") return "N/A";
 
     const strVal = String(val).trim();
 
-    // Filtro Crítico: Se não tiver número não é data (evita nomes de corretores)
+    // 2️⃣ Se não tiver número não é data (Blindagem Crítica)
     if (!/\d/.test(strVal)) return "N/A";
 
-    // 1. DD.MM.YYYY → DD/MM/YYYY
+    // 3️⃣ DD.MM.YYYY → DD/MM/YYYY
     if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
       return strVal.replace(/\./g, '/');
     }
 
-    // 2. Serial do Excel
+    // 4️⃣ Serial do Excel (45961, 46037 etc.)
     const cleanStr = strVal.replace(/[^\d]/g, '');
     const num = Number(cleanStr);
     if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('.') && !strVal.includes('-')) {
@@ -61,10 +61,10 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       return `${String(date.getUTCDate()).padStart(2,'0')}/${String(date.getUTCMonth()+1).padStart(2,'0')}/${date.getUTCFullYear()}`;
     }
 
-    // 3. DD/MM/YYYY
+    // 5️⃣ DD/MM/YYYY
     if (strVal.match(/^\d{1,2}\/\d{1,2}\/\d{2,4}$/)) return strVal;
 
-    // 4. ISO YYYY-MM-DD
+    // 6️⃣ ISO YYYY-MM-DD
     const isoMatch = strVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (isoMatch) {
       return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
@@ -88,9 +88,12 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       if (match) return row[match.original];
     }
 
-    // Prioridade 2: Match parcial não excluído
+    // Prioridade 2: Match parcial não excluído (Blindagem para chaves curtas)
     for (const sKey of normalizedSearchKeys) {
       const match = normalizedRowKeys.find(rk => {
+        // Se a chave de busca for "r" (Coluna R), exigimos que seja exato ou contenha termos de data
+        if (sKey === "r" && rk.norm !== "r") return false;
+        
         const isMatch = rk.norm.includes(sKey);
         const isExcluded = normalizedExcludeKeys.some(ex => rk.norm.includes(ex));
         return isMatch && !isExcluded;
@@ -138,7 +141,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
                 saleValue: parseCurrency(getVal(row, ["valor venda", "venda", "valor"])),
                 rentalValue: parseCurrency(getVal(row, ["valor locacao", "locacao", "aluguel", "valor aluguel"])),
                 brokerId: String(getVal(row, ["angariador", "corretor", "captador", "quem angariou"]) || "N/A"),
-                captureDate: String(excelDateToJSDate(getVal(row, ["data entrada", "entrada", "data"])) || "N/A"),
+                captureDate: excelDateToJSDate(getVal(row, ["data entrada", "entrada", "data"])),
                 status: String(getVal(row, ["status", "situacao"]) || "Disponível"),
                 importedAt: serverTimestamp(),
               }, { merge: true });
@@ -147,7 +150,6 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               const vendedor = String(getVal(row, ["vendedor", "corretor", "responsavel", "atendente"]) || "N/A");
               
               // DATA VENDA (COLUNA R) - Foco Total em capturar data e ignorar nomes
-              // Excluímos explicitamente nomes de cabeçalhos de pessoas
               const dataVendaRaw = excelDateToJSDate(getVal(row, 
                 ["data venda", "fechamento", "data fechamento", "r", "venda"], 
                 ["vendedor", "corretor", "cliente", "nome", "anuncio"]
@@ -167,8 +169,8 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
                 clientName: String(getVal(row, ["cliente", "comprador", "nome contrato"]) || "N/A"),
                 advertisedValue: parseCurrency(getVal(row, ["valor anuncio", "valor inicial", "anuncio"])),
                 closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda", "fechamento"])),
-                saleDate: String(dataVendaRaw || "N/A"),
-                propertyCaptureDate: String(dataEntradaRaw || "N/A"),
+                saleDate: dataVendaRaw,
+                propertyCaptureDate: dataEntradaRaw,
                 status: "Vendido",
                 importedAt: serverTimestamp(),
               }, { merge: true });

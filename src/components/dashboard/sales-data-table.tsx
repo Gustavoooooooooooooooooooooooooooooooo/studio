@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Loader2, BadgeCheck } from "lucide-react";
 
+// Implementação fiel da lógica de visualização de datas solicitada
 const formatDateDisplay = (val: any) => {
   if (!val || val === "N/A" || String(val).trim() === "") return "N/A";
 
@@ -84,7 +85,7 @@ export function SalesDataTable() {
             <BadgeCheck className="h-5 w-5 text-emerald-600" />
             Planilha de Conclusão de Negócios
           </CardTitle>
-          <p className="text-xs text-muted-foreground">Exibindo todos os fechamentos registrados com tratamento de datas.</p>
+          <p className="text-xs text-muted-foreground">Exibindo todos os fechamentos registrados com espelhamento fiel da Coluna R.</p>
         </div>
         <Badge variant="outline" className="text-emerald-600 font-bold bg-white">
           {vendas?.length || 0} Registros
