@@ -99,6 +99,7 @@ export default function AppContainer() {
   const { toast } = useToast();
 
   const [urls, setUrls] = useState({ inventory: "", leads: "", sales: "" });
+  const [manualBrokers, setManualBrokers] = useState<string[]>([]);
 
   // Data states
   const [leads, setLeads] = useState<any[]>([]);
@@ -119,6 +120,10 @@ export default function AppContainer() {
       sales: localStorage.getItem('sheet_url_sales') || ""
     };
     setUrls(savedUrls);
+    const savedManualBrokers = localStorage.getItem('manual_brokers');
+    if (savedManualBrokers) {
+        setManualBrokers(JSON.parse(savedManualBrokers));
+    }
   }, [auth]);
 
   const handleUrlsChange = (newUrls: { inventory: string; leads: string; sales: string; }) => {
@@ -130,6 +135,18 @@ export default function AppContainer() {
     handleSync(false);
   };
   
+  const handleAddBroker = (brokerName: string) => {
+    const normalizedNewBroker = brokerName.trim();
+    if (normalizedNewBroker && !manualBrokers.find(b => b.toLowerCase() === normalizedNewBroker.toLowerCase())) {
+        const updatedBrokers = [...manualBrokers, normalizedNewBroker];
+        setManualBrokers(updatedBrokers);
+        localStorage.setItem('manual_brokers', JSON.stringify(updatedBrokers));
+        toast({ title: "Corretor Adicionado", description: `${normalizedNewBroker} foi adicionado à lista.` });
+    } else {
+        toast({ variant: "destructive", title: "Corretor já existe", description: `${normalizedNewBroker} já está na lista.` });
+    }
+  };
+
   const handleSync = useCallback(async (silent = false) => {
     if (syncingRef.current) return;
     
@@ -285,6 +302,9 @@ export default function AppContainer() {
   const allBrokers = useMemo(() => {
       const brokerSet = new Set<string>();
       const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      
+      manualBrokers.forEach(b => brokerSet.add(normalize(b)));
+
       const brokerKeySubstrings = ['corretor', 'broker', 'responsavel', 'atendente', 'vendedor', 'angariador', 'captador'];
 
       const processItem = (item: any) => {
@@ -294,7 +314,7 @@ export default function AppContainer() {
           if (brokerKeySubstrings.some(sub => normalizedKey.includes(sub))) {
             const brokerName = String(value || '').trim();
             if (brokerName && brokerName !== 'N/A' && brokerName.length > 1) {
-              brokerSet.add(brokerName);
+              brokerSet.add(normalize(brokerName));
             }
           }
         });
@@ -302,8 +322,11 @@ export default function AppContainer() {
 
       [...inventory, ...sales, ...leads].forEach(processItem);
       
-      return Array.from(brokerSet).sort();
-  }, [inventory, sales, leads]);
+      return Array.from(brokerSet)
+        .filter(b => b)
+        .map(b => b.charAt(0).toUpperCase() + b.slice(1))
+        .sort();
+  }, [inventory, sales, leads, manualBrokers]);
 
   if (!mounted) return null;
 
@@ -411,7 +434,7 @@ export default function AppContainer() {
           <TabsContent value="conclusao" className="space-y-6"><SalesDataTable data={sales} /></TabsContent>
           <TabsContent value="config" className="space-y-6">
             <SheetUrlConfig urls={urls} onUrlsChange={handleUrlsChange} />
-            <BrokerSettings brokers={allBrokers} />
+            <BrokerSettings brokers={allBrokers} onAddBroker={handleAddBroker} />
           </TabsContent>
         </Tabs>
       </main>
