@@ -3,7 +3,7 @@
 
 import { useMemo } from "react";
 import { useCollection, useMemoFirebase, useFirebase } from "@/firebase";
-import { collection, query, orderBy, limit } from "firebase/firestore";
+import { collection, query, orderBy } from "firebase/firestore";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,27 +13,19 @@ import { Loader2, BadgeCheck } from "lucide-react";
 export function SalesDataTable() {
   const { firestore } = useFirebase();
   
+  // Consulta sem limites para mostrar todos os dados sincronizados
   const vendasQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(
       collection(firestore, "vendas_imoveis"),
-      orderBy("importedAt", "desc"),
-      limit(200)
+      orderBy("importedAt", "desc")
     );
   }, [firestore]);
 
   const { data: rawVendas, isLoading } = useCollection(vendasQuery);
 
-  // Removemos duplicatas para a exibição da tabela
-  const vendas = useMemo(() => {
-    if (!rawVendas) return [];
-    const map = new Map();
-    rawVendas.forEach(v => {
-      const key = `${v.propertyCode}-${v.saleDate}-${v.closedValue}`;
-      if (!map.has(key)) map.set(key, v);
-    });
-    return Array.from(map.values());
-  }, [rawVendas]);
+  // Exibimos todos os registros sem filtros de duplicidade para garantir fidelidade à planilha
+  const vendas = rawVendas || [];
 
   const formatCurrency = (value: any) => {
     const num = Number(value);
@@ -50,7 +42,6 @@ export function SalesDataTable() {
     
     const strVal = String(val).trim();
     
-    // 1. Tentar detectar Serial do Excel (número puro)
     const cleanStr = strVal.replace(/[^\d]/g, '');
     const num = Number(cleanStr);
     if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('-')) {
@@ -58,16 +49,13 @@ export function SalesDataTable() {
       return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
     }
 
-    // 2. Se já for DD/MM/YYYY
     if (strVal.match(/^\d{1,2}\/\d{1,2}\/\d{2,4}$/)) return strVal;
 
-    // 3. Se for ISO YYYY-MM-DD
     const isoMatch = strVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (isoMatch) {
       return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
     }
 
-    // 4. Tentativa genérica de parsing
     const date = new Date(strVal);
     if (!isNaN(date.getTime()) && strVal.length > 5) {
         return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
@@ -84,7 +72,7 @@ export function SalesDataTable() {
             <BadgeCheck className="h-5 w-5 text-emerald-600" />
             Planilha de Conclusão de Negócios
           </CardTitle>
-          <p className="text-xs text-muted-foreground">Exibindo todos os fechamentos registrados com tratamento de datas.</p>
+          <p className="text-xs text-muted-foreground">Exibindo todos os registros espelhados da planilha original.</p>
         </div>
         <Badge variant="outline" className="text-emerald-600 font-bold bg-white">
           {vendas?.length || 0} Registros
@@ -122,8 +110,8 @@ export function SalesDataTable() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {vendas.map((venda) => (
-                    <TableRow key={venda.id} className="hover:bg-emerald-50/30 transition-colors border-b">
+                  {vendas.map((venda, idx) => (
+                    <TableRow key={venda.id || idx} className="hover:bg-emerald-50/30 transition-colors border-b">
                       <TableCell className="text-xs text-muted-foreground">{formatDateDisplay(venda.propertyCaptureDate)}</TableCell>
                       <TableCell className="text-xs font-bold text-emerald-700">{formatDateDisplay(venda.saleDate)}</TableCell>
                       <TableCell className="text-xs">{venda.vendedor || "N/A"}</TableCell>
@@ -154,7 +142,7 @@ export function SalesDataTable() {
             <div className="bg-muted/30 w-16 h-16 rounded-full flex items-center justify-center mx-auto opacity-20">
                <BadgeCheck className="h-8 w-8" />
             </div>
-            <p className="text-sm font-medium">Sincronize os dados da aba de Conclusão para visualizar os fechamentos.</p>
+            <p className="text-sm font-medium">Sincronize os dados da aba de Conclusão para visualizar todos os registros.</p>
           </div>
         )}
       </CardContent>

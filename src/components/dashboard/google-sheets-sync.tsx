@@ -72,7 +72,11 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     }
 
     for (const sKey of normalizedSearchKeys) {
-      const match = normalizedRowKeys.find(rk => rk.norm.includes(sKey) && rk.norm.length < sKey.length + 5);
+      const match = normalizedRowKeys.find(rk => {
+        // Evita confundir Vendedor com Venda (data)
+        if (sKey === "venda" && (rk.norm.includes("vendedor") || rk.norm.includes("corretor"))) return false;
+        return rk.norm.includes(sKey) && rk.norm.length < sKey.length + 5;
+      });
       if (match) return row[match.original];
     }
 
@@ -122,12 +126,12 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              // ID Único por linha para garantir que todas as vendas sejam contabilizadas sem sobreposição
               const vendedor = String(getVal(row, ["vendedor", "vendas", "corretor", "venda", "responsavel"]) || "N/A");
-              const safeSaleId = `sale-${normalize(vendedor)}-${processedCount}-${Date.now()}`;
+              // Usamos um ID determinístico baseado no índice e timestamp do lote para evitar colisões
+              const safeSaleId = `sale-${processedCount}-${Date.now()}`;
               const saleRef = doc(firestore, "vendas_imoveis", safeSaleId);
               
-              const dataVendaRaw = excelDateToJSDate(getVal(row, ["fechamento", "data venda", "data de venda", "data da venda", "carimbo", "data"]));
+              const dataVendaRaw = excelDateToJSDate(getVal(row, ["r", "data venda", "fechamento", "data de venda", "data da venda", "carimbo", "data"]));
               const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "entrada", "data da entrada", "cadastro"]));
               const closedVal = parseCurrency(getVal(row, ["valor fechado", "valor venda", "fechamento"]));
               const cliente = String(getVal(row, ["cliente", "comprador", "nome contrato"]) || "N/A");
@@ -148,7 +152,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'leads') {
-              const leadId = `lead-${processedCount}`;
+              const leadId = `lead-${processedCount}-${Date.now()}`;
               const leadRef = doc(firestore, "leads", leadId);
               setDocumentNonBlocking(leadRef, { ...row, importedAt: serverTimestamp() }, { merge: true });
             }
@@ -223,7 +227,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               <ul className="text-[10px] text-amber-700 space-y-1">
                 <li>• Verifique se a coluna <b>Código</b> ou <b>Referência</b> está preenchida corretamente.</li>
                 <li>• Garanta que o link foi gerado em <b>Arquivo {'>'} Compartilhar {'>'} Publicar na Web {'>'} CSV</b>.</li>
-                <li>• A conta do Giro usa <b>427 dias</b>. Se Mila tem 8 vendas, o sistema mostrará <b>53 dias</b>.</li>
+                <li>• A Data de Venda deve estar na <b>Coluna R</b> para espelhamento correto.</li>
               </ul>
             </div>
           </div>

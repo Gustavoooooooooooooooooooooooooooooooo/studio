@@ -1,7 +1,8 @@
+
 "use client"
 
 import { useCollection, useMemoFirebase, useFirebase } from "@/firebase";
-import { collection, query, orderBy, limit } from "firebase/firestore";
+import { collection, query, orderBy } from "firebase/firestore";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,8 +16,7 @@ export function ImportedDataTable() {
     if (!firestore) return null;
     return query(
       collection(firestore, "properties"),
-      orderBy("importedAt", "desc"),
-      limit(200)
+      orderBy("importedAt", "desc")
     );
   }, [firestore]);
 
@@ -40,7 +40,7 @@ export function ImportedDataTable() {
             Planilha de Cadastro (Estoque Completo)
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Exibindo todos os dados capturados da sua planilha de Cadastro de Imóveis.
+            Exibindo todos os dados capturados da sua planilha de Cadastro de Imóveis sem limites.
           </p>
         </div>
         <Badge variant="outline" className="font-bold text-primary bg-white">
