@@ -37,7 +37,6 @@ export default function AppContainer() {
     }
   }, [auth]);
 
-  // Removemos o orderBy para garantir que pegamos TODOS os documentos, mesmo os sem o campo importedAt
   const salesQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(collection(firestore, "vendas_imoveis"));
@@ -67,6 +66,17 @@ export default function AppContainer() {
       if (d instanceof Date) return isNaN(d.getTime()) ? null : d;
       const strVal = String(d).trim();
       if (!strVal || ["n/a", "undefined", "null", ""].includes(strVal.toLowerCase())) return null;
+
+      // Suporte a DD.MM.YYYY
+      if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
+        const parts = strVal.split('.');
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        let year = parseInt(parts[2], 10);
+        if (year < 100) year += 2000;
+        const date = new Date(year, month, day);
+        if (!isNaN(date.getTime())) return date;
+      }
 
       // 1. Tentar DD/MM/YYYY ou DD.MM.YYYY ou DD-MM-YYYY
       const dmyMatch = strVal.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
@@ -126,11 +136,9 @@ export default function AppContainer() {
       return d !== null && val > 0;
     });
 
-    // Frequência Total (Base 427 dias: 01/01/2025 até 02/03/2026)
     const totalDaysSinceStart = 427; 
     const salesFrequency = validSalesTotal.length > 0 ? totalDaysSinceStart / validSalesTotal.length : 0;
 
-    // Ciclo Médio Total
     const validCyclesTotal = validSalesTotal.map(s => {
       const start = parseDate(s.propertyCaptureDate);
       const end = parseDate(s.saleDate);
@@ -139,7 +147,6 @@ export default function AppContainer() {
     }).filter((d): d is number => d !== null && d >= 0);
     const avgDaysToSell = validCyclesTotal.length > 0 ? validCyclesTotal.reduce((a, b) => a + b, 0) / validCyclesTotal.length : 0;
 
-    // VGV Somado do Cadastro filtrado
     const totalVgvInventoryFiltered = filteredProperties.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0);
     
     const saleProps = filteredProperties.filter(p => (Number(p.saleValue) || 0) > 0);
@@ -148,7 +155,6 @@ export default function AppContainer() {
     const rentProps = filteredProperties.filter(p => (Number(p.rentalValue) || 0) > 0);
     const avgTicketRent = rentProps.length > 0 ? rentProps.reduce((acc, p) => acc + (Number(p.rentalValue) || 0), 0) / rentProps.length : 0;
 
-    // Última Venda Realizada (Busca no total sem filtro para precisão do histórico)
     const allSaleDates = allSales
       .map(s => parseDate(s.saleDate))
       .filter((d): d is Date => d !== null)

@@ -42,10 +42,16 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     if (val === undefined || val === null || String(val).trim() === "") return "";
     const strVal = String(val).trim();
     
+    // Suporte a DD.MM.YYYY
+    if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
+      return strVal.replace(/\./g, '/');
+    }
+
     const cleanStr = strVal.replace(/[^\d]/g, '');
     const num = Number(cleanStr);
     
-    if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('-')) {
+    // Excel Serial
+    if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('-') && !strVal.includes('.')) {
       const date = new Date(Math.round((num - 25569) * 86400 * 1000));
       return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
     }
@@ -60,22 +66,27 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     return strVal;
   };
 
-  const getVal = (row: any, searchKeys: string[]) => {
+  const getVal = (row: any, searchKeys: string[], excludeKeys: string[] = []) => {
     if (!row) return undefined;
     const rowKeys = Object.keys(row);
     const normalizedRowKeys = rowKeys.map(k => ({ original: k, norm: normalize(k) }));
     const normalizedSearchKeys = searchKeys.map(normalize);
+    const normalizedExcludeKeys = excludeKeys.map(normalize);
 
+    // Primeiro tenta match exato, ignorando excluídos
     for (const sKey of normalizedSearchKeys) {
-      const match = normalizedRowKeys.find(rk => rk.norm === sKey);
+      const match = normalizedRowKeys.find(rk => 
+        rk.norm === sKey && !normalizedExcludeKeys.some(ex => rk.norm.includes(ex))
+      );
       if (match) return row[match.original];
     }
 
+    // Depois tenta match parcial, ignorando excluídos
     for (const sKey of normalizedSearchKeys) {
       const match = normalizedRowKeys.find(rk => {
-        // Evita confundir Vendedor com Venda (data)
-        if (sKey === "venda" && (rk.norm.includes("vendedor") || rk.norm.includes("corretor"))) return false;
-        return rk.norm.includes(sKey) && rk.norm.length < sKey.length + 5;
+        const isMatch = rk.norm.includes(sKey);
+        const isExcluded = normalizedExcludeKeys.some(ex => rk.norm.includes(ex));
+        return isMatch && !isExcluded;
       });
       if (match) return row[match.original];
     }
@@ -106,7 +117,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         
         for (const row of result.data) {
           try {
-            const rawCode = getVal(row, ["codigo", "unidade", "referencia", "id imovel", "cod imovel", "codigo imovel", "id_imovel"]);
+            const rawCode = getVal(row, ["codigo", "unidade", "referencia", "id imovel", "cod imovel", "id_imovel"]);
             const propertyCode = rawCode !== undefined && String(rawCode).trim() !== "" 
               ? String(rawCode).trim() 
               : `REF-${processedCount + 1}`;
@@ -126,13 +137,13 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              const vendedor = String(getVal(row, ["vendedor", "vendas", "corretor", "venda", "responsavel"]) || "N/A");
-              // Usamos um ID determinístico baseado no índice e timestamp do lote para evitar colisões
+              const vendedor = String(getVal(row, ["vendedor", "corretor", "responsavel", "vendas"]) || "N/A");
               const safeSaleId = `sale-${processedCount}-${Date.now()}`;
               const saleRef = doc(firestore, "vendas_imoveis", safeSaleId);
               
-              const dataVendaRaw = excelDateToJSDate(getVal(row, ["r", "data venda", "fechamento", "data de venda", "data da venda", "carimbo", "data"]));
-              const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "entrada", "data da entrada", "cadastro"]));
+              // Busca específica para Data Venda excluindo colunas de nome
+              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "fechamento", "data de venda", "r"], ["vendedor", "corretor", "nome", "atendente"]));
+              const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "entrada", "cadastro"]));
               const closedVal = parseCurrency(getVal(row, ["valor fechado", "valor venda", "fechamento"]));
               const cliente = String(getVal(row, ["cliente", "comprador", "nome contrato"]) || "N/A");
               
@@ -226,8 +237,8 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               <p className="text-xs font-bold text-amber-800">Dicas para sua Planilha Google:</p>
               <ul className="text-[10px] text-amber-700 space-y-1">
                 <li>• Verifique se a coluna <b>Código</b> ou <b>Referência</b> está preenchida corretamente.</li>
-                <li>• Garanta que o link foi gerado em <b>Arquivo {'>'} Compartilhar {'>'} Publicar na Web {'>'} CSV</b>.</li>
-                <li>• A Data de Venda deve estar na <b>Coluna R</b> para espelhamento correto.</li>
+                <li>• Garanta que o link foi gerado em <b>Arquivo Compartilhar Publicar na Web CSV</b>.</li>
+                <li>• A Data de Venda (Coluna R) é processada automaticamente.</li>
               </ul>
             </div>
           </div>

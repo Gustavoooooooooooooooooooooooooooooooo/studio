@@ -13,7 +13,6 @@ import { Loader2, BadgeCheck } from "lucide-react";
 export function SalesDataTable() {
   const { firestore } = useFirebase();
   
-  // Consulta sem limites para mostrar todos os dados sincronizados
   const vendasQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return query(
@@ -24,7 +23,6 @@ export function SalesDataTable() {
 
   const { data: rawVendas, isLoading } = useCollection(vendasQuery);
 
-  // Exibimos todos os registros sem filtros de duplicidade para garantir fidelidade à planilha
   const vendas = rawVendas || [];
 
   const formatCurrency = (value: any) => {
@@ -41,10 +39,15 @@ export function SalesDataTable() {
     if (!val) return "N/A";
     
     const strVal = String(val).trim();
+
+    // Suporte a DD.MM.YYYY
+    if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
+      return strVal.replace(/\./g, '/');
+    }
     
     const cleanStr = strVal.replace(/[^\d]/g, '');
     const num = Number(cleanStr);
-    if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('-')) {
+    if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('-') && !strVal.includes('.')) {
       const date = new Date(Math.round((num - 25569) * 86400 * 1000));
       return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
     }
