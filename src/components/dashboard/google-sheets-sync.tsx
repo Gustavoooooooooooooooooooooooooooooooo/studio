@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -26,11 +26,17 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const { toast } = useToast();
   const { firestore } = useFirebase();
+  
+  const syncingRef = useRef(false);
 
   useEffect(() => {
     const savedUrl = localStorage.getItem(`sheet_url_${mode}`);
     if (savedUrl) setUrl(savedUrl);
   }, [mode]);
+
+  useEffect(() => {
+    syncingRef.current = syncing;
+  }, [syncing]);
 
   const normalize = (s: string) => 
     String(s || "").toLowerCase()
@@ -77,8 +83,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       });
       if (match) {
         const val = row[match];
-        // Se estamos buscando data, ignoramos textos puros (nomes)
-        if (sKey.includes("data") || sKey === "r") {
+        if (sKey.includes("data")) {
           if (val && !/\d/.test(String(val))) return undefined;
         }
         return val;
@@ -88,14 +93,13 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     for (const sKey of normalizedSearch) {
       const match = rowKeys.find(rk => {
         const nrk = normalize(rk);
-        if (sKey === "r" && nrk !== "r") return false;
         const isMatch = nrk.includes(sKey);
         const isExcluded = normalizedExclude.some(ex => nrk.includes(ex));
         return isMatch && !isExcluded;
       });
       if (match) {
         const val = row[match];
-        if (sKey.includes("data") || sKey === "r") {
+        if (sKey.includes("data")) {
           if (val && !/\d/.test(String(val))) return undefined;
         }
         return val;
@@ -116,7 +120,9 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
   };
 
   const handleSync = useCallback(async (silent = false) => {
-    if (!url || syncing || !firestore) return;
+    if (!url || !firestore) return;
+    if (syncingRef.current && silent) return;
+    
     if (!silent) setSyncing(true);
     
     try {
@@ -148,8 +154,8 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              // ESTRATÉGIA PRIORITÁRIA: Data do venda
-              const rawDataVenda = getVal(row, ["data do venda", "data venda", "fechamento", "r"], ["vendedor", "corretor", "nome"]);
+              // PRIORIDADE MÁXIMA: "Data do venda" conforme solicitado
+              const rawDataVenda = getVal(row, ["data do venda", "data venda", "fechamento"], ["vendedor", "corretor", "responsavel", "nome"]);
               const dataVenda = excelDateToJSDate(rawDataVenda);
               
               const vendedor = String(getVal(row, ["vendedor", "corretor", "responsavel"]) || "N/A");
@@ -183,25 +189,32 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         }
 
         setLastSync(new Date());
-        if (!silent) toast({ title: "Sincronização Concluída", description: `${processedCount} registros atualizados.` });
+        if (!silent) {
+          toast({ title: "Sincronização Concluída", description: `${processedCount} registros atualizados na aba ${mode}.` });
+        }
       }
     } catch (error: any) {
       if (!silent) toast({ variant: "destructive", title: "Erro na Sincronização", description: error.message });
     } finally {
       if (!silent) setSyncing(false);
     }
-  }, [url, mode, firestore, syncing, toast]);
+  }, [url, mode, firestore, toast]);
 
-  // Monitoramento Automático: Atualiza a cada 60 segundos se o navegador estiver ativo
+  // Monitoramento Automático: Atualiza a cada 60 segundos
   useEffect(() => {
     if (!autoSync || !url) return;
+    
+    // Sincronização inicial silenciosa ao carregar
+    handleSync(true);
+
     const interval = setInterval(() => {
-      if (!syncing) {
+      if (!syncingRef.current) {
         handleSync(true);
       }
     }, 60000);
+    
     return () => clearInterval(interval);
-  }, [autoSync, url, handleSync, syncing]);
+  }, [autoSync, url, handleSync]);
 
   const handleClearData = async () => {
     if (!firestore) return;
@@ -224,7 +237,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
           <div className="flex items-center gap-2">
             <div className="p-2 bg-primary/10 rounded-lg"><Zap className="h-5 w-5 text-primary" /></div>
             <div>
-              <CardTitle className="text-lg">Sincronização Inteligente</CardTitle>
+              <CardTitle className="text-lg">Sincronização de {mode === 'leads' ? 'Leads' : mode === 'inventory' ? 'Cadastro' : 'Vendas'}</CardTitle>
               {lastSync && <p className="text-[10px] text-muted-foreground">Último: {lastSync.toLocaleTimeString()}</p>}
             </div>
           </div>
@@ -238,23 +251,22 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
         <div className="flex gap-2">
           <Input placeholder="Link CSV do Google Sheets..." value={url} onChange={(e) => setUrl(e.target.value)} />
           <Button onClick={() => handleSync()} disabled={syncing}>
-            {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sincronizar"}
+            {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sincronizar Agora"}
           </Button>
         </div>
         <div className="flex items-center space-x-2">
-          <Switch id="auto-sync" checked={autoSync} onCheckedChange={setAutoSync} />
-          <Label htmlFor="auto-sync" className="text-xs">Sincronização automática ligada</Label>
+          <Switch id={`auto-sync-${mode}`} checked={autoSync} onCheckedChange={setAutoSync} />
+          <Label htmlFor={`auto-sync-${mode}`} className="text-xs">Sincronização automática ativa (60s)</Label>
         </div>
         
         <div className="bg-amber-50 p-3 rounded-lg border border-amber-100 mt-4">
           <div className="flex gap-2">
             <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
             <div className="space-y-1">
-              <p className="text-xs font-bold text-amber-800">Instruções de Importação:</p>
+              <p className="text-xs font-bold text-amber-800">Dica de Importação:</p>
               <ul className="text-[10px] text-amber-700 space-y-1">
-                <li>• O app agora busca especificamente a coluna <b>"Data do venda"</b>.</li>
-                <li>• Certifique-se de que o link foi gerado em <b>Arquivo &gt; Compartilhar &gt; Publicar na Web &gt; CSV</b>.</li>
-                <li>• Formatos aceitos: 15.01.2026, 15/01/2026 ou seriais do Excel.</li>
+                <li>• No Google Sheets: Arquivo &gt; Compartilhar &gt; Publicar na Web &gt; CSV.</li>
+                <li>• {mode === 'sales' ? 'Coluna R: O app busca o termo "Data do venda" e suporta 15.01.2026.' : 'Certifique-se de que a aba correta está selecionada no Google Sheets.'}</li>
               </ul>
             </div>
           </div>
