@@ -5,27 +5,23 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { RefreshCcw, AlertCircle, Loader2, Trash2, Zap, Info } from "lucide-react";
+import { RefreshCcw, AlertCircle, Loader2, Zap, Info } from "lucide-react";
 import { syncGoogleSheets } from "@/ai/flows/sync-sheets-flow";
 import { useToast } from "@/hooks/use-toast";
-import { useFirebase } from "@/firebase";
-import { collection, serverTimestamp, getDocs, writeBatch, doc } from "firebase/firestore";
-import { setDocumentNonBlocking } from "@/firebase/non-blocking-updates";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 
 interface GoogleSheetsSyncProps {
   mode: 'inventory' | 'sales' | 'leads';
+  onDataLoaded: (data: any[]) => void;
 }
 
-export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
+export function GoogleSheetsSync({ mode, onDataLoaded }: GoogleSheetsSyncProps) {
   const [url, setUrl] = useState("");
   const [syncing, setSyncing] = useState(false);
-  const [clearing, setClearing] = useState(false);
   const [autoSync, setAutoSync] = useState(true);
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const { toast } = useToast();
-  const { firestore, user } = useFirebase();
   
   const syncingRef = useRef(false);
   const lastUrlRef = useRef("");
@@ -104,7 +100,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
 
   const handleSync = useCallback(async (silent = false) => {
     const currentUrl = lastUrlRef.current;
-    if (!currentUrl || !firestore || !user || syncingRef.current) return;
+    if (!currentUrl || syncingRef.current) return;
     
     syncingRef.current = true;
     if (!silent) setSyncing(true);
@@ -113,81 +109,62 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       const result = await syncGoogleSheets({ sheetUrl: currentUrl });
       
       if (result.success && result.data && result.data.length > 0) {
-        let processedCount = 0;
-        
-        for (const row of result.data) {
-          try {
-            const rawCode = getVal(row, ["codigo", "unidade", "referencia", "id_imovel"]);
-            const propertyCode = rawCode !== undefined && String(rawCode).trim() !== "" 
-              ? String(rawCode).trim() 
-              : `REF-${processedCount + 1}`;
+        const processedData = result.data.map((row, idx) => {
+          const rawCode = getVal(row, ["codigo", "unidade", "referencia", "id_imovel"]);
+          const propertyCode = rawCode !== undefined && String(rawCode).trim() !== "" 
+            ? String(rawCode).trim() 
+            : `REF-${idx + 1}`;
 
-            if (mode === 'inventory') {
-              const safeId = `prop-${propertyCode}`.replace(/[\/\.\#\$\/\[\] ]/g, "-");
-              const propRef = doc(firestore, "properties", safeId);
-              setDocumentNonBlocking(propRef, {
-                propertyCode,
-                neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
-                saleValue: parseCurrency(getVal(row, ["valor venda", "venda"])),
-                rentalValue: parseCurrency(getVal(row, ["valor locacao", "aluguel"])),
-                brokerId: String(getVal(row, ["angariador", "corretor", "captador"]) || "N/A"),
-                captureDate: excelDateToJSDate(getVal(row, ["data entrada", "entrada", "cadastro"])),
-                status: String(getVal(row, ["status", "situacao"]) || "Disponível"),
-                importedAt: serverTimestamp(),
-              }, { merge: true });
+          if (mode === 'inventory') {
+            return {
+              id: propertyCode,
+              propertyCode,
+              neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
+              saleValue: parseCurrency(getVal(row, ["valor venda", "venda"])),
+              rentalValue: parseCurrency(getVal(row, ["valor locacao", "aluguel"])),
+              brokerId: String(getVal(row, ["angariador", "corretor", "captador"]) || "N/A"),
+              captureDate: excelDateToJSDate(getVal(row, ["data entrada", "entrada", "cadastro"])),
+              status: String(getVal(row, ["status", "situacao"]) || "Disponível"),
+            };
+          } else if (mode === 'sales') {
+            return {
+              id: `${propertyCode}-${idx}`,
+              vendedor: String(getVal(row, ["vendedor", "corretor", "responsavel"]) || "N/A"),
+              angariador: String(getVal(row, ["angariador", "captador"]) || "N/A"),
+              propertyCode,
+              neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
+              clientName: String(getVal(row, ["cliente", "comprador"]) || "N/A"),
+              advertisedValue: parseCurrency(getVal(row, ["valor anuncio", "anuncio"])),
+              closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda"])),
+              saleDate: excelDateToJSDate(getVal(row, ["data do venda", "data venda", "fechamento", "venda"], ["vendedor", "corretor"])),
+              propertyCaptureDate: excelDateToJSDate(getVal(row, ["data entrada", "entrada", "cadastro"])),
+              status: "Vendido",
+            };
+          } else {
+            return {
+              id: `lead-${idx}`,
+              ...row
+            };
+          }
+        });
 
-            } else if (mode === 'sales') {
-              const dataVenda = excelDateToJSDate(getVal(row, ["data do venda", "data venda", "fechamento", "venda"], ["vendedor", "corretor"]));
-              const vendedor = String(getVal(row, ["vendedor", "corretor", "responsavel"]) || "N/A");
-              
-              const saleIdSeed = `${propertyCode}-${vendedor}-${dataVenda}`;
-              const safeSaleId = `sale-${saleIdSeed.replace(/[\/\.\#\$\/\[\] ]/g, "-")}`;
-              const saleRef = doc(firestore, "vendas_imoveis", safeSaleId);
-              
-              setDocumentNonBlocking(saleRef, {
-                vendedor,
-                angariador: String(getVal(row, ["angariador", "captador"]) || "N/A"),
-                propertyCode,
-                neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
-                clientName: String(getVal(row, ["cliente", "comprador"]) || "N/A"),
-                advertisedValue: parseCurrency(getVal(row, ["valor anuncio", "anuncio"])),
-                closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda"])),
-                saleDate: dataVenda,
-                propertyCaptureDate: excelDateToJSDate(getVal(row, ["data entrada", "entrada", "cadastro"])),
-                status: "Vendido",
-                importedAt: serverTimestamp(),
-              }, { merge: true });
-
-            } else if (mode === 'leads') {
-              const rowValues = Object.values(row).map(v => String(v || "").trim()).join("|");
-              const leadIdSeed = rowValues.substring(0, 100).replace(/[\/\.\#\$\/\[\] ]/g, "-");
-              const leadId = `lead-${leadIdSeed}`;
-              const leadRef = doc(firestore, "leads", leadId);
-              
-              setDocumentNonBlocking(leadRef, { 
-                ...row, 
-                importedAt: serverTimestamp() 
-              }, { merge: true });
-            }
-            processedCount++;
-          } catch (e) { console.error(e); }
-        }
-
+        onDataLoaded(processedData);
         setLastSync(new Date());
         if (!silent) {
-          toast({ title: "Sincronização Concluída", description: `${processedCount} registros espelhados.` });
+          toast({ title: "Consulta Concluída", description: `${processedData.length} registros espelhados.` });
         }
       }
     } catch (error: any) {
-      if (!silent) toast({ variant: "destructive", title: "Erro na Sincronização", description: error.message });
+      if (!silent) toast({ variant: "destructive", title: "Erro na Consulta", description: error.message });
     } finally {
       syncingRef.current = false;
       if (!silent) setSyncing(false);
     }
-  }, [mode, firestore, user, toast]);
+  }, [mode, onDataLoaded, toast]);
 
+  // Sincronização automática contínua
   useEffect(() => {
-    if (!autoSync || !url || !user || !firestore) return;
+    if (!autoSync || !url) return;
     
     lastUrlRef.current = url;
     handleSync(true);
@@ -197,21 +174,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     }, 60000); 
     
     return () => clearInterval(intervalId);
-  }, [autoSync, url, user, firestore, handleSync]);
-
-  const handleClearData = async () => {
-    if (!firestore || !user) return;
-    setClearing(true);
-    try {
-      let colName = mode === 'inventory' ? "properties" : mode === 'sales' ? "vendas_imoveis" : "leads";
-      const snapshot = await getDocs(collection(firestore, colName));
-      const batch = writeBatch(firestore);
-      snapshot.docs.forEach((d) => batch.delete(d.ref));
-      await batch.commit();
-      toast({ title: "Base Limpa", description: "Todos os dados foram removidos localmente." });
-    } catch (e: any) { toast({ variant: "destructive", title: "Erro ao limpar", description: e.message }); }
-    finally { setClearing(false); }
-  };
+  }, [autoSync, url, handleSync]);
 
   return (
     <Card className="border-none shadow-sm bg-white">
@@ -220,14 +183,10 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
           <div className="flex items-center gap-2">
             <div className="p-2 bg-primary/10 rounded-lg"><Zap className="h-5 w-5 text-primary" /></div>
             <div>
-              <CardTitle className="text-lg">Sincronização de {mode === 'leads' ? 'Leads' : mode === 'inventory' ? 'Cadastro' : 'Vendas'}</CardTitle>
+              <CardTitle className="text-lg">Consulta Viva de {mode === 'leads' ? 'Leads' : mode === 'inventory' ? 'Cadastro' : 'Vendas'}</CardTitle>
               {lastSync && <p className="text-[10px] text-muted-foreground">Último espelhamento: {lastSync.toLocaleTimeString()}</p>}
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={handleClearData} disabled={clearing} className="text-xs text-destructive">
-            {clearing ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Trash2 className="h-3 w-3 mr-1" />}
-            Limpar Base
-          </Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -242,12 +201,12 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
             }} 
           />
           <Button onClick={() => handleSync()} disabled={syncing}>
-            {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sincronizar Agora"}
+            {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Consultar Agora"}
           </Button>
         </div>
         <div className="flex items-center space-x-2">
           <Switch id={`auto-sync-${mode}`} checked={autoSync} onCheckedChange={setAutoSync} />
-          <Label htmlFor={`auto-sync-${mode}`} className="text-xs font-medium">Sincronização automática ativa (a cada 60s)</Label>
+          <Label htmlFor={`auto-sync-${mode}`} className="text-xs font-medium">Consulta automática ativa (a cada 60s)</Label>
           {syncing && <span className="text-[10px] text-primary animate-pulse font-bold uppercase ml-2 tracking-tighter">Espelhando dados...</span>}
         </div>
         
@@ -255,11 +214,11 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
           <div className="flex gap-2">
             <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
             <div className="space-y-1">
-              <p className="text-xs font-bold text-amber-800">Instruções para Espelhamento:</p>
+              <p className="text-xs font-bold text-amber-800">Base Viva (Sem Firestore):</p>
               <ul className="text-[10px] text-amber-700 space-y-1">
+                <li>• Os dados são lidos diretamente da planilha e não pesam no banco de dados.</li>
                 <li>• No Google Sheets: Arquivo &gt; Compartilhar &gt; Publicar na Web &gt; Formato CSV.</li>
-                <li>• Coluna de Data: O sistema busca por "Data do venda" ou "Data Entrada".</li>
-                <li>• O app detecta alterações na planilha e atualiza os dados aqui automaticamente.</li>
+                <li>• Ideal para grandes volumes de dados (milhares de linhas).</li>
               </ul>
             </div>
           </div>

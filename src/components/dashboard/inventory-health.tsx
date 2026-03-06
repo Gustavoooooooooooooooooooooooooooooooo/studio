@@ -4,23 +4,15 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Landmark, Target, Loader2 } from "lucide-react";
-import { useCollection, useMemoFirebase, useFirebase } from "@/firebase";
-import { collection, query } from "firebase/firestore";
+import { Landmark, Target } from "lucide-react";
 import { useMemo } from "react";
 
-export function InventoryHealth() {
-  const { firestore, user } = useFirebase();
-  
-  const propertiesQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collection(firestore, "properties"));
-  }, [firestore, user]);
+interface InventoryHealthProps {
+  properties: any[];
+}
 
-  const { data: properties, isLoading } = useCollection(propertiesQuery);
-
+export function InventoryHealth({ properties }: InventoryHealthProps) {
   const stats = useMemo(() => {
-    if (!properties) return { count: 0, vgv: 0 };
     const count = properties.length;
     const vgv = properties.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0);
     return { count, vgv };
@@ -37,19 +29,6 @@ export function InventoryHealth() {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
   };
-
-  if (isLoading) {
-    return (
-      <div className="grid md:grid-cols-2 gap-6 opacity-50">
-        <Card className="border-none shadow-sm bg-primary/5 flex items-center justify-center h-40">
-           <Loader2 className="animate-spin text-primary" />
-        </Card>
-        <Card className="border-none shadow-sm bg-accent/5 flex items-center justify-center h-40">
-           <Loader2 className="animate-spin text-accent" />
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="grid md:grid-cols-2 gap-6">

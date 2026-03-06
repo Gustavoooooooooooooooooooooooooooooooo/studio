@@ -1,10 +1,9 @@
 
 "use client"
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { ChannelPerformance } from "@/components/dashboard/channel-performance";
-import { AIPerformanceSummary } from "@/components/dashboard/ai-performance-summary";
 import { NeighborhoodAnalysis } from "@/components/dashboard/neighborhood-analysis";
 import { MonthlyTrends } from "@/components/dashboard/monthly-trends";
 import { SalesMatrix } from "@/components/dashboard/sales-matrix";
@@ -18,44 +17,38 @@ import { BrokerSettings } from "@/components/dashboard/broker-settings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LayoutDashboard, TrendingUp, Loader2, Table2, Users, BadgeCheck, Settings, Calendar as CalendarIcon } from "lucide-react";
-import { useMemoFirebase, useCollection, useFirebase, initiateAnonymousSignIn } from "@/firebase";
-import { collection, query } from "firebase/firestore";
+import { useFirebase, initiateAnonymousSignIn } from "@/firebase";
 
-// Helper de parsing otimizado para evitar lentidão
-const fastParseDate = (d: any): Date | null => {
-  if (!d || d === "N/A") return null;
-  if (d instanceof Date) return isNaN(d.getTime()) ? null : d;
-  const strVal = String(d).trim();
-  if (!/\d/.test(strVal)) return null;
+// Motor de tratamento de datas especializado (Versão Performática)
+const formatDateDisplay = (val: any) => {
+  if (!val || val === "N/A" || String(val).trim() === "") return "N/A";
+  const strVal = String(val).trim();
+  if (!/\d/.test(strVal)) return "N/A";
 
-  if (strVal.includes('.')) {
-    const parts = strVal.split('.');
-    if (parts.length === 3) {
-      const day = parseInt(parts[0], 10);
-      const month = parseInt(parts[1], 10) - 1;
-      let year = parseInt(parts[2], 10);
-      if (year < 100) year += 2000;
-      return new Date(year, month, day);
-    }
+  if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
+    return strVal.replace(/\./g, '/');
   }
 
-  const dmyMatch = strVal.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
-  if (dmyMatch) {
-    const day = parseInt(dmyMatch[1], 10);
-    const month = parseInt(dmyMatch[2], 10) - 1;
-    let year = parseInt(dmyMatch[3], 10);
-    if (year < 100) year += 2000;
-    return new Date(year, month, day);
+  const cleanStr = strVal.replace(/[^\d]/g, '');
+  const num = Number(cleanStr);
+  if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('.') && !strVal.includes('-')) {
+    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+    const date = new Date(excelEpoch.getTime() + num * 86400000);
+    return `${String(date.getUTCDate()).padStart(2,'0')}/${String(date.getUTCMonth()+1).padStart(2,'0')}/${date.getUTCFullYear()}`;
   }
+  return strVal;
+};
 
-  const cleanNumStr = strVal.replace(/[^\d]/g, '');
-  const num = Number(cleanNumStr);
-  if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('-')) {
-    return new Date(Math.round((num - 25569) * 86400 * 1000));
+// Conversor para Date para cálculos
+const toDate = (val: any): Date | null => {
+  const formatted = formatDateDisplay(val);
+  if (formatted === "N/A") return null;
+  const parts = formatted.split('/');
+  if (parts.length === 3) {
+    return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
   }
-
-  const date = new Date(strVal);
-  return isNaN(date.getTime()) ? null : date;
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? null : d;
 };
 
 export default function AppContainer() {
@@ -64,7 +57,12 @@ export default function AppContainer() {
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [selectedYear, setSelectedYear] = useState<string>("2026");
 
-  const { auth, firestore, user } = useFirebase();
+  // Estados para Base Viva (Dados diretos da planilha)
+  const [leads, setLeads] = useState<any[]>([]);
+  const [sales, setSales] = useState<any[]>([]);
+  const [inventory, setInventory] = useState<any[]>([]);
+
+  const { auth } = useFirebase();
 
   useEffect(() => {
     setMounted(true);
@@ -73,59 +71,34 @@ export default function AppContainer() {
     }
   }, [auth]);
 
-  const salesQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collection(firestore, "vendas_imoveis"));
-  }, [firestore, user]);
-
-  const leadsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collection(firestore, "leads"));
-  }, [firestore, user]);
-
-  const propertiesQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collection(firestore, "properties"));
-  }, [firestore, user]);
-
-  const { data: rawSales, isLoading: isSalesLoading } = useCollection(salesQuery);
-  const { data: rawLeads, isLoading: isLeadsLoading } = useCollection(leadsQuery);
-  const { data: rawProperties, isLoading: isPropertiesLoading } = useCollection(propertiesQuery);
-
   const metrics = useMemo(() => {
-    if (!rawSales || !rawLeads || !rawProperties) return null;
-
-    const allSales = rawSales;
-    const allLeads = rawLeads;
-    const allProperties = rawProperties;
-
-    const filteredSales = allSales.filter(item => {
-      const d = fastParseDate(item.saleDate);
+    const filteredSales = sales.filter(item => {
+      const d = toDate(item.saleDate);
       if (!d) return false;
       const monthMatch = selectedMonth === "all" || d.getMonth() === parseInt(selectedMonth);
       const yearMatch = selectedYear === "all" || d.getFullYear() === parseInt(selectedYear);
       return monthMatch && yearMatch;
     });
 
-    const filteredProperties = allProperties.filter(item => {
-      const d = fastParseDate(item.captureDate);
+    const filteredProperties = inventory.filter(item => {
+      const d = toDate(item.captureDate);
       if (!d) return false;
       const monthMatch = selectedMonth === "all" || d.getMonth() === parseInt(selectedMonth);
       const yearMatch = selectedYear === "all" || d.getFullYear() === parseInt(selectedYear);
       return monthMatch && yearMatch;
     });
 
-    const validSalesTotal = allSales.filter(s => fastParseDate(s.saleDate) !== null);
     const totalDaysSinceStart = 427; 
-    const salesFrequency = validSalesTotal.length > 0 ? totalDaysSinceStart / validSalesTotal.length : 0;
+    const salesFrequency = sales.length > 0 ? totalDaysSinceStart / sales.length : 0;
 
-    const validCyclesTotal = validSalesTotal.map(s => {
-      const start = fastParseDate(s.propertyCaptureDate);
-      const end = fastParseDate(s.saleDate);
+    const validCycles = sales.map(s => {
+      const start = toDate(s.propertyCaptureDate);
+      const end = toDate(s.saleDate);
       if (start && end) return Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
       return null;
     }).filter((d): d is number => d !== null && d >= 0);
-    const avgDaysToSell = validCyclesTotal.length > 0 ? validCyclesTotal.reduce((a, b) => a + b, 0) / validCyclesTotal.length : 0;
+    
+    const avgDaysToSell = validCycles.length > 0 ? validCycles.reduce((a, b) => a + b, 0) / validCycles.length : 0;
 
     const totalVgvInventoryFiltered = filteredProperties.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0);
     const saleProps = filteredProperties.filter(p => (Number(p.saleValue) || 0) > 0);
@@ -134,8 +107,8 @@ export default function AppContainer() {
     const rentProps = filteredProperties.filter(p => (Number(p.rentalValue) || 0) > 0);
     const avgTicketRent = rentProps.length > 0 ? rentProps.reduce((acc, p) => acc + (Number(p.rentalValue) || 0), 0) / rentProps.length : 0;
 
-    const allSaleDates = allSales
-      .map(s => fastParseDate(s.saleDate))
+    const allSaleDates = sales
+      .map(s => toDate(s.saleDate))
       .filter((d): d is Date => d !== null)
       .sort((a, b) => b.getTime() - a.getTime());
 
@@ -147,22 +120,16 @@ export default function AppContainer() {
       avgDaysToRent: 0,
       totalValue: totalVgvInventoryFiltered, 
       lastSaleDisplay: daysSinceLastSale !== null ? `${Math.max(0, daysSinceLastSale)} Dias` : "-",
-      totalLeads: allLeads.length,
+      totalLeads: leads.length,
       totalSales: filteredSales.length,
       totalProperties: filteredProperties.length,
       avgTicket,
       avgTicketRent,
       salesFrequency
     };
-  }, [rawSales, rawLeads, rawProperties, now, selectedMonth, selectedYear]);
+  }, [sales, leads, inventory, now, selectedMonth, selectedYear]);
 
-  if (!mounted || isSalesLoading || isLeadsLoading || isPropertiesLoading || !metrics) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  if (!mounted) return null;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -231,24 +198,24 @@ export default function AppContainer() {
 
           <TabsContent value="dashboard" className="space-y-8 animate-in fade-in duration-500">
             <StatsCards metrics={metrics} />
-            <InventoryHealth />
+            <InventoryHealth properties={inventory} />
             <div className="space-y-6">
-              <MonthlyTrends sales={rawSales || []} leads={rawLeads || []} properties={rawProperties || []} />
+              <MonthlyTrends sales={sales} leads={leads} properties={inventory} />
               <BrokerPerformanceGrid 
-                sales={rawSales || []} 
-                leads={rawLeads || []} 
-                properties={rawProperties || []} 
+                sales={sales} 
+                leads={leads} 
+                properties={inventory} 
                 selectedMonth={selectedMonth}
                 selectedYear={selectedYear}
               />
-              <ChannelPerformance leads={rawLeads || []} />
+              <ChannelPerformance leads={leads} />
             </div>
           </TabsContent>
 
-          <TabsContent value="base" className="space-y-8"><SalesMatrix sales={rawSales || []} /></TabsContent>
-          <TabsContent value="cadastro" className="space-y-6"><GoogleSheetsSync mode="inventory" /><ImportedDataTable /></TabsContent>
-          <TabsContent value="leads" className="space-y-6"><GoogleSheetsSync mode="leads" /><LeadsDataTable /></TabsContent>
-          <TabsContent value="conclusao" className="space-y-6"><GoogleSheetsSync mode="sales" /><SalesDataTable /></TabsContent>
+          <TabsContent value="base" className="space-y-8"><SalesMatrix sales={sales} /></TabsContent>
+          <TabsContent value="cadastro" className="space-y-6"><GoogleSheetsSync mode="inventory" onDataLoaded={setInventory} /><ImportedDataTable data={inventory} /></TabsContent>
+          <TabsContent value="leads" className="space-y-6"><GoogleSheetsSync mode="leads" onDataLoaded={setLeads} /><LeadsDataTable data={leads} /></TabsContent>
+          <TabsContent value="conclusao" className="space-y-6"><GoogleSheetsSync mode="sales" onDataLoaded={setSales} /><SalesDataTable data={sales} /></TabsContent>
           <TabsContent value="config" className="space-y-6"><BrokerSettings /></TabsContent>
         </Tabs>
       </main>

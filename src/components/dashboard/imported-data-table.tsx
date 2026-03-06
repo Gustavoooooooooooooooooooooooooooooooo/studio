@@ -1,25 +1,17 @@
 
 "use client"
 
-import { useCollection, useMemoFirebase, useFirebase } from "@/firebase";
-import { collection, query, orderBy } from "firebase/firestore";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { Loader2, Home, Calendar, User, Table2 } from "lucide-react";
+import { Home, Calendar, User, Table2 } from "lucide-react";
 
-// Motor de tratamento de datas especializado
 const formatDateDisplay = (val: any) => {
   if (!val || val === "N/A" || String(val).trim() === "") return "N/A";
-  if (val?.toDate) {
-    const date = val.toDate();
-    return `${String(date.getDate()).padStart(2,'0')}/${String(date.getMonth()+1).padStart(2,'0')}/${date.getFullYear()}`;
-  }
   const strVal = String(val).trim();
   if (!/\d/.test(strVal)) return "N/A";
-  
-  // Suporte a ponto: 15.01.2026 -> 15/01/2026
+
   if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
     return strVal.replace(/\./g, '/');
   }
@@ -31,23 +23,14 @@ const formatDateDisplay = (val: any) => {
     const date = new Date(excelEpoch.getTime() + num * 86400000);
     return `${String(date.getUTCDate()).padStart(2,'0')}/${String(date.getUTCMonth()+1).padStart(2,'0')}/${date.getUTCFullYear()}`;
   }
-  
   return strVal;
 };
 
-export function ImportedDataTable() {
-  const { firestore, user } = useFirebase();
-  
-  const angariacaoQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(
-      collection(firestore, "properties"),
-      orderBy("importedAt", "desc")
-    );
-  }, [firestore, user]);
+interface ImportedDataTableProps {
+  data: any[];
+}
 
-  const { data: imoveis, isLoading } = useCollection(angariacaoQuery);
-
+export function ImportedDataTable({ data }: ImportedDataTableProps) {
   const formatCurrency = (value: number) => {
     if (!value || isNaN(value)) return "R$ 0,00";
     return new Intl.NumberFormat('pt-BR', { 
@@ -63,23 +46,18 @@ export function ImportedDataTable() {
         <div>
           <CardTitle className="text-lg flex items-center gap-2 text-primary">
             <Table2 className="h-5 w-5" />
-            Planilha de Cadastro (Estoque Completo)
+            Base de Cadastro (Consulta Viva)
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Espelhamento automático de todas as colunas da sua planilha de Cadastro.
+            Visualização direta do estoque capturado na planilha.
           </p>
         </div>
         <Badge variant="outline" className="font-bold text-primary bg-white">
-          {imoveis?.length || 0} Registros
+          {data.length} Registros
         </Badge>
       </CardHeader>
       <CardContent className="p-0">
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-24 gap-4">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground font-medium">Lendo banco de dados...</p>
-          </div>
-        ) : imoveis && imoveis.length > 0 ? (
+        {data.length > 0 ? (
           <ScrollArea className="w-full h-[600px]">
             <div className="min-w-[1000px]">
               <Table>
@@ -95,8 +73,8 @@ export function ImportedDataTable() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {imoveis.map((imovel) => (
-                    <TableRow key={imovel.id} className="hover:bg-primary/5 transition-colors border-b">
+                  {data.map((imovel, idx) => (
+                    <TableRow key={idx} className="hover:bg-primary/5 transition-colors border-b">
                       <TableCell className="text-xs">
                         <div className="flex items-center gap-1">
                           <Calendar className="h-3 w-3 text-muted-foreground" />
@@ -144,7 +122,7 @@ export function ImportedDataTable() {
             <div className="space-y-1">
               <p className="text-muted-foreground font-bold">Base de Cadastro Vazia</p>
               <p className="text-xs text-muted-foreground/60 max-w-xs mx-auto">
-                Sincronize sua planilha de estoque para visualizar os dados aqui.
+                Insira o link da planilha para visualizar o estoque em tempo real.
               </p>
             </div>
           </div>
