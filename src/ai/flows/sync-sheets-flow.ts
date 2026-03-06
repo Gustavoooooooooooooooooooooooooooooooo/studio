@@ -2,7 +2,7 @@
 'use server';
 /**
  * @fileOverview Genkit flow to sync Google Sheets CSV data to Firestore.
- * Improved to handle different delimiters and force fresh data.
+ * Improved to handle different delimiters and force fresh data using aggressive cache-busting.
  */
 
 import { ai } from '@/ai/genkit';
@@ -45,7 +45,7 @@ const syncSheetsFlow = ai.defineFlow(
         finalUrl = `${baseUrl}/export?format=csv&gid=${gid}`;
       }
 
-      // Adiciona cache-buster agressivo para forçar o Google a entregar a versão mais recente
+      // Adiciona cache-buster agressivo com timestamp atual para garantir dados novos do Google
       const cacheBuster = `t=${Date.now()}`;
       const urlWithNoCache = finalUrl.includes('?') ? `${finalUrl}&${cacheBuster}` : `${finalUrl}?${cacheBuster}`;
 

@@ -176,10 +176,14 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'leads') {
-              const rowHash = Object.values(row).join("").substring(0, 50).replace(/[\/\.\#\$\/\[\] ]/g, "-");
+              // Gerar um hash único baseado no conteúdo da linha para permitir atualizações em vez de duplicatas
+              const rowHash = Object.values(row).join("").substring(0, 80).replace(/[\/\.\#\$\/\[\] ]/g, "-");
               const leadId = `lead-${rowHash}`;
               const leadRef = doc(firestore, "leads", leadId);
-              setDocumentNonBlocking(leadRef, { ...row, importedAt: serverTimestamp() }, { merge: true });
+              setDocumentNonBlocking(leadRef, { 
+                ...row, 
+                importedAt: serverTimestamp() 
+              }, { merge: true });
             }
             processedCount++;
           } catch (e) { console.error(e); }
@@ -198,11 +202,14 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     }
   }, [url, mode, firestore, user, toast]);
 
+  // Efeito de sincronização automática aprimorado
   useEffect(() => {
     if (!autoSync || !url || !user) return;
     
+    // Sincronização inicial
     handleSync(true);
 
+    // Intervalo de 60 segundos
     const intervalId = setInterval(() => {
       handleSync(true);
     }, 60000);
@@ -260,7 +267,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               <p className="text-xs font-bold text-amber-800">Dica de Importação:</p>
               <ul className="text-[10px] text-amber-700 space-y-1">
                 <li>• No Google Sheets: Arquivo &gt; Compartilhar &gt; Publicar na Web &gt; CSV.</li>
-                <li>• {mode === 'sales' ? 'O app busca o termo "Data do venda" e suporta 15.01.2026.' : 'Certifique-se de que a aba correta está selecionada no Google Sheets.'}</li>
+                <li>• O app detecta mudanças na planilha e atualiza os dados automaticamente.</li>
               </ul>
             </div>
           </div>
