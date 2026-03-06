@@ -45,7 +45,7 @@ export function ChannelPerformance({ leads }: ChannelPerformanceProps) {
 
   const matrixData = useMemo(() => {
     const data: Record<string, { venda: number[], locacao: number[] }> = {};
-    const currentYear = 2026;
+    const currentYear = new Date().getFullYear();
 
     leads.forEach(lead => {
       const keys = Object.keys(lead);
@@ -121,7 +121,7 @@ export function ChannelPerformance({ leads }: ChannelPerformanceProps) {
   return (
     <Card className="shadow-sm border-none bg-white overflow-hidden">
       <CardHeader className="bg-muted/5 border-b py-3">
-        <CardTitle className="text-base font-bold text-primary">Matriz de Leads por Canal (2026)</CardTitle>
+        <CardTitle className="text-base font-bold text-primary">Matriz de Leads por Canal ({new Date().getFullYear()})</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
         {rows.length > 0 ? (
@@ -206,7 +206,7 @@ export function ChannelPerformance({ leads }: ChannelPerformanceProps) {
           </ScrollArea>
         ) : (
           <div className="py-12 flex flex-col items-center justify-center text-center space-y-2">
-            <p className="text-sm text-muted-foreground font-medium">Nenhum dado de lead sincronizado para 2026.</p>
+            <p className="text-sm text-muted-foreground font-medium">Nenhum dado de lead sincronizado para {new Date().getFullYear()}.</p>
             <p className="text-[10px] text-muted-foreground/60 max-w-xs mx-auto">Verifique as colunas "Fonte", "Natureza da Negociação" e "Data" na sua planilha.</p>
           </div>
         )}

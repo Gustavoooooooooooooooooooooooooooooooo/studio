@@ -36,9 +36,9 @@ export function StatsCards({ metrics }: StatsCardsProps) {
 
   const kpis = [
     {
-      title: "VGV Acumulado",
+      title: "VGV em Estoque",
       value: formatCurrency(metrics.totalValue),
-      description: "Volume total em estoque (Venda)",
+      description: "Volume total em carteira (Venda)",
       icon: TrendingUp,
       color: "text-indigo-600",
       group: "Financeiro"

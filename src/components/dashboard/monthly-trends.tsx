@@ -44,7 +44,7 @@ export function MonthlyTrends({ sales, leads, properties }: MonthlyTrendsProps) 
       if (date && date.getFullYear() === currentYear) {
         const key = `${currentYear}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         if (monthlyData[key]) {
-          if (normalize(sale.tipoVenda).includes("venda")) monthlyData[key].vendas += 1;
+          if (sale.tipo && normalize(sale.tipo).includes("venda")) monthlyData[key].vendas += 1;
           else monthlyData[key].locacoes += 1;
         }
       }

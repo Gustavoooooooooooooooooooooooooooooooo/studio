@@ -169,11 +169,12 @@ export default function AppContainer() {
               closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda"])),
               saleDate: formatDateDisplay(getVal(row, ["data do venda", "data venda", "fechamento", "venda"], ["vendedor", "corretor"])),
               propertyCaptureDate: formatDateDisplay(getVal(row, ["data entrada", "entrada", "cadastro"])),
+              tipo: String(getVal(row, ["tipo", "natureza", "negocio"]) || "Venda"),
               status: "Vendido",
             };
           } else { // leads
             const rowValues = Object.values(row).map((v) => String(v || "").trim()).join("|");
-            const leadIdSeed = rowValues.substring(0, 100).replace(/[\\/\\.\\#\\$\\/\\[\\] ]/g, "-");
+            const leadIdSeed = rowValues.substring(0, 100).replace(/[\\/\\.\\#\\$\/\[\] ]/g, "-");
             return {
               id: `lead-${leadIdSeed}`,
               ...row
@@ -213,11 +214,23 @@ export default function AppContainer() {
     
     return () => clearInterval(intervalId);
   }, [urls, handleSync]);
+  
+  const processedSales = useMemo(() => sales.map(s => ({
+    ...s,
+    saleDateObj: toDate(s.saleDate),
+    propertyCaptureDateObj: toDate(s.propertyCaptureDate),
+  })), [sales]);
+
+  const processedInventory = useMemo(() => inventory.map(p => ({
+    ...p,
+    captureDateObj: toDate(p.captureDate),
+  })), [inventory]);
+
 
   const metrics = useMemo(() => {
-    const filterByDate = (items: any[], dateField: string) => {
+    const filterByDate = (items: any[], dateField: keyof (typeof items)[0]) => {
         return items.filter(item => {
-            const d = toDate(item[dateField]);
+            const d = item[dateField];
             if (!d) return false;
             const monthMatch = selectedMonth === "all" || d.getMonth() === parseInt(selectedMonth);
             const yearMatch = selectedYear === "all" || d.getFullYear() === parseInt(selectedYear);
@@ -225,15 +238,15 @@ export default function AppContainer() {
         });
     };
 
-    const filteredSales = filterByDate(sales, 'saleDate');
-    const filteredProperties = filterByDate(inventory, 'captureDate');
+    const filteredSales = filterByDate(processedSales, 'saleDateObj');
+    const filteredProperties = filterByDate(processedInventory, 'captureDateObj');
 
     const totalDaysSinceStart = 427; 
     const salesFrequency = sales.length > 0 ? totalDaysSinceStart / sales.length : 0;
 
-    const validCycles = sales.map(s => {
-      const start = toDate(s.propertyCaptureDate);
-      const end = toDate(s.saleDate);
+    const validCycles = processedSales.map(s => {
+      const start = s.propertyCaptureDateObj;
+      const end = s.saleDateObj;
       if (start && end) return Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
       return null;
     }).filter((d): d is number => d !== null && d >= 0);
@@ -247,8 +260,8 @@ export default function AppContainer() {
     const rentProps = filteredProperties.filter(p => (Number(p.rentalValue) || 0) > 0);
     const avgTicketRent = rentProps.length > 0 ? rentProps.reduce((acc, p) => acc + (Number(p.rentalValue) || 0), 0) / rentProps.length : 0;
 
-    const allSaleDates = sales
-      .map(s => toDate(s.saleDate))
+    const allSaleDates = processedSales
+      .map(s => s.saleDateObj)
       .filter((d): d is Date => d !== null)
       .sort((a, b) => b.getTime() - a.getTime());
 
@@ -267,7 +280,7 @@ export default function AppContainer() {
       avgTicketRent,
       salesFrequency
     };
-  }, [sales, leads, inventory, now, selectedMonth, selectedYear]);
+  }, [processedSales, leads, processedInventory, inventory, now, selectedMonth, selectedYear]);
 
   const allBrokers = useMemo(() => {
       const brokerSet = new Set<string>();
