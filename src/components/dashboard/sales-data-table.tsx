@@ -33,10 +33,9 @@ const formatDateDisplay = (val: any) => {
   const cleanStr = strVal.replace(/[^\d]/g, '');
   const num = Number(cleanStr);
 
-  if (!isNaN(num) && num > 40000 && num < 60000) {
+  if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('.') && !strVal.includes('-')) {
     const excelEpoch = new Date(Date.UTC(1899, 11, 30));
     const date = new Date(excelEpoch.getTime() + num * 86400000);
-
     return `${String(date.getUTCDate()).padStart(2,'0')}/${String(date.getUTCMonth()+1).padStart(2,'0')}/${date.getUTCFullYear()}`;
   }
 
@@ -104,6 +103,7 @@ export function SalesDataTable() {
                 <TableHeader className="bg-muted/50 sticky top-0 z-10">
                   <TableRow>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[120px]">Data Entrada</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase min-w-[120px]">Data Venda</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Vendedor</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[120px]">Tipo Venda</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Angariador</TableHead>
@@ -118,6 +118,7 @@ export function SalesDataTable() {
                   {vendas.map((venda, idx) => (
                     <TableRow key={venda.id || idx} className="hover:bg-emerald-50/30 transition-colors border-b">
                       <TableCell className="text-xs text-muted-foreground">{formatDateDisplay(venda.propertyCaptureDate)}</TableCell>
+                      <TableCell className="text-xs font-bold text-emerald-700 bg-emerald-50/20">{formatDateDisplay(venda.saleDate)}</TableCell>
                       <TableCell className="text-xs">{venda.vendedor || "N/A"}</TableCell>
                       <TableCell className="text-xs">{venda.tipoVenda || "N/A"}</TableCell>
                       <TableCell className="text-xs">{venda.angariador || "N/A"}</TableCell>

@@ -38,6 +38,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       .replace(/[\u0300-\u036f]/g, "")
       .trim();
 
+  // Motor de tratamento de datas robusto conforme solicitado
   const excelDateToJSDate = (val: any) => {
     if (!val || val === "N/A" || String(val).trim() === "") return "N/A";
 
@@ -54,7 +55,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     // 2. Serial do Excel
     const cleanStr = strVal.replace(/[^\d]/g, '');
     const num = Number(cleanStr);
-    if (!isNaN(num) && num > 40000 && num < 60000) {
+    if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('.') && !strVal.includes('-')) {
       const excelEpoch = new Date(Date.UTC(1899, 11, 30));
       const date = new Date(excelEpoch.getTime() + num * 86400000);
       return `${String(date.getUTCDate()).padStart(2,'0')}/${String(date.getUTCMonth()+1).padStart(2,'0')}/${date.getUTCFullYear()}`;
@@ -79,6 +80,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     const normalizedSearchKeys = searchKeys.map(normalize);
     const normalizedExcludeKeys = excludeKeys.map(normalize);
 
+    // Prioridade 1: Match exato não excluído
     for (const sKey of normalizedSearchKeys) {
       const match = normalizedRowKeys.find(rk => 
         rk.norm === sKey && !normalizedExcludeKeys.some(ex => rk.norm.includes(ex))
@@ -86,6 +88,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       if (match) return row[match.original];
     }
 
+    // Prioridade 2: Match parcial não excluído
     for (const sKey of normalizedSearchKeys) {
       const match = normalizedRowKeys.find(rk => {
         const isMatch = rk.norm.includes(sKey);
@@ -144,6 +147,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               const vendedor = String(getVal(row, ["vendedor", "corretor", "responsavel", "atendente"]) || "N/A");
               
               // DATA VENDA (COLUNA R) - Foco Total em capturar data e ignorar nomes
+              // Excluímos explicitamente nomes de cabeçalhos de pessoas
               const dataVendaRaw = excelDateToJSDate(getVal(row, 
                 ["data venda", "fechamento", "data fechamento", "r", "venda"], 
                 ["vendedor", "corretor", "cliente", "nome", "anuncio"]
