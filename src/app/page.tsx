@@ -14,6 +14,7 @@ import { BrokerSettings } from "@/components/dashboard/broker-settings";
 import { SheetUrlConfig } from "@/components/dashboard/sheet-url-config";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { LayoutDashboard, TrendingUp, Table2, Users, BadgeCheck, Settings, Calendar as CalendarIcon, Loader2, AlertTriangle } from "lucide-react";
 import { useFirebase, initiateAnonymousSignIn } from "@/firebase";
 import { syncGoogleSheets } from "@/ai/flows/sync-sheets-flow";
