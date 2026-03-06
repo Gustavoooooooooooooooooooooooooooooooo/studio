@@ -42,15 +42,12 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     if (!val || val === "N/A" || String(val).trim() === "") return "N/A";
     const strVal = String(val).trim();
     
-    // Blindagem Crítica: se não tiver número não é data
     if (!/\d/.test(strVal)) return "N/A";
 
-    // 1. DD.MM.YYYY -> DD/MM/YYYY
     if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
       return strVal.replace(/\./g, '/');
     }
 
-    // 2. Serial Excel
     const cleanStr = strVal.replace(/[^\d]/g, '');
     const num = Number(cleanStr);
     if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('.') && !strVal.includes('-')) {
@@ -59,7 +56,6 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       return `${String(date.getUTCDate()).padStart(2,'0')}/${String(date.getUTCMonth()+1).padStart(2,'0')}/${date.getUTCFullYear()}`;
     }
 
-    // 3. ISO YYYY-MM-DD
     const isoMatch = strVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (isoMatch) {
       return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
@@ -74,27 +70,36 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     const normalizedSearch = searchKeys.map(normalize);
     const normalizedExclude = excludeKeys.map(normalize);
 
-    // Prioridade Máxima: Match Exato não excluído
     for (const sKey of normalizedSearch) {
       const match = rowKeys.find(rk => {
         const nrk = normalize(rk);
         return nrk === sKey && !normalizedExclude.some(ex => nrk.includes(ex));
       });
-      if (match) return row[match];
+      if (match) {
+        const val = row[match];
+        // Se estamos buscando data, ignoramos textos puros (nomes)
+        if (sKey.includes("data") || sKey === "r") {
+          if (val && !/\d/.test(String(val))) return undefined;
+        }
+        return val;
+      }
     }
 
-    // Prioridade 2: Match Parcial inteligente
     for (const sKey of normalizedSearch) {
       const match = rowKeys.find(rk => {
         const nrk = normalize(rk);
-        // Se a chave de busca for curta (como "r"), exige match exato ou blindagem
         if (sKey === "r" && nrk !== "r") return false;
-        
         const isMatch = nrk.includes(sKey);
         const isExcluded = normalizedExclude.some(ex => nrk.includes(ex));
         return isMatch && !isExcluded;
       });
-      if (match) return row[match];
+      if (match) {
+        const val = row[match];
+        if (sKey.includes("data") || sKey === "r") {
+          if (val && !/\d/.test(String(val))) return undefined;
+        }
+        return val;
+      }
     }
 
     return undefined;
@@ -143,7 +148,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              // ESTRATÉGIA NOVA: Foco total em "Data do venda"
+              // ESTRATÉGIA PRIORITÁRIA: Data do venda
               const rawDataVenda = getVal(row, ["data do venda", "data venda", "fechamento", "r"], ["vendedor", "corretor", "nome"]);
               const dataVenda = excelDateToJSDate(rawDataVenda);
               
@@ -187,11 +192,16 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     }
   }, [url, mode, firestore, syncing, toast]);
 
+  // Monitoramento Automático: Atualiza a cada 60 segundos se o navegador estiver ativo
   useEffect(() => {
     if (!autoSync || !url) return;
-    const interval = setInterval(() => handleSync(true), 120000);
+    const interval = setInterval(() => {
+      if (!syncing) {
+        handleSync(true);
+      }
+    }, 60000);
     return () => clearInterval(interval);
-  }, [autoSync, url, handleSync]);
+  }, [autoSync, url, handleSync, syncing]);
 
   const handleClearData = async () => {
     if (!firestore) return;
