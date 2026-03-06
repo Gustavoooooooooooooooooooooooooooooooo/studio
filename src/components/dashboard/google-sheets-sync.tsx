@@ -34,10 +34,6 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     if (savedUrl) setUrl(savedUrl);
   }, [mode]);
 
-  useEffect(() => {
-    syncingRef.current = syncing;
-  }, [syncing]);
-
   const normalize = (s: string) => 
     String(s || "").toLowerCase()
       .normalize("NFD")
@@ -48,6 +44,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     if (!val || val === "N/A" || String(val).trim() === "") return "N/A";
     const strVal = String(val).trim();
     
+    // Filtro crítico: se não tiver número, não é uma data (evita nomes de corretores)
     if (!/\d/.test(strVal)) return "N/A";
 
     if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
@@ -83,8 +80,9 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       });
       if (match) {
         const val = row[match];
+        // Validação extra para datas: deve conter números
         if (sKey.includes("data")) {
-          if (val && !/\d/.test(String(val))) return undefined;
+          if (val && !/\d/.test(String(val))) continue;
         }
         return val;
       }
@@ -100,7 +98,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       if (match) {
         const val = row[match];
         if (sKey.includes("data")) {
-          if (val && !/\d/.test(String(val))) return undefined;
+          if (val && !/\d/.test(String(val))) continue;
         }
         return val;
       }
@@ -120,9 +118,9 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
   };
 
   const handleSync = useCallback(async (silent = false) => {
-    if (!url || !firestore) return;
-    if (syncingRef.current && silent) return;
+    if (!url || !firestore || syncingRef.current) return;
     
+    syncingRef.current = true;
     if (!silent) setSyncing(true);
     
     try {
@@ -154,14 +152,16 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              // PRIORIDADE MÁXIMA: "Data do venda" conforme solicitado
+              // PRIORIDADE MÁXIMA: "Data do venda" (Coluna R)
               const rawDataVenda = getVal(row, ["data do venda", "data venda", "fechamento"], ["vendedor", "corretor", "responsavel", "nome"]);
               const dataVenda = excelDateToJSDate(rawDataVenda);
               
               const vendedor = String(getVal(row, ["vendedor", "corretor", "responsavel"]) || "N/A");
               const dataEntrada = excelDateToJSDate(getVal(row, ["data entrada", "entrada", "cadastro"]));
               
-              const safeSaleId = `sale-${processedCount}-${Date.now()}`;
+              // Gerar ID baseado na linha para evitar duplicatas e permitir atualizações automáticas
+              const saleIdSeed = `${propertyCode}-${vendedor}-${dataVenda}`;
+              const safeSaleId = `sale-${saleIdSeed.replace(/[\/\.\#\$\/\[\] ]/g, "-")}`;
               const saleRef = doc(firestore, "vendas_imoveis", safeSaleId);
               
               setDocumentNonBlocking(saleRef, {
@@ -180,7 +180,9 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'leads') {
-              const leadId = `lead-${processedCount}-${Date.now()}`;
+              // Para Leads, usamos um hash simples da linha como ID para garantir que ele atualize automaticamente sem criar duplicatas
+              const rowHash = Object.values(row).join("").substring(0, 50).replace(/[\/\.\#\$\/\[\] ]/g, "-");
+              const leadId = `lead-${rowHash}`;
               const leadRef = doc(firestore, "leads", leadId);
               setDocumentNonBlocking(leadRef, { ...row, importedAt: serverTimestamp() }, { merge: true });
             }
@@ -196,24 +198,23 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     } catch (error: any) {
       if (!silent) toast({ variant: "destructive", title: "Erro na Sincronização", description: error.message });
     } finally {
+      syncingRef.current = false;
       if (!silent) setSyncing(false);
     }
   }, [url, mode, firestore, toast]);
 
-  // Monitoramento Automático: Atualiza a cada 60 segundos
+  // Monitoramento Automático: Atualiza a cada 60 segundos garantidos
   useEffect(() => {
     if (!autoSync || !url) return;
     
-    // Sincronização inicial silenciosa ao carregar
+    // Sincronização imediata ao ativar ou mudar URL
     handleSync(true);
 
-    const interval = setInterval(() => {
-      if (!syncingRef.current) {
-        handleSync(true);
-      }
+    const intervalId = setInterval(() => {
+      handleSync(true);
     }, 60000);
     
-    return () => clearInterval(interval);
+    return () => clearInterval(intervalId);
   }, [autoSync, url, handleSync]);
 
   const handleClearData = async () => {

@@ -10,6 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Loader2, BadgeCheck } from "lucide-react";
 
+/**
+ * Função especializada no tratamento de datas para o ImmoSales Insight.
+ * Suporta formatos de pontos (15.01.2026), Seriais do Excel, ISO e DD/MM/YYYY.
+ */
 const formatDateDisplay = (val: any) => {
   if (!val || val === "N/A" || String(val).trim() === "") return "N/A";
 
@@ -21,7 +25,7 @@ const formatDateDisplay = (val: any) => {
 
   const strVal = String(val).trim();
 
-  // 2️⃣ Se não tiver número não é data
+  // 2️⃣ Se não tiver número não é data (ajuda a ignorar nomes de corretores)
   if (!/\d/.test(strVal)) return "N/A";
 
   // 3️⃣ DD.MM.YYYY → DD/MM/YYYY
