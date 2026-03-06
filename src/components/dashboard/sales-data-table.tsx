@@ -10,14 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Loader2, BadgeCheck } from "lucide-react";
 
-/**
- * Função especializada no tratamento de datas para o ImmoSales Insight.
- * Suporta formatos de pontos (15.01.2026), Seriais do Excel, ISO e DD/MM/YYYY.
- */
 const formatDateDisplay = (val: any) => {
   if (!val || val === "N/A" || String(val).trim() === "") return "N/A";
 
-  // 1️⃣ Firebase Timestamp
   if (val?.toDate) {
     const date = val.toDate();
     return `${String(date.getDate()).padStart(2,'0')}/${String(date.getMonth()+1).padStart(2,'0')}/${date.getFullYear()}`;
@@ -25,15 +20,12 @@ const formatDateDisplay = (val: any) => {
 
   const strVal = String(val).trim();
 
-  // 2️⃣ Se não tiver número não é data (ajuda a ignorar nomes de corretores)
   if (!/\d/.test(strVal)) return "N/A";
 
-  // 3️⃣ DD.MM.YYYY → DD/MM/YYYY
   if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
     return strVal.replace(/\./g, '/');
   }
 
-  // 4️⃣ Serial do Excel (45961, 46037 etc.)
   const cleanStr = strVal.replace(/[^\d]/g, '');
   const num = Number(cleanStr);
 
@@ -43,10 +35,8 @@ const formatDateDisplay = (val: any) => {
     return `${String(date.getUTCDate()).padStart(2,'0')}/${String(date.getUTCMonth()+1).padStart(2,'0')}/${date.getUTCFullYear()}`;
   }
 
-  // 5️⃣ DD/MM/YYYY
   if (strVal.match(/^\d{1,2}\/\d{1,2}\/\d{2,4}$/)) return strVal;
 
-  // 6️⃣ ISO YYYY-MM-DD
   const isoMatch = strVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (isoMatch) {
     return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
@@ -56,15 +46,15 @@ const formatDateDisplay = (val: any) => {
 };
 
 export function SalesDataTable() {
-  const { firestore } = useFirebase();
+  const { firestore, user } = useFirebase();
   
   const vendasQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null;
     return query(
       collection(firestore, "vendas_imoveis"),
       orderBy("importedAt", "desc")
     );
-  }, [firestore]);
+  }, [firestore, user]);
 
   const { data: rawVendas, isLoading } = useCollection(vendasQuery);
   const vendas = rawVendas || [];

@@ -25,7 +25,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
   const [autoSync, setAutoSync] = useState(true);
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const { toast } = useToast();
-  const { firestore } = useFirebase();
+  const { firestore, user } = useFirebase();
   
   const syncingRef = useRef(false);
 
@@ -44,7 +44,6 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     if (!val || val === "N/A" || String(val).trim() === "") return "N/A";
     const strVal = String(val).trim();
     
-    // Filtro crítico: se não tiver número, não é uma data (evita nomes de corretores)
     if (!/\d/.test(strVal)) return "N/A";
 
     if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
@@ -80,7 +79,6 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       });
       if (match) {
         const val = row[match];
-        // Validação extra para datas: deve conter números
         if (sKey.includes("data")) {
           if (val && !/\d/.test(String(val))) continue;
         }
@@ -118,7 +116,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
   };
 
   const handleSync = useCallback(async (silent = false) => {
-    if (!url || !firestore || syncingRef.current) return;
+    if (!url || !firestore || !user || syncingRef.current) return;
     
     syncingRef.current = true;
     if (!silent) setSyncing(true);
@@ -152,14 +150,12 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              // PRIORIDADE MÁXIMA: "Data do venda" (Coluna R)
               const rawDataVenda = getVal(row, ["data do venda", "data venda", "fechamento"], ["vendedor", "corretor", "responsavel", "nome"]);
               const dataVenda = excelDateToJSDate(rawDataVenda);
               
               const vendedor = String(getVal(row, ["vendedor", "corretor", "responsavel"]) || "N/A");
               const dataEntrada = excelDateToJSDate(getVal(row, ["data entrada", "entrada", "cadastro"]));
               
-              // Gerar ID baseado na linha para evitar duplicatas e permitir atualizações automáticas
               const saleIdSeed = `${propertyCode}-${vendedor}-${dataVenda}`;
               const safeSaleId = `sale-${saleIdSeed.replace(/[\/\.\#\$\/\[\] ]/g, "-")}`;
               const saleRef = doc(firestore, "vendas_imoveis", safeSaleId);
@@ -180,7 +176,6 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'leads') {
-              // Para Leads, usamos um hash simples da linha como ID para garantir que ele atualize automaticamente sem criar duplicatas
               const rowHash = Object.values(row).join("").substring(0, 50).replace(/[\/\.\#\$\/\[\] ]/g, "-");
               const leadId = `lead-${rowHash}`;
               const leadRef = doc(firestore, "leads", leadId);
@@ -201,13 +196,11 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       syncingRef.current = false;
       if (!silent) setSyncing(false);
     }
-  }, [url, mode, firestore, toast]);
+  }, [url, mode, firestore, user, toast]);
 
-  // Monitoramento Automático: Atualiza a cada 60 segundos garantidos
   useEffect(() => {
-    if (!autoSync || !url) return;
+    if (!autoSync || !url || !user) return;
     
-    // Sincronização imediata ao ativar ou mudar URL
     handleSync(true);
 
     const intervalId = setInterval(() => {
@@ -215,10 +208,10 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     }, 60000);
     
     return () => clearInterval(intervalId);
-  }, [autoSync, url, handleSync]);
+  }, [autoSync, url, user, handleSync]);
 
   const handleClearData = async () => {
-    if (!firestore) return;
+    if (!firestore || !user) return;
     setClearing(true);
     try {
       let colName = mode === 'inventory' ? "properties" : mode === 'sales' ? "vendas_imoveis" : "leads";
@@ -267,7 +260,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               <p className="text-xs font-bold text-amber-800">Dica de Importação:</p>
               <ul className="text-[10px] text-amber-700 space-y-1">
                 <li>• No Google Sheets: Arquivo &gt; Compartilhar &gt; Publicar na Web &gt; CSV.</li>
-                <li>• {mode === 'sales' ? 'Coluna R: O app busca o termo "Data do venda" e suporta 15.01.2026.' : 'Certifique-se de que a aba correta está selecionada no Google Sheets.'}</li>
+                <li>• {mode === 'sales' ? 'O app busca o termo "Data do venda" e suporta 15.01.2026.' : 'Certifique-se de que a aba correta está selecionada no Google Sheets.'}</li>
               </ul>
             </div>
           </div>

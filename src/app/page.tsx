@@ -28,7 +28,7 @@ export default function AppContainer() {
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [selectedYear, setSelectedYear] = useState<string>("2026");
 
-  const { auth, firestore } = useFirebase();
+  const { auth, firestore, user } = useFirebase();
 
   useEffect(() => {
     setMounted(true);
@@ -38,19 +38,19 @@ export default function AppContainer() {
   }, [auth]);
 
   const salesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null;
     return query(collection(firestore, "vendas_imoveis"));
-  }, [firestore]);
+  }, [firestore, user]);
 
   const leadsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null;
     return query(collection(firestore, "leads"));
-  }, [firestore]);
+  }, [firestore, user]);
 
   const propertiesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null;
     return query(collection(firestore, "properties"));
-  }, [firestore]);
+  }, [firestore, user]);
 
   const { data: rawSales, isLoading: isSalesLoading } = useCollection(salesQuery);
   const { data: rawLeads, isLoading: isLeadsLoading } = useCollection(leadsQuery);
@@ -66,10 +66,8 @@ export default function AppContainer() {
       if (d instanceof Date) return isNaN(d.getTime()) ? null : d;
       const strVal = String(d).trim();
       
-      // Filtro crítico: datas devem ter números
       if (!/\d/.test(strVal)) return null;
 
-      // 1. Suporte a DD.MM.YYYY (com pontos)
       if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
         const parts = strVal.split('.');
         const day = parseInt(parts[0], 10);
@@ -80,7 +78,6 @@ export default function AppContainer() {
         if (!isNaN(date.getTime())) return date;
       }
 
-      // 2. Tentar DD/MM/YYYY ou DD.MM.YYYY ou DD-MM-YYYY
       const dmyMatch = strVal.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
       if (dmyMatch) {
         const day = parseInt(dmyMatch[1], 10);
@@ -91,21 +88,18 @@ export default function AppContainer() {
         if (!isNaN(date.getTime())) return date;
       }
 
-      // 3. Tentar ISO YYYY-MM-DD
       const isoMatch = strVal.match(/^(\d{4})[./-](\d{2})[./-](\d{2})/);
       if (isoMatch) {
         const date = new Date(parseInt(isoMatch[1], 10), parseInt(isoMatch[2], 10) - 1, parseInt(isoMatch[3], 10));
         if (!isNaN(date.getTime())) return date;
       }
 
-      // 4. Tentar Serial do Excel (número puro)
       const cleanNumStr = strVal.replace(/[^\d]/g, '');
       const num = Number(cleanNumStr);
       if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('-') && !strVal.includes('.')) {
         return new Date(Math.round((num - 25569) * 86400 * 1000));
       }
 
-      // 5. Fallback genérico
       const date = new Date(strVal);
       return isNaN(date.getTime()) ? null : date;
     };
@@ -132,12 +126,10 @@ export default function AppContainer() {
       return monthMatch && yearMatch;
     });
 
-    // CÁLCULO DE FREQUÊNCIA: TOTAL ACUMULADO DESDE 01/01/2025
     const validSalesTotal = allSales.filter(s => parseDate(s.saleDate) !== null);
     const totalDaysSinceStart = 427; 
     const salesFrequency = validSalesTotal.length > 0 ? totalDaysSinceStart / validSalesTotal.length : 0;
 
-    // CÁLCULO DE CICLO MÉDIO
     const validCyclesTotal = validSalesTotal.map(s => {
       const start = parseDate(s.propertyCaptureDate);
       const end = parseDate(s.saleDate);
@@ -167,7 +159,7 @@ export default function AppContainer() {
       avgDaysToRent: 0,
       totalValue: totalVgvInventoryFiltered, 
       lastSaleDisplay: daysSinceLastSale !== null ? `${Math.max(0, daysSinceLastSale)} Dias` : "-",
-      totalLeads: allLeads.length, // Total Geral
+      totalLeads: allLeads.length,
       totalSales: filteredSales.length,
       totalProperties: filteredProperties.length,
       avgTicket,

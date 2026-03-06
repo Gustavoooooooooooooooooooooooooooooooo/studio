@@ -5,33 +5,32 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Landmark, Target, Loader2 } from "lucide-react";
-import { useCollection, useMemoFirebase, useFirestore } from "@/firebase";
+import { useCollection, useMemoFirebase, useFirebase } from "@/firebase";
 import { collection, query } from "firebase/firestore";
 import { useMemo } from "react";
 
 export function InventoryHealth() {
-  const { firestore } = useFirestore() ? { firestore: useFirestore() } : { firestore: null };
+  const { firestore, user } = useFirebase();
   
   const propertiesQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null;
     return query(collection(firestore, "properties"));
-  }, [firestore]);
+  }, [firestore, user]);
 
   const { data: properties, isLoading } = useCollection(propertiesQuery);
 
   const stats = useMemo(() => {
     if (!properties) return { count: 0, vgv: 0 };
     const count = properties.length;
-    // Buscamos o VGV da coluna "Valor de Venda" (saleValue) conforme solicitado
     const vgv = properties.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0);
     return { count, vgv };
   }, [properties]);
 
-  const avgComm = 0.055; // 5.5% média
+  const avgComm = 0.055; 
   const vgvEstoque = stats.vgv;
   const previsaoReceita = vgvEstoque * avgComm;
   
-  const targetYear = 400; // Meta de 400 angariações no ano
+  const targetYear = 400; 
   const currentAngariados = stats.count;
   const progress = Math.min(100, (currentAngariados / targetYear) * 100);
 
