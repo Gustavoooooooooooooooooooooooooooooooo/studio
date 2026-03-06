@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
@@ -253,12 +254,11 @@ export default function AppContainer() {
     
     const avgDaysToSell = validCycles.length > 0 ? validCycles.reduce((a, b) => a + b, 0) / validCycles.length : 0;
 
-    const totalVgvInventoryFiltered = filteredProperties.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0);
-    const saleProps = filteredProperties.filter(p => (Number(p.saleValue) || 0) > 0);
-    const avgTicket = saleProps.length > 0 ? totalVgvInventoryFiltered / saleProps.length : 0;
+    const salePropsInventory = inventory.filter(p => (Number(p.saleValue) || 0) > 0);
+    const avgTicket = salePropsInventory.length > 0 ? salePropsInventory.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0) / salePropsInventory.length : 0;
 
-    const rentProps = filteredProperties.filter(p => (Number(p.rentalValue) || 0) > 0);
-    const avgTicketRent = rentProps.length > 0 ? rentProps.reduce((acc, p) => acc + (Number(p.rentalValue) || 0), 0) / rentProps.length : 0;
+    const rentPropsInventory = inventory.filter(p => (Number(p.rentalValue) || 0) > 0);
+    const avgTicketRent = rentPropsInventory.length > 0 ? rentPropsInventory.reduce((acc, p) => acc + (Number(p.rentalValue) || 0), 0) / rentPropsInventory.length : 0;
 
     const allSaleDates = processedSales
       .map(s => s.saleDateObj)
