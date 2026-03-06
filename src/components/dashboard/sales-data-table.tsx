@@ -85,7 +85,7 @@ export function SalesDataTable() {
             <BadgeCheck className="h-5 w-5 text-emerald-600" />
             Planilha de Conclusão de Negócios
           </CardTitle>
-          <p className="text-xs text-muted-foreground">Exibindo todos os fechamentos registrados com espelhamento da Coluna R.</p>
+          <p className="text-xs text-muted-foreground">Exibindo todos os fechamentos registrados com tratamento de datas.</p>
         </div>
         <Badge variant="outline" className="text-emerald-600 font-bold bg-white">
           {vendas?.length || 0} Registros
@@ -99,12 +99,11 @@ export function SalesDataTable() {
           </div>
         ) : vendas && vendas.length > 0 ? (
           <ScrollArea className="w-full h-[600px]">
-            <div className="min-w-[2000px]">
+            <div className="min-w-[1800px]">
               <Table>
                 <TableHeader className="bg-muted/50 sticky top-0 z-10">
                   <TableRow>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[120px]">Data Entrada</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase min-w-[120px]">Data Venda</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Vendedor</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[120px]">Tipo Venda</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase min-w-[150px]">Angariador</TableHead>
@@ -119,7 +118,6 @@ export function SalesDataTable() {
                   {vendas.map((venda, idx) => (
                     <TableRow key={venda.id || idx} className="hover:bg-emerald-50/30 transition-colors border-b">
                       <TableCell className="text-xs text-muted-foreground">{formatDateDisplay(venda.propertyCaptureDate)}</TableCell>
-                      <TableCell className="text-xs font-bold text-emerald-700">{formatDateDisplay(venda.saleDate)}</TableCell>
                       <TableCell className="text-xs">{venda.vendedor || "N/A"}</TableCell>
                       <TableCell className="text-xs">{venda.tipoVenda || "N/A"}</TableCell>
                       <TableCell className="text-xs">{venda.angariador || "N/A"}</TableCell>
