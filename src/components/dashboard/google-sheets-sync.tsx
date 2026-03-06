@@ -39,23 +39,25 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       .trim();
 
   const excelDateToJSDate = (val: any) => {
-    if (val === undefined || val === null || String(val).trim() === "") return "";
+    if (!val || val === "N/A" || String(val).trim() === "") return "N/A";
+
     const strVal = String(val).trim();
-    
-    // Filtro Crítico: Datas devem conter números. Ignora nomes de pessoas.
-    if (!/\d/.test(strVal)) return "";
-    
-    // 1. Suporte a DD.MM.YYYY
+
+    // Filtro Crítico: Se não tiver número não é data (evita nomes de corretores)
+    if (!/\d/.test(strVal)) return "N/A";
+
+    // 1. DD.MM.YYYY → DD/MM/YYYY
     if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
       return strVal.replace(/\./g, '/');
     }
 
-    // 2. Serial Excel
-    const cleanNumStr = strVal.replace(/[^\d]/g, '');
-    const num = Number(cleanNumStr);
-    if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('-') && !strVal.includes('.')) {
-      const date = new Date(Math.round((num - 25569) * 86400 * 1000));
-      return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+    // 2. Serial do Excel
+    const cleanStr = strVal.replace(/[^\d]/g, '');
+    const num = Number(cleanStr);
+    if (!isNaN(num) && num > 40000 && num < 60000) {
+      const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+      const date = new Date(excelEpoch.getTime() + num * 86400000);
+      return `${String(date.getUTCDate()).padStart(2,'0')}/${String(date.getUTCMonth()+1).padStart(2,'0')}/${date.getUTCFullYear()}`;
     }
 
     // 3. DD/MM/YYYY
@@ -67,7 +69,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
     }
 
-    return strVal;
+    return "N/A";
   };
 
   const getVal = (row: any, searchKeys: string[], excludeKeys: string[] = []) => {
@@ -133,7 +135,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
                 saleValue: parseCurrency(getVal(row, ["valor venda", "venda", "valor"])),
                 rentalValue: parseCurrency(getVal(row, ["valor locacao", "locacao", "aluguel", "valor aluguel"])),
                 brokerId: String(getVal(row, ["angariador", "corretor", "captador", "quem angariou"]) || "N/A"),
-                captureDate: String(excelDateToJSDate(getVal(row, ["data entrada", "entrada", "data"])) || ""),
+                captureDate: String(excelDateToJSDate(getVal(row, ["data entrada", "entrada", "data"])) || "N/A"),
                 status: String(getVal(row, ["status", "situacao"]) || "Disponível"),
                 importedAt: serverTimestamp(),
               }, { merge: true });
@@ -143,7 +145,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               
               // DATA VENDA (COLUNA R) - Foco Total em capturar data e ignorar nomes
               const dataVendaRaw = excelDateToJSDate(getVal(row, 
-                ["data venda", "data de venda", "fechamento", "data fechamento", "r", "data", "venda"], 
+                ["data venda", "fechamento", "data fechamento", "r", "venda"], 
                 ["vendedor", "corretor", "cliente", "nome", "anuncio"]
               ));
               

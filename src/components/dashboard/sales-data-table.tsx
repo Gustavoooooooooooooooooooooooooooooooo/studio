@@ -37,35 +37,44 @@ export function SalesDataTable() {
 
   const formatDateDisplay = (val: any) => {
     if (!val || val === "N/A" || String(val).trim() === "") return "N/A";
-    
+
+    // 1️⃣ Firebase Timestamp
+    if (val?.toDate) {
+      const date = val.toDate();
+      return `${String(date.getDate()).padStart(2,'0')}/${String(date.getMonth()+1).padStart(2,'0')}/${date.getFullYear()}`;
+    }
+
     const strVal = String(val).trim();
 
-    // Filtro de segurança: Se não houver números, o dado é texto e não data
+    // 2️⃣ Se não tiver número não é data
     if (!/\d/.test(strVal)) return "N/A";
 
-    // 1. DD.MM.YYYY para DD/MM/YYYY
+    // 3️⃣ DD.MM.YYYY → DD/MM/YYYY
     if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
       return strVal.replace(/\./g, '/');
     }
-    
-    // 2. Serial Excel
+
+    // 4️⃣ Serial do Excel (45961, 46037 etc.)
     const cleanStr = strVal.replace(/[^\d]/g, '');
     const num = Number(cleanStr);
-    if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('-') && !strVal.includes('.')) {
-      const date = new Date(Math.round((num - 25569) * 86400 * 1000));
-      return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+
+    if (!isNaN(num) && num > 40000 && num < 60000) {
+      const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+      const date = new Date(excelEpoch.getTime() + num * 86400000);
+
+      return `${String(date.getUTCDate()).padStart(2,'0')}/${String(date.getUTCMonth()+1).padStart(2,'0')}/${date.getUTCFullYear()}`;
     }
 
-    // 3. DD/MM/YYYY
+    // 5️⃣ DD/MM/YYYY
     if (strVal.match(/^\d{1,2}\/\d{1,2}\/\d{2,4}$/)) return strVal;
 
-    // 4. ISO YYYY-MM-DD
+    // 6️⃣ ISO YYYY-MM-DD
     const isoMatch = strVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (isoMatch) {
       return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
     }
 
-    return strVal;
+    return "N/A";
   };
 
   return (
