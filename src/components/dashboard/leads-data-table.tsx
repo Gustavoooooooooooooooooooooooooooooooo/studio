@@ -11,24 +11,21 @@ import { Loader2, Users, AlertCircle } from "lucide-react";
 import { useMemo } from "react";
 
 export function LeadsDataTable() {
-  const { firestore } = useFirebase();
+  const { firestore, user } = useFirebase();
   
-  // Consulta sem limite para buscar todos os leads conforme solicitado
   const leadsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null;
     return query(
       collection(firestore, "leads")
     );
-  }, [firestore]);
+  }, [firestore, user]);
 
   const { data: leads, isLoading } = useCollection(leadsQuery);
 
-  // Mapeamento dinâmico de colunas: analisa os leads carregados para identificar todos os campos da planilha
   const columns = useMemo(() => {
     if (!leads || leads.length === 0) return [];
     
     const allKeys = new Set<string>();
-    // Analisamos uma amostra maior para garantir que pegamos colunas que podem estar vazias nos primeiros registros
     leads.slice(0, 50).forEach(lead => {
       Object.keys(lead).forEach(key => {
         if (key !== 'id' && key !== 'importedAt') {
@@ -40,15 +37,24 @@ export function LeadsDataTable() {
     return Array.from(allKeys);
   }, [leads]);
 
+  // Função auxiliar de tratamento de data para a tabela
+  const formatDateValue = (val: any) => {
+    if (!val || val === "N/A" || String(val).trim() === "") return "-";
+    const strVal = String(val).trim();
+    // Se parecer uma data com pontos, converte para barra para exibição
+    if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) return strVal.replace(/\./g, '/');
+    return strVal;
+  };
+
   return (
     <Card className="border-none shadow-md overflow-hidden">
       <CardHeader className="bg-indigo-50/50 border-b flex flex-row items-center justify-between">
         <div>
           <CardTitle className="text-lg flex items-center gap-2">
             <Users className="h-5 w-5 text-indigo-600" />
-            Base de Leads Sincronizada
+            Base de Leads Espelhada
           </CardTitle>
-          <p className="text-xs text-muted-foreground">Exibindo todas as colunas espelhadas da sua planilha.</p>
+          <p className="text-xs text-muted-foreground">Sincronização automática ativa (atualiza toda vez que você muda a planilha).</p>
         </div>
         <Badge variant="outline" className="text-indigo-600 font-bold bg-white">
           {leads?.length || 0} Registros
@@ -58,7 +64,7 @@ export function LeadsDataTable() {
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-24 gap-4">
             <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
-            <p className="text-sm text-muted-foreground font-medium">Carregando todos os leads...</p>
+            <p className="text-sm text-muted-foreground font-medium">Sincronizando Leads...</p>
           </div>
         ) : leads && leads.length > 0 ? (
           <ScrollArea className="w-full h-[600px]">
@@ -79,7 +85,7 @@ export function LeadsDataTable() {
                       {columns.map((col) => (
                         <TableCell key={`${lead.id}-${col}`} className="text-xs py-3">
                           {lead[col] !== undefined && lead[col] !== null 
-                            ? String(lead[col]) 
+                            ? formatDateValue(lead[col]) 
                             : "-"}
                         </TableCell>
                       ))}
@@ -97,9 +103,9 @@ export function LeadsDataTable() {
               <AlertCircle className="h-8 w-8 text-indigo-300" />
             </div>
             <div className="space-y-1">
-              <p className="text-muted-foreground font-bold text-lg">Nenhum lead encontrado</p>
+              <p className="text-muted-foreground font-bold text-lg">Nenhum lead espelhado</p>
               <p className="text-sm text-muted-foreground/60 max-w-sm mx-auto">
-                Certifique-se de ter colado o link CSV correto acima e clicado em "Sincronizar Agora". 
+                Ative a sincronização automática acima para puxar os dados da sua planilha.
               </p>
             </div>
           </div>

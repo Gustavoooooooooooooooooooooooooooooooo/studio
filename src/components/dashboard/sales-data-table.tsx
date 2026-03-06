@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useCollection, useMemoFirebase, useFirebase } from "@/firebase";
@@ -8,10 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Loader2, BadgeCheck } from "lucide-react";
 
-/**
- * Motor de tratamento de datas especializado.
- * Suporta pontos, seriais do Excel e ISO.
- */
+// Motor de tratamento de datas solicitado
 const formatDateDisplay = (val: any) => {
   if (!val || val === "N/A" || String(val).trim() === "") return "N/A";
 
@@ -83,9 +81,9 @@ export function SalesDataTable() {
         <div>
           <CardTitle className="text-lg flex items-center gap-2">
             <BadgeCheck className="h-5 w-5 text-emerald-600" />
-            Planilha de Conclusão de Negócios
+            Planilha de Conclusão de Negócios (Vendas)
           </CardTitle>
-          <p className="text-xs text-muted-foreground">Exibindo fechamentos com espelhamento total de datas.</p>
+          <p className="text-xs text-muted-foreground">Espelhamento total de datas e valores da sua planilha.</p>
         </div>
         <Badge variant="outline" className="text-emerald-600 font-bold bg-white">
           {vendas?.length || 0} Registros
@@ -93,13 +91,13 @@ export function SalesDataTable() {
       </CardHeader>
       <CardContent className="p-0">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-4">
+          <div className="flex flex-col items-center justify-center py-24 gap-4">
             <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
-            <p className="text-sm text-muted-foreground">Carregando dados...</p>
+            <p className="text-sm text-muted-foreground">Lendo dados espelhados...</p>
           </div>
         ) : vendas && vendas.length > 0 ? (
           <ScrollArea className="w-full h-[600px]">
-            <div className="min-w-[1500px]">
+            <div className="min-w-[1200px]">
               <Table>
                 <TableHeader className="bg-muted/50 sticky top-0 z-10">
                   <TableRow>
@@ -119,7 +117,7 @@ export function SalesDataTable() {
                       <TableCell className="text-xs font-bold text-emerald-700 bg-emerald-50/40">
                         {formatDateDisplay(venda.saleDate)}
                       </TableCell>
-                      <TableCell className="text-xs">{venda.vendedor || "N/A"}</TableCell>
+                      <TableCell className="text-xs font-medium">{venda.vendedor || "N/A"}</TableCell>
                       <TableCell className="text-xs font-mono">{venda.propertyCode || "N/A"}</TableCell>
                       <TableCell className="text-xs font-semibold">{venda.neighborhood || "N/A"}</TableCell>
                       <TableCell className="text-xs font-bold">{venda.clientName || "N/A"}</TableCell>
@@ -137,7 +135,7 @@ export function SalesDataTable() {
             <div className="bg-muted/30 w-16 h-16 rounded-full flex items-center justify-center mx-auto opacity-20">
                <BadgeCheck className="h-8 w-8" />
             </div>
-            <p className="text-sm font-medium">Sincronize os dados para visualizar o espelhamento.</p>
+            <p className="text-sm font-medium">Os dados serão exibidos aqui após a primeira sincronização.</p>
           </div>
         )}
       </CardContent>

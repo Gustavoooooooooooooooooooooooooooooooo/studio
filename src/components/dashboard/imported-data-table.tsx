@@ -10,17 +10,29 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Loader2, Home, Calendar, User, Table2 } from "lucide-react";
 
 export function ImportedDataTable() {
-  const { firestore } = useFirebase();
+  const { firestore, user } = useFirebase();
   
   const angariacaoQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || !user) return null;
     return query(
       collection(firestore, "properties"),
       orderBy("importedAt", "desc")
     );
-  }, [firestore]);
+  }, [firestore, user]);
 
   const { data: imoveis, isLoading } = useCollection(angariacaoQuery);
+
+  const formatDateDisplay = (val: any) => {
+    if (!val || val === "N/A" || String(val).trim() === "") return "N/A";
+    if (val?.toDate) {
+      const date = val.toDate();
+      return `${String(date.getDate()).padStart(2,'0')}/${String(date.getMonth()+1).padStart(2,'0')}/${date.getFullYear()}`;
+    }
+    const strVal = String(val).trim();
+    if (!/\d/.test(strVal)) return "N/A";
+    if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) return strVal.replace(/\./g, '/');
+    return strVal;
+  };
 
   const formatCurrency = (value: number) => {
     if (!value || isNaN(value)) return "R$ 0,00";
@@ -40,7 +52,7 @@ export function ImportedDataTable() {
             Planilha de Cadastro (Estoque Completo)
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Exibindo todos os dados capturados da sua planilha de Cadastro de Imóveis sem limites.
+            Exibindo todos os dados capturados da sua planilha de Cadastro de Imóveis.
           </p>
         </div>
         <Badge variant="outline" className="font-bold text-primary bg-white">
@@ -49,7 +61,7 @@ export function ImportedDataTable() {
       </CardHeader>
       <CardContent className="p-0">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-4">
+          <div className="flex flex-col items-center justify-center py-24 gap-4">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <p className="text-sm text-muted-foreground font-medium">Lendo banco de dados...</p>
           </div>
@@ -74,7 +86,7 @@ export function ImportedDataTable() {
                       <TableCell className="text-xs">
                         <div className="flex items-center gap-1">
                           <Calendar className="h-3 w-3 text-muted-foreground" />
-                          <span className="font-medium">{imovel.captureDate || "S/D"}</span>
+                          <span className="font-medium">{formatDateDisplay(imovel.captureDate)}</span>
                         </div>
                       </TableCell>
                       <TableCell className="font-bold text-xs text-primary bg-primary/5">
@@ -118,7 +130,7 @@ export function ImportedDataTable() {
             <div className="space-y-1">
               <p className="text-muted-foreground font-bold">Base de Cadastro Vazia</p>
               <p className="text-xs text-muted-foreground/60 max-w-xs mx-auto">
-                Insira o link da sua aba de estoque acima e clique em "Sincronizar Agora" para carregar seus dados.
+                Sincronize sua planilha de estoque para visualizar os dados aqui.
               </p>
             </div>
           </div>
