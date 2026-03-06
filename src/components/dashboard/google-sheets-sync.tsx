@@ -38,29 +38,32 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       .replace(/[\u0300-\u036f]/g, "")
       .trim();
 
+  // Motor de data robusto: entende DD.MM.YYYY, DD/MM/YYYY e Serial Excel
   const excelDateToJSDate = (val: any) => {
     if (val === undefined || val === null || String(val).trim() === "") return "";
     const strVal = String(val).trim();
     
-    // Filtro Crítico: Se não houver NENHUM número, não pode ser uma data (evita nomes de corretores)
+    // Filtro de Segurança: Datas devem conter números. 
+    // Se for apenas texto (ex: "Henrique"), ignora para evitar erro de mapeamento.
     if (!/\d/.test(strVal)) return "";
     
-    // Suporte a DD.MM.YYYY
+    // 1. Suporte a DD.MM.YYYY (com pontos)
     if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
       return strVal.replace(/\./g, '/');
     }
 
-    const cleanStr = strVal.replace(/[^\d]/g, '');
-    const num = Number(cleanStr);
-    
-    // Excel Serial
+    // 2. Serial do Excel (número puro)
+    const cleanNumStr = strVal.replace(/[^\d]/g, '');
+    const num = Number(cleanNumStr);
     if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('-') && !strVal.includes('.')) {
       const date = new Date(Math.round((num - 25569) * 86400 * 1000));
       return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
     }
 
+    // 3. DD/MM/YYYY padrão
     if (strVal.match(/^\d{1,2}\/\d{1,2}\/\d{2,4}$/)) return strVal;
 
+    // 4. ISO YYYY-MM-DD
     const isoMatch = strVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (isoMatch) {
       return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
@@ -76,7 +79,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     const normalizedSearchKeys = searchKeys.map(normalize);
     const normalizedExcludeKeys = excludeKeys.map(normalize);
 
-    // 1. Tenta match exato primeiro (mais seguro)
+    // Tenta match exato primeiro
     for (const sKey of normalizedSearchKeys) {
       const match = normalizedRowKeys.find(rk => 
         rk.norm === sKey && !normalizedExcludeKeys.some(ex => rk.norm.includes(ex))
@@ -84,7 +87,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       if (match) return row[match.original];
     }
 
-    // 2. Tenta match parcial apenas se não for exato
+    // Tenta match parcial se não houver exato
     for (const sKey of normalizedSearchKeys) {
       const match = normalizedRowKeys.find(rk => {
         const isMatch = rk.norm.includes(sKey);
@@ -140,11 +143,14 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
-              // Vendedor: Procura colunas de nome
-              const vendedor = String(getVal(row, ["vendedor", "corretor", "responsavel", "atendente"]) || "N/A");
+              // Vendedor: Busca por colunas de nome
+              const vendedor = String(getVal(row, ["vendedor", "vendedor", "corretor", "responsavel", "atendente"]) || "N/A");
               
-              // Data Venda (COLUNA R): Procura especificamente colunas de data e EXCLUI colunas de nome
-              const dataVendaRaw = excelDateToJSDate(getVal(row, ["data venda", "fechamento", "data de venda", "r"], ["vendedor", "corretor", "nome", "atendente", "cliente"]));
+              // Data Venda (COLUNA R): Busca termos de data e EXCLUI termos que possam trazer o vendedor por engano
+              const dataVendaRaw = excelDateToJSDate(getVal(row, 
+                ["data venda", "fechamento", "data de venda", "r", "data"], 
+                ["vendedor", "corretor", "nome", "atendente", "cliente"]
+              ));
               
               const dataEntradaRaw = excelDateToJSDate(getVal(row, ["data entrada", "entrada", "cadastro"]));
               const closedVal = parseCurrency(getVal(row, ["valor fechado", "valor venda", "fechamento"]));
@@ -162,8 +168,8 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
                 clientName: cliente,
                 advertisedValue: parseCurrency(getVal(row, ["valor anuncio", "valor inicial", "anuncio"])),
                 closedValue: closedVal,
-                saleDate: String(dataVendaRaw || ""),
-                propertyCaptureDate: String(dataEntradaRaw || ""),
+                saleDate: String(dataVendaRaw || "N/A"),
+                propertyCaptureDate: String(dataEntradaRaw || "N/A"),
                 status: "Vendido",
                 importedAt: serverTimestamp(),
               }, { merge: true });
@@ -244,7 +250,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               <ul className="text-[10px] text-amber-700 space-y-1">
                 <li>• Verifique se a coluna <b>Código</b> ou <b>Referência</b> está preenchida corretamente.</li>
                 <li>• Garanta que o link foi gerado em <b>Arquivo &gt; Compartilhar &gt; Publicar na Web &gt; CSV</b>.</li>
-                <li>• A Data de Venda (Coluna R) agora é espelhada com precisão.</li>
+                <li>• A Data de Venda (Coluna R) agora é espelhada com precisão ignorando nomes de pessoas.</li>
               </ul>
             </div>
           </div>

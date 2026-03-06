@@ -36,18 +36,19 @@ export function SalesDataTable() {
   };
 
   const formatDateDisplay = (val: any) => {
-    if (!val) return "N/A";
+    if (!val || val === "N/A") return "N/A";
     
     const strVal = String(val).trim();
 
-    // Se o valor não contiver números, provavelmente é um erro de mapeamento (ex: nome de corretor)
+    // Filtro crítico: Se não houver números, o dado está errado (veio nome no lugar da data)
     if (!/\d/.test(strVal)) return "N/A";
 
-    // Suporte a DD.MM.YYYY
+    // 1. Suporte a DD.MM.YYYY (com pontos)
     if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
       return strVal.replace(/\./g, '/');
     }
     
+    // 2. Serial Excel
     const cleanStr = strVal.replace(/[^\d]/g, '');
     const num = Number(cleanStr);
     if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('-') && !strVal.includes('.')) {
@@ -55,13 +56,16 @@ export function SalesDataTable() {
       return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
     }
 
+    // 3. DD/MM/YYYY
     if (strVal.match(/^\d{1,2}\/\d{1,2}\/\d{2,4}$/)) return strVal;
 
+    // 4. ISO YYYY-MM-DD
     const isoMatch = strVal.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (isoMatch) {
       return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
     }
 
+    // Fallback Date object
     const date = new Date(strVal);
     if (!isNaN(date.getTime()) && strVal.length > 5) {
         return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
@@ -78,7 +82,7 @@ export function SalesDataTable() {
             <BadgeCheck className="h-5 w-5 text-emerald-600" />
             Planilha de Conclusão de Negócios
           </CardTitle>
-          <p className="text-xs text-muted-foreground">Exibindo todos os fechamentos registrados com espelhamento da Coluna R.</p>
+          <p className="text-xs text-muted-foreground">Exibindo todos os fechamentos registrados com espelhamento preciso da Coluna R.</p>
         </div>
         <Badge variant="outline" className="text-emerald-600 font-bold bg-white">
           {vendas?.length || 0} Registros
@@ -88,7 +92,7 @@ export function SalesDataTable() {
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
             <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
-            <p className="text-sm text-muted-foreground">Lendo dados...</p>
+            <p className="text-sm text-muted-foreground">Lendo dados da planilha...</p>
           </div>
         ) : vendas && vendas.length > 0 ? (
           <ScrollArea className="w-full h-[600px]">
