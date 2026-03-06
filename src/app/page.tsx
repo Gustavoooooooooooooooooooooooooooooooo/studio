@@ -1,25 +1,26 @@
-
 "use client"
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { ChannelPerformance } from "@/components/dashboard/channel-performance";
-import { NeighborhoodAnalysis } from "@/components/dashboard/neighborhood-analysis";
 import { MonthlyTrends } from "@/components/dashboard/monthly-trends";
 import { SalesMatrix } from "@/components/dashboard/sales-matrix";
 import { BrokerPerformanceGrid } from "@/components/dashboard/broker-performance-grid";
 import { InventoryHealth } from "@/components/dashboard/inventory-health";
-import { GoogleSheetsSync } from "@/components/dashboard/google-sheets-sync";
 import { ImportedDataTable } from "@/components/dashboard/imported-data-table";
 import { SalesDataTable } from "@/components/dashboard/sales-data-table";
 import { LeadsDataTable } from "@/components/dashboard/leads-data-table";
 import { BrokerSettings } from "@/components/dashboard/broker-settings";
+import { SheetUrlConfig } from "@/components/dashboard/sheet-url-config";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LayoutDashboard, TrendingUp, Loader2, Table2, Users, BadgeCheck, Settings, Calendar as CalendarIcon } from "lucide-react";
+import { LayoutDashboard, TrendingUp, Table2, Users, BadgeCheck, Settings, Calendar as CalendarIcon, Loader2, AlertTriangle } from "lucide-react";
 import { useFirebase, initiateAnonymousSignIn } from "@/firebase";
+import { syncGoogleSheets } from "@/ai/flows/sync-sheets-flow";
+import { useToast } from "@/hooks/use-toast";
 
-// Motor de tratamento de datas especializado (Versão Performática)
+
+// Engine for specialized date handling (Performant Version)
 const formatDateDisplay = (val: any) => {
   if (!val || val === "N/A" || String(val).trim() === "") return "N/A";
   const strVal = String(val).trim();
@@ -39,54 +40,192 @@ const formatDateDisplay = (val: any) => {
   return strVal;
 };
 
-// Conversor para Date para cálculos
+// Converter for Date calculations
 const toDate = (val: any): Date | null => {
   const formatted = formatDateDisplay(val);
   if (formatted === "N/A") return null;
   const parts = formatted.split('/');
   if (parts.length === 3) {
-    return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+    const year = parts[2].length === 2 ? 2000 + parseInt(parts[2], 10) : parseInt(parts[2], 10);
+    return new Date(year, Number(parts[1]) - 1, Number(parts[0]));
   }
   const d = new Date(val);
   return isNaN(d.getTime()) ? null : d;
 };
 
+// Helper functions from the old google-sheets-sync component
+const getVal = (row: any, searchKeys: string[], excludeKeys: string[] = []) => {
+    if (!row) return undefined;
+    const rowKeys = Object.keys(row);
+    const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const normalizedSearch = searchKeys.map(normalize);
+    const normalizedExclude = excludeKeys.map(normalize);
+
+    for (const sKey of normalizedSearch) {
+      const match = rowKeys.find(rk => {
+        const nrk = normalize(rk);
+        const isMatch = nrk === sKey || nrk.includes(sKey);
+        const isExcluded = normalizedExclude.some(ex => nrk.includes(ex));
+        return isMatch && !isExcluded;
+      });
+      if (match) {
+        const val = row[match];
+        if (sKey.includes("data") && val && !/\d/.test(String(val))) continue;
+        return val;
+      }
+    }
+    return undefined;
+  };
+
+const parseCurrency = (val: any) => {
+    if (val === undefined || val === null || String(val).trim() === "") return 0;
+    if (typeof val === 'number') return val;
+    let s = String(val).trim().replace(/[R$ ]/g, "");
+    if (s.includes('.') && s.includes(',')) s = s.replace(/\./g, "").replace(",", ".");
+    else if (s.includes(',') && !s.includes('.')) s = s.replace(",", ".");
+    const num = parseFloat(s);
+    return isNaN(num) ? 0 : num;
+};
+
+
 export default function AppContainer() {
   const [mounted, setMounted] = useState(false);
-  const [now] = useState<Date>(new Date(2026, 2, 2)); 
+  const [now] = useState<Date>(new Date());
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
-  const [selectedYear, setSelectedYear] = useState<string>("2026");
+  const [selectedYear, setSelectedYear] = useState<string>(String(now.getFullYear()));
+  const [syncing, setSyncing] = useState(false);
+  const { toast } = useToast();
 
-  // Estados para Base Viva (Dados diretos da planilha)
+  const [urls, setUrls] = useState({ inventory: "", leads: "", sales: "" });
+
+  // Data states
   const [leads, setLeads] = useState<any[]>([]);
   const [sales, setSales] = useState<any[]>([]);
   const [inventory, setInventory] = useState<any[]>([]);
 
   const { auth } = useFirebase();
+  const syncingRef = useRef(false);
 
   useEffect(() => {
     setMounted(true);
     if (auth) {
       initiateAnonymousSignIn(auth);
     }
+    const savedUrls = {
+      inventory: localStorage.getItem('sheet_url_inventory') || "",
+      leads: localStorage.getItem('sheet_url_leads') || "",
+      sales: localStorage.getItem('sheet_url_sales') || ""
+    };
+    setUrls(savedUrls);
   }, [auth]);
 
-  const metrics = useMemo(() => {
-    const filteredSales = sales.filter(item => {
-      const d = toDate(item.saleDate);
-      if (!d) return false;
-      const monthMatch = selectedMonth === "all" || d.getMonth() === parseInt(selectedMonth);
-      const yearMatch = selectedYear === "all" || d.getFullYear() === parseInt(selectedYear);
-      return monthMatch && yearMatch;
-    });
+  const handleUrlsChange = (newUrls: { inventory: string; leads: string; sales: string; }) => {
+    setUrls(newUrls);
+    localStorage.setItem('sheet_url_inventory', newUrls.inventory);
+    localStorage.setItem('sheet_url_leads', newUrls.leads);
+    localStorage.setItem('sheet_url_sales', newUrls.sales);
+    // Trigger a sync after saving new URLs
+    handleSync(false);
+  };
+  
+  const handleSync = useCallback(async (silent = false) => {
+    if (syncingRef.current) return;
+    
+    syncingRef.current = true;
+    if (!silent) setSyncing(true);
 
-    const filteredProperties = inventory.filter(item => {
-      const d = toDate(item.captureDate);
-      if (!d) return false;
-      const monthMatch = selectedMonth === "all" || d.getMonth() === parseInt(selectedMonth);
-      const yearMatch = selectedYear === "all" || d.getFullYear() === parseInt(selectedYear);
-      return monthMatch && yearMatch;
-    });
+    const processSheet = async (url: string, mode: 'inventory' | 'sales' | 'leads') => {
+      if (!url) return { success: false, data: [] };
+      try {
+        const result = await syncGoogleSheets({ sheetUrl: url });
+        if (!result.success || !result.data) {
+          throw new Error(result.message || "Falha ao ler planilha");
+        }
+
+        const processedData = result.data.map((row, idx) => {
+          if (mode === 'inventory') {
+            const propertyCode = getVal(row, ["codigo", "unidade", "referencia", "id_imovel"]) || `REF-${idx + 1}`;
+            return {
+              id: propertyCode,
+              propertyCode,
+              neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
+              saleValue: parseCurrency(getVal(row, ["valor venda", "venda"])),
+              rentalValue: parseCurrency(getVal(row, ["valor locacao", "aluguel"])),
+              brokerId: String(getVal(row, ["angariador", "corretor", "captador"]) || "N/A"),
+              captureDate: formatDateDisplay(getVal(row, ["data entrada", "entrada", "cadastro"])),
+              status: String(getVal(row, ["status", "situacao"]) || "Disponível"),
+            };
+          } else if (mode === 'sales') {
+            const propertyCode = getVal(row, ["codigo", "unidade", "referencia", "id_imovel"]) || `REF-${idx + 1}`;
+            return {
+              id: `${propertyCode}-${idx}`,
+              vendedor: String(getVal(row, ["vendedor", "corretor", "responsavel"]) || "N/A"),
+              angariador: String(getVal(row, ["angariador", "captador"]) || "N/A"),
+              propertyCode,
+              neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
+              clientName: String(getVal(row, ["cliente", "comprador"]) || "N/A"),
+              advertisedValue: parseCurrency(getVal(row, ["valor anuncio", "anuncio"])),
+              closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda"])),
+              saleDate: formatDateDisplay(getVal(row, ["data do venda", "data venda", "fechamento", "venda"], ["vendedor", "corretor"])),
+              propertyCaptureDate: formatDateDisplay(getVal(row, ["data entrada", "entrada", "cadastro"])),
+              status: "Vendido",
+            };
+          } else { // leads
+            const rowValues = Object.values(row).map((v) => String(v || "").trim()).join("|");
+            const leadIdSeed = rowValues.substring(0, 100).replace(/[\\/\\.\\#\\$\\/\\[\\] ]/g, "-");
+            return {
+              id: `lead-${leadIdSeed}`,
+              ...row
+            };
+          }
+        });
+        return { success: true, data: processedData, count: processedData.length };
+      } catch (error: any) {
+        if (!silent) toast({ variant: "destructive", title: `Erro na Planilha (${mode})`, description: error.message });
+        return { success: false, data: [] };
+      }
+    };
+    
+    const [inventoryResult, leadsResult, salesResult] = await Promise.all([
+      processSheet(urls.inventory, 'inventory'),
+      processSheet(urls.leads, 'leads'),
+      processSheet(urls.sales, 'sales')
+    ]);
+
+    if (inventoryResult.success) setInventory(inventoryResult.data);
+    if (leadsResult.success) setLeads(leadsResult.data);
+    if (salesResult.success) setSales(salesResult.data);
+
+    syncingRef.current = false;
+    if (!silent) {
+      setSyncing(false);
+      toast({ title: "Sincronização Concluída", description: `Dados das planilhas foram atualizados.` });
+    }
+  }, [urls, toast]);
+
+  // Auto-sync effect
+  useEffect(() => {
+    if (!urls.inventory || !urls.leads || !urls.sales) return;
+
+    handleSync(true); // Initial sync
+    const intervalId = setInterval(() => handleSync(true), 60000); // Sync every 60 seconds
+    
+    return () => clearInterval(intervalId);
+  }, [urls, handleSync]);
+
+  const metrics = useMemo(() => {
+    const filterByDate = (items: any[], dateField: string) => {
+        return items.filter(item => {
+            const d = toDate(item[dateField]);
+            if (!d) return false;
+            const monthMatch = selectedMonth === "all" || d.getMonth() === parseInt(selectedMonth);
+            const yearMatch = selectedYear === "all" || d.getFullYear() === parseInt(selectedYear);
+            return monthMatch && yearMatch;
+        });
+    };
+
+    const filteredSales = filterByDate(sales, 'saleDate');
+    const filteredProperties = filterByDate(inventory, 'captureDate');
 
     const totalDaysSinceStart = 427; 
     const salesFrequency = sales.length > 0 ? totalDaysSinceStart / sales.length : 0;
@@ -118,7 +257,7 @@ export default function AppContainer() {
     return {
       avgDaysToSell,
       avgDaysToRent: 0,
-      totalValue: totalVgvInventoryFiltered, 
+      totalValue: inventory.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0),
       lastSaleDisplay: daysSinceLastSale !== null ? `${Math.max(0, daysSinceLastSale)} Dias` : "-",
       totalLeads: leads.length,
       totalSales: filteredSales.length,
@@ -128,6 +267,19 @@ export default function AppContainer() {
       salesFrequency
     };
   }, [sales, leads, inventory, now, selectedMonth, selectedYear]);
+
+  const allBrokers = useMemo(() => {
+      const brokerSet = new Set<string>();
+      [...inventory, ...sales, ...leads].forEach(item => {
+          const brokerKeys = ['brokerId', 'vendedor', 'corretor', 'angariador', 'captador', 'responsavel'];
+          brokerKeys.forEach(key => {
+              if (item[key] && typeof item[key] === 'string' && item[key] !== 'N/A') {
+                  brokerSet.add(item[key]);
+              }
+          });
+      });
+      return Array.from(brokerSet).sort();
+  }, [inventory, sales, leads]);
 
   if (!mounted) return null;
 
@@ -145,6 +297,7 @@ export default function AppContainer() {
           </div>
           
           <div className="flex items-center gap-3">
+             {syncing && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
             <div className="flex items-center gap-2 bg-muted/30 px-3 py-1.5 rounded-lg border">
               <CalendarIcon className="h-4 w-4 text-primary" />
               <Select value={selectedMonth} onValueChange={setSelectedMonth}>
@@ -167,17 +320,18 @@ export default function AppContainer() {
                   <SelectItem value="11">Dezembro</SelectItem>
                 </SelectContent>
               </Select>
-              
               <div className="w-[1px] h-4 bg-muted-foreground/20 mx-1" />
-              
               <Select value={selectedYear} onValueChange={setSelectedYear}>
                 <SelectTrigger className="w-[100px] h-8 border-none bg-transparent shadow-none focus:ring-0">
                   <SelectValue placeholder="Ano" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="2025">2025</SelectItem>
-                  <SelectItem value="2026">2026</SelectItem>
+                  {[...Array(3)].map((_, i) => (
+                    <SelectItem key={i} value={String(now.getFullYear() - i)}>
+                      {now.getFullYear() - i}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -195,6 +349,20 @@ export default function AppContainer() {
             <TabsTrigger value="conclusao" className="rounded-lg"><BadgeCheck className="h-4 w-4 mr-2" /> Conclusão</TabsTrigger>
             <TabsTrigger value="config" className="rounded-lg"><Settings className="h-4 w-4 mr-2" /> Config</TabsTrigger>
           </TabsList>
+          
+          {(!urls.inventory || !urls.leads || !urls.sales) && (
+            <Card className="mt-6 bg-amber-50 border-amber-200">
+                <CardHeader className="flex flex-row items-center gap-3">
+                    <AlertTriangle className="h-6 w-6 text-amber-600" />
+                    <div>
+                        <CardTitle className="text-amber-800">Ação Necessária</CardTitle>
+                        <p className="text-sm text-muted-foreground">
+                            Para começar, por favor, vá até a aba 'Config' e insira os links das suas planilhas.
+                        </p>
+                    </div>
+                </CardHeader>
+            </Card>
+          )}
 
           <TabsContent value="dashboard" className="space-y-8 animate-in fade-in duration-500">
             <StatsCards metrics={metrics} />
@@ -207,16 +375,20 @@ export default function AppContainer() {
                 properties={inventory} 
                 selectedMonth={selectedMonth}
                 selectedYear={selectedYear}
+                brokers={allBrokers}
               />
               <ChannelPerformance leads={leads} />
             </div>
           </TabsContent>
 
           <TabsContent value="base" className="space-y-8"><SalesMatrix sales={sales} /></TabsContent>
-          <TabsContent value="cadastro" className="space-y-6"><GoogleSheetsSync mode="inventory" onDataLoaded={setInventory} /><ImportedDataTable data={inventory} /></TabsContent>
-          <TabsContent value="leads" className="space-y-6"><GoogleSheetsSync mode="leads" onDataLoaded={setLeads} /><LeadsDataTable data={leads} /></TabsContent>
-          <TabsContent value="conclusao" className="space-y-6"><GoogleSheetsSync mode="sales" onDataLoaded={setSales} /><SalesDataTable data={sales} /></TabsContent>
-          <TabsContent value="config" className="space-y-6"><BrokerSettings /></TabsContent>
+          <TabsContent value="cadastro" className="space-y-6"><ImportedDataTable data={inventory} /></TabsContent>
+          <TabsContent value="leads" className="space-y-6"><LeadsDataTable data={leads} /></TabsContent>
+          <TabsContent value="conclusao" className="space-y-6"><SalesDataTable data={sales} /></TabsContent>
+          <TabsContent value="config" className="space-y-6">
+            <SheetUrlConfig urls={urls} onUrlsChange={handleUrlsChange} />
+            <BrokerSettings brokers={allBrokers} />
+          </TabsContent>
         </Tabs>
       </main>
 

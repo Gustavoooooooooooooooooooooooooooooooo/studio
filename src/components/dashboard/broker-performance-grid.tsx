@@ -1,13 +1,9 @@
-
 'use client';
 
 import { useMemo } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useCollection, useMemoFirebase, useFirebase, useUser } from "@/firebase";
-import { collection, query } from "firebase/firestore";
-import { Loader2 } from "lucide-react";
 
 interface BrokerPerformanceGridProps {
   sales: any[];
@@ -15,19 +11,11 @@ interface BrokerPerformanceGridProps {
   properties: any[];
   selectedMonth: string;
   selectedYear: string;
+  brokers: string[];
 }
 
-export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth, selectedYear }: BrokerPerformanceGridProps) {
-  const { firestore } = useFirebase();
-  const { user, isUserLoading: isAuthLoading } = useUser();
+export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth, selectedYear, brokers }: BrokerPerformanceGridProps) {
   
-  const brokersQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collection(firestore, "brokers"));
-  }, [firestore, user]);
-
-  const { data: officialBrokers, isLoading: isBrokersLoading } = useCollection(brokersQuery);
-
   const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
   const parseDate = (d: any) => {
@@ -66,13 +54,12 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
   };
 
   const stats = useMemo(() => {
-    if (!officialBrokers || officialBrokers.length === 0) return [];
+    if (!brokers || brokers.length === 0) return [];
 
-    const totalDaysCount = 427; // Base de cálculo histórica (01/01/2025 até 02/03/2026)
+    const totalDaysCount = 427;
 
-    return officialBrokers.map(brokerDoc => {
-      const displayName = brokerDoc.name;
-      const normName = normalize(displayName);
+    return brokers.map(brokerName => {
+      const normName = normalize(brokerName);
 
       const filterByPeriod = (item: any, dateField: string) => {
         const d = parseDate(item[dateField]);
@@ -82,30 +69,23 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
         return monthMatch && yearMatch;
       };
 
-      // 1. Angariações Filtradas (Aba Cadastro)
-      const bProps = properties.filter(p => {
-        const fields = [p.brokerId, p.angariador, p.captador, p.quemAngariou, p.responsavel];
-        return fields.some(f => {
-          const nv = normalize(String(f || ""));
-          return nv === normName || (normName.length > 2 && nv.includes(normName));
-        });
-      });
-      
+      // 1. Angariações Filtradas
+      const bProps = properties.filter(p => normalize(p.brokerId) === normName);
       const bPropsFiltered = bProps.filter(p => filterByPeriod(p, "captureDate"));
       
       const vPropsCount = bPropsFiltered.filter(p => Number(p.saleValue || 0) > 0).length;
       const lPropsCount = bPropsFiltered.filter(p => Number(p.rentalValue || 0) > 0).length;
 
-      // 2. Leads & Visitas (Aba Leads)
+      // 2. Leads & Visitas
       const brokerLeads = leads.filter(l => {
         const entries = Object.entries(l);
         return entries.some(([key, val]) => {
           const nk = normalize(key);
           const nv = normalize(String(val || ""));
           if (nk.includes("corretor") || nk.includes("responsavel") || nk.includes("atendente") || nk.includes("vendedor")) {
-             return nv === normName || (normName.length > 2 && nv.includes(normName));
+             return nv === normName;
           }
-          return nv === normName;
+          return false;
         });
       });
 
@@ -138,27 +118,18 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
         }
       });
 
-      // 3. Vendas (Aba Conclusão)
-      const brokerSalesAll = sales.filter(s => {
-        const sellerFields = [s.vendedor, s.vendas, s.corretor, s.venda, s.responsavel];
-        return sellerFields.some(f => {
-          const nv = normalize(String(f || ""));
-          return nv === normName || (normName.length > 2 && nv.includes(normName));
-        });
-      });
-
+      // 3. Vendas
+      const brokerSalesAll = sales.filter(s => normalize(s.vendedor) === normName);
       const brokerSalesFiltered = brokerSalesAll.filter(s => filterByPeriod(s, "saleDate"));
       
       const numSalesFiltered = brokerSalesFiltered.length;
       const totalVgvFiltered = brokerSalesFiltered.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
       
-      // FREQUÊNCIA: SEMPRE SOBRE O TOTAL (Base de 427 dias)
       const numSalesTotal = brokerSalesAll.length;
       const avgFrequency = numSalesTotal > 0 ? Math.floor(totalDaysCount / numSalesTotal) : 0;
 
       const totalVisitsFiltered = visitsVenda + visitsLocacao;
       
-      // Métricas de Conversão
       const leadsPerVisit = totalVisitsFiltered > 0 ? (brokerLeadsFiltered.length / totalVisitsFiltered) : 0;
       const conversionLeadsToVisit = brokerLeadsFiltered.length > 0 ? (totalVisitsFiltered / brokerLeadsFiltered.length) * 100 : 0;
       
@@ -169,7 +140,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
       const conversionVisitToSale = totalVisitsFiltered > 0 ? (numSalesFiltered / totalVisitsFiltered) * 100 : 0;
 
       return {
-        name: displayName,
+        name: brokerName,
         leads: brokerLeadsFiltered.length,
         vProps: vPropsCount,
         lProps: lPropsCount,
@@ -187,7 +158,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
         avgFrequency
       };
     }).sort((a, b) => b.numSales - a.numSales || b.vgv - a.vgv);
-  }, [sales, leads, properties, officialBrokers, selectedMonth, selectedYear]);
+  }, [sales, leads, properties, brokers, selectedMonth, selectedYear]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
@@ -199,11 +170,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
         <CardTitle className="text-base font-bold text-primary">Performance por Corretor</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
-        {(isBrokersLoading || isAuthLoading) ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
-        ) : stats.length > 0 ? (
+        {stats.length > 0 ? (
           <Table className="border-collapse">
             <TableHeader>
               <TableRow className="bg-muted/5">
@@ -310,8 +277,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
           </Table>
         ) : (
           <div className="py-20 text-center text-muted-foreground">
-            <p className="text-sm font-medium">Nenhum corretor encontrado ou configurado.</p>
-            <p className="text-xs text-muted-foreground/80">Vá na aba 'Config' para adicionar corretores à lista oficial.</p>
+            <p className="text-sm font-medium">Nenhum corretor encontrado nos dados das planilhas.</p>
+            <p className="text-xs text-muted-foreground/80">Verifique se os nomes dos corretores estão preenchidos nas planilhas.</p>
           </div>
         )}
       </CardContent>
