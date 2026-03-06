@@ -9,6 +9,32 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Loader2, Home, Calendar, User, Table2 } from "lucide-react";
 
+// Motor de tratamento de datas especializado
+const formatDateDisplay = (val: any) => {
+  if (!val || val === "N/A" || String(val).trim() === "") return "N/A";
+  if (val?.toDate) {
+    const date = val.toDate();
+    return `${String(date.getDate()).padStart(2,'0')}/${String(date.getMonth()+1).padStart(2,'0')}/${date.getFullYear()}`;
+  }
+  const strVal = String(val).trim();
+  if (!/\d/.test(strVal)) return "N/A";
+  
+  // Suporte a ponto: 15.01.2026 -> 15/01/2026
+  if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
+    return strVal.replace(/\./g, '/');
+  }
+
+  const cleanStr = strVal.replace(/[^\d]/g, '');
+  const num = Number(cleanStr);
+  if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('.') && !strVal.includes('-')) {
+    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+    const date = new Date(excelEpoch.getTime() + num * 86400000);
+    return `${String(date.getUTCDate()).padStart(2,'0')}/${String(date.getUTCMonth()+1).padStart(2,'0')}/${date.getUTCFullYear()}`;
+  }
+  
+  return strVal;
+};
+
 export function ImportedDataTable() {
   const { firestore, user } = useFirebase();
   
@@ -21,18 +47,6 @@ export function ImportedDataTable() {
   }, [firestore, user]);
 
   const { data: imoveis, isLoading } = useCollection(angariacaoQuery);
-
-  const formatDateDisplay = (val: any) => {
-    if (!val || val === "N/A" || String(val).trim() === "") return "N/A";
-    if (val?.toDate) {
-      const date = val.toDate();
-      return `${String(date.getDate()).padStart(2,'0')}/${String(date.getMonth()+1).padStart(2,'0')}/${date.getFullYear()}`;
-    }
-    const strVal = String(val).trim();
-    if (!/\d/.test(strVal)) return "N/A";
-    if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) return strVal.replace(/\./g, '/');
-    return strVal;
-  };
 
   const formatCurrency = (value: number) => {
     if (!value || isNaN(value)) return "R$ 0,00";
@@ -52,7 +66,7 @@ export function ImportedDataTable() {
             Planilha de Cadastro (Estoque Completo)
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Exibindo todos os dados capturados da sua planilha de Cadastro de Imóveis.
+            Espelhamento automático de todas as colunas da sua planilha de Cadastro.
           </p>
         </div>
         <Badge variant="outline" className="font-bold text-primary bg-white">

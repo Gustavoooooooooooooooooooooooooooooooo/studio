@@ -56,6 +56,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     
     if (!/\d/.test(strVal)) return "N/A";
 
+    // Suporte a pontos: 15.01.2026 -> 15/01/2026
     if (strVal.match(/^\d{1,2}\.\d{1,2}\.\d{2,4}$/)) {
       return strVal.replace(/\./g, '/');
     }
@@ -86,6 +87,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
       });
       if (match) {
         const val = row[match];
+        // Se estiver procurando data e o valor não contiver números, ignora (provavelmente é nome do corretor)
         if (sKey.includes("data") && val && !/\d/.test(String(val))) continue;
         return val;
       }
@@ -138,6 +140,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'sales') {
+              // PRIORIDADE: "Data do venda" e ignora nomes de corretores
               const dataVenda = excelDateToJSDate(getVal(row, ["data do venda", "data venda", "fechamento", "venda"], ["vendedor", "corretor"]));
               const vendedor = String(getVal(row, ["vendedor", "corretor", "responsavel"]) || "N/A");
               
@@ -160,6 +163,7 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
               }, { merge: true });
 
             } else if (mode === 'leads') {
+              // ID Determinístico para Leads: Permite atualizar alterações na planilha sem duplicar
               const rowValues = Object.values(row).map(v => String(v || "").trim()).join("|");
               const leadIdSeed = rowValues.substring(0, 100).replace(/[\/\.\#\$\/\[\] ]/g, "-");
               const leadId = `lead-${leadIdSeed}`;
@@ -187,12 +191,16 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
     }
   }, [mode, firestore, user, toast]);
 
+  // Motor de sincronização automática blindado
   useEffect(() => {
     if (!autoSync || !url || !user || !firestore) return;
     
     lastUrlRef.current = url;
+    
+    // Carga inicial imediata
     handleSync(true);
 
+    // Intervalo resiliente de 60 segundos
     const intervalId = setInterval(() => {
       handleSync(true);
     }, 60000); 
@@ -256,11 +264,11 @@ export function GoogleSheetsSync({ mode }: GoogleSheetsSyncProps) {
           <div className="flex gap-2">
             <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
             <div className="space-y-1">
-              <p className="text-xs font-bold text-amber-800">Dica para Espelhamento Perfeito:</p>
+              <p className="text-xs font-bold text-amber-800">Instruções para Espelhamento:</p>
               <ul className="text-[10px] text-amber-700 space-y-1">
                 <li>• No Google Sheets: Arquivo &gt; Compartilhar &gt; Publicar na Web &gt; Formato CSV.</li>
-                <li>• Certifique-se de que a coluna de data se chama exatamente "Data do venda" para aba Vendas.</li>
-                <li>• Qualquer alteração na planilha será refletida aqui automaticamente em até 1 minuto.</li>
+                <li>• Coluna de Data: O sistema busca por "Data do venda" ou "Data Entrada".</li>
+                <li>• O app detecta alterações na planilha e atualiza os dados aqui automaticamente.</li>
               </ul>
             </div>
           </div>

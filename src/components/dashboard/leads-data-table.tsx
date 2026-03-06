@@ -10,6 +10,7 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Loader2, Users, AlertCircle } from "lucide-react";
 import { useMemo } from "react";
 
+// Padronização de tratamento de datas solicitado
 const formatDateDisplay = (val: any) => {
   if (!val || val === "N/A" || String(val).trim() === "") return "-";
 
@@ -43,9 +44,7 @@ export function LeadsDataTable() {
   
   const leadsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return query(
-      collection(firestore, "leads")
-    );
+    return query(collection(firestore, "leads"));
   }, [firestore, user]);
 
   const { data: leads, isLoading } = useCollection(leadsQuery);
@@ -53,6 +52,7 @@ export function LeadsDataTable() {
   const columns = useMemo(() => {
     if (!leads || leads.length === 0) return [];
     
+    // Identifica colunas reais presentes nos leads importados
     const allKeys = new Set<string>();
     leads.slice(0, 50).forEach(lead => {
       Object.keys(lead).forEach(key => {
@@ -73,7 +73,7 @@ export function LeadsDataTable() {
             <Users className="h-5 w-5 text-indigo-600" />
             Base de Leads Espelhada
           </CardTitle>
-          <p className="text-xs text-muted-foreground">Sincronização automática ativa (atualiza toda vez que você muda a planilha).</p>
+          <p className="text-xs text-muted-foreground">Sincronização automática ativa (qualquer alteração na planilha atualiza aqui).</p>
         </div>
         <Badge variant="outline" className="text-indigo-600 font-bold bg-white">
           {leads?.length || 0} Registros
