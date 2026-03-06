@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useMemo } from "react";
@@ -78,11 +79,14 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
 
       // 2. Leads & Visitas
       const brokerLeads = leads.filter(l => {
+        if (!l) return false;
         const entries = Object.entries(l);
         return entries.some(([key, val]) => {
           const nk = normalize(key);
           const nv = normalize(String(val || ""));
-          if (nk.includes("corretor") || nk.includes("responsavel") || nk.includes("atendente") || nk.includes("vendedor")) {
+          // Chaves abrangentes para identificar o corretor em qualquer coluna na planilha de leads.
+          const isBrokerColumn = nk.includes("corretor") || nk.includes("responsavel") || nk.includes("atendente") || nk.includes("vendedor") || nk.includes("broker");
+          if (isBrokerColumn) {
              return nv === normName;
           }
           return false;

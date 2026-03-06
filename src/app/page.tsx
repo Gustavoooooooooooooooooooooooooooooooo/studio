@@ -284,14 +284,24 @@ export default function AppContainer() {
 
   const allBrokers = useMemo(() => {
       const brokerSet = new Set<string>();
-      [...inventory, ...sales, ...leads].forEach(item => {
-          const brokerKeys = ['brokerId', 'vendedor', 'corretor', 'angariador', 'captador', 'responsavel'];
-          brokerKeys.forEach(key => {
-              if (item[key] && typeof item[key] === 'string' && item[key] !== 'N/A') {
-                  brokerSet.add(item[key]);
-              }
-          });
-      });
+      const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      const brokerKeySubstrings = ['corretor', 'broker', 'responsavel', 'atendente', 'vendedor', 'angariador', 'captador'];
+
+      const processItem = (item: any) => {
+        if (!item) return;
+        Object.entries(item).forEach(([key, value]) => {
+          const normalizedKey = normalize(key);
+          if (brokerKeySubstrings.some(sub => normalizedKey.includes(sub))) {
+            const brokerName = String(value || '').trim();
+            if (brokerName && brokerName !== 'N/A' && brokerName.length > 1) {
+              brokerSet.add(brokerName);
+            }
+          }
+        });
+      };
+
+      [...inventory, ...sales, ...leads].forEach(processItem);
+      
       return Array.from(brokerSet).sort();
   }, [inventory, sales, leads]);
 
