@@ -100,6 +100,7 @@ export default function AppContainer() {
 
   const [urls, setUrls] = useState({ inventory: "", leads: "", sales: "" });
   const [manualBrokers, setManualBrokers] = useState<string[]>([]);
+  const [targets, setTargets] = useState({ annual: 400, quarterly: 100, semiannual: 200 });
 
   // Data states
   const [leads, setLeads] = useState<any[]>([]);
@@ -123,6 +124,10 @@ export default function AppContainer() {
     if (savedManualBrokers) {
         setManualBrokers(JSON.parse(savedManualBrokers));
     }
+    const savedTargets = localStorage.getItem('sales_targets');
+    if (savedTargets) {
+      setTargets(JSON.parse(savedTargets));
+    }
   }, [auth, user]);
 
   useEffect(() => {
@@ -139,31 +144,42 @@ export default function AppContainer() {
   };
   
   const handleAddBroker = useCallback((brokerName: string) => {
-    const trimmedBrokerName = brokerName.trim();
-    if (!trimmedBrokerName) return;
-
-    const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-    
-    const brokerExists = manualBrokers.some(b => normalize(b) === normalize(trimmedBrokerName));
-
-    if (brokerExists) {
-      toast({ variant: "destructive", title: "Corretor já existe", description: `"${trimmedBrokerName}" já está na sua lista.` });
-    } else {
-      const updatedBrokers = [...manualBrokers, trimmedBrokerName];
-      setManualBrokers(updatedBrokers);
+    setManualBrokers(prevBrokers => {
+      const trimmedBrokerName = brokerName.trim();
+      if (!trimmedBrokerName) return prevBrokers;
+  
+      const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      
+      const brokerExists = prevBrokers.some(b => normalize(b) === normalize(trimmedBrokerName));
+  
+      if (brokerExists) {
+        toast({ variant: "destructive", title: "Corretor já existe", description: `"${trimmedBrokerName}" já está na sua lista.` });
+        return prevBrokers;
+      }
+      
+      const updatedBrokers = [...prevBrokers, trimmedBrokerName];
       localStorage.setItem('manual_brokers', JSON.stringify(updatedBrokers));
       toast({ title: "Corretor Adicionado", description: `"${trimmedBrokerName}" foi adicionado à lista.` });
-    }
-  }, [manualBrokers, toast]);
-
+      return updatedBrokers;
+    });
+  }, [toast]);
+  
   const handleDeleteBroker = useCallback((brokerNameToDelete: string) => {
-    const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-    const updatedBrokers = manualBrokers.filter(b => normalize(b) !== normalize(brokerNameToDelete));
-    
-    setManualBrokers(updatedBrokers);
-    localStorage.setItem('manual_brokers', JSON.stringify(updatedBrokers));
-    toast({ title: "Corretor Removido", description: `"${brokerNameToDelete}" foi removido da lista.` });
-  }, [manualBrokers, toast]);
+    setManualBrokers(prevBrokers => {
+      const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      const updatedBrokers = prevBrokers.filter(b => normalize(b) !== normalize(brokerNameToDelete));
+      
+      localStorage.setItem('manual_brokers', JSON.stringify(updatedBrokers));
+      toast({ title: "Corretor Removido", description: `"${brokerNameToDelete}" foi removido da lista.` });
+      return updatedBrokers;
+    });
+  }, [toast]);
+
+  const handleTargetsChange = useCallback((newTargets: { annual: number; quarterly: number; semiannual: number; }) => {
+    setTargets(newTargets);
+    localStorage.setItem('sales_targets', JSON.stringify(newTargets));
+    toast({ title: "Metas Atualizadas", description: "As novas metas de angariação foram salvas." });
+  }, [toast]);
   
   // The definitive list of brokers is the one managed manually.
   const allBrokers = useMemo(() => {
@@ -408,7 +424,11 @@ export default function AppContainer() {
 
           <TabsContent value="dashboard" className="space-y-8 animate-in fade-in duration-500">
             <StatsCards metrics={metrics} />
-            <InventoryHealth properties={inventory} />
+            <InventoryHealth 
+              properties={inventory} 
+              targets={targets}
+              onTargetsChange={handleTargetsChange}
+            />
             <div className="space-y-6">
               <MonthlyTrends sales={sales} leads={leads} properties={inventory} />
               <BrokerPerformanceGrid 
