@@ -19,17 +19,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Badge } from "@/components/ui/badge";
 
 interface BrokerSettingsProps {
     brokers: string[];
-    manualBrokers: string[];
     onAddBroker: (name: string) => void;
     onDeleteBroker: (name: string) => void;
 }
 
-export function BrokerSettings({ brokers, manualBrokers, onAddBroker, onDeleteBroker }: BrokerSettingsProps) {
+export function BrokerSettings({ brokers, onAddBroker, onDeleteBroker }: BrokerSettingsProps) {
   const [newBrokerName, setNewBrokerName] = useState("");
 
   const handleAdd = () => {
@@ -39,21 +36,16 @@ export function BrokerSettings({ brokers, manualBrokers, onAddBroker, onDeleteBr
     }
   };
 
-  const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-
-  // Create a set of normalized first names from the manual list for quick lookup
-  const manualBrokerFirstNames = new Set(manualBrokers.map(b => normalize(b).split(' ')[0]));
-
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       <Card className="border-none shadow-sm">
         <CardHeader className="bg-primary/5 border-b">
           <CardTitle className="text-lg flex items-center gap-2 text-primary">
             <Users className="h-5 w-5" />
-            Corretores
+            Gerenciamento de Corretores
           </CardTitle>
           <CardDescription className="text-xs text-muted-foreground !mt-2">
-            Adicione corretores manualmente ou veja a lista de corretores únicos encontrados automaticamente nas suas planilhas. Corretores adicionados manualmente podem ser removidos.
+            Esta é a lista definitiva de corretores que aparecerão no dashboard. Somente os corretores adicionados aqui serão considerados nas análises.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-6 space-y-4">
@@ -75,28 +67,19 @@ export function BrokerSettings({ brokers, manualBrokers, onAddBroker, onDeleteBr
                 <Table>
                 <TableHeader className="bg-muted/30 sticky top-0">
                     <TableRow>
-                    <TableHead>Corretor Identificado</TableHead>
-                    <TableHead className="text-center w-[120px]">Origem</TableHead>
+                    <TableHead>Corretor</TableHead>
                     <TableHead className="text-right w-[100px]">Ações</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {brokers && brokers.length > 0 ? (
-                    brokers.map((broker) => {
-                      const isManual = manualBrokerFirstNames.has(normalize(broker).split(' ')[0]);
-                      return (
+                    brokers.map((broker) => (
                         <TableRow key={broker}>
                           <TableCell className="font-semibold flex items-center gap-2 text-sm">
                               <UserCheck className="h-4 w-4 text-emerald-500" />
                               {broker}
                           </TableCell>
-                          <TableCell className="text-center">
-                              <Badge variant={isManual ? "outline" : "secondary"} className={isManual ? "border-primary/50 text-primary" : ""}>
-                                {isManual ? "Manual" : "Automático"}
-                              </Badge>
-                          </TableCell>
                           <TableCell className="text-right">
-                            {isManual ? (
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -107,7 +90,7 @@ export function BrokerSettings({ brokers, manualBrokers, onAddBroker, onDeleteBr
                                   <AlertDialogHeader>
                                     <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                      Esta ação removerá o corretor <span className="font-bold">{broker}</span> da sua lista manual. Ele ainda poderá aparecer automaticamente se for encontrado nas planilhas.
+                                      Esta ação removerá permanentemente o corretor <span className="font-bold">{broker}</span> da sua lista de análise.
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
@@ -118,32 +101,17 @@ export function BrokerSettings({ brokers, manualBrokers, onAddBroker, onDeleteBr
                                   </AlertDialogFooter>
                                 </AlertDialogContent>
                               </AlertDialog>
-                            ) : (
-                               <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span tabIndex={0}>
-                                      <Button variant="ghost" size="icon" className="h-8 w-8" disabled>
-                                        <Trash2 className="h-4 w-4 text-muted-foreground/30" />
-                                      </Button>
-                                    </span>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p className="text-xs">Corretores automáticos são gerenciados na planilha.</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            )}
                           </TableCell>
                         </TableRow>
                       )
-                    })
+                    )
                     ) : (
                     <TableRow>
-                        <TableCell colSpan={3} className="text-center py-12 text-muted-foreground">
+                        <TableCell colSpan={2} className="text-center py-12 text-muted-foreground">
                         <div className="flex flex-col items-center gap-2">
                             <AlertCircle className="h-8 w-8 opacity-20" />
-                            <p className="text-xs">Nenhum corretor encontrado ou adicionado.</p>
+                            <p className="font-medium">Nenhum corretor cadastrado.</p>
+                            <p className="text-xs">Adicione um corretor para começar a análise.</p>
                         </div>
                         </TableCell>
                     </TableRow>
