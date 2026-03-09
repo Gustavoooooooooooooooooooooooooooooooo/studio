@@ -182,15 +182,15 @@ export default function AppContainer() {
     const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
     const trimmedBrokerName = brokerName.trim();
     
-    const brokerExists = allBrokers.some(b => normalize(b).split(' ')[0] === normalize(trimmedBrokerName).split(' ')[0]);
+    const brokerExistsInManual = manualBrokers.some(b => normalize(b).split(' ')[0] === normalize(trimmedBrokerName).split(' ')[0]);
 
-    if (trimmedBrokerName && !brokerExists) {
+    if (trimmedBrokerName && !brokerExistsInManual) {
         const updatedBrokers = [...manualBrokers, trimmedBrokerName];
         setManualBrokers(updatedBrokers);
         localStorage.setItem('manual_brokers', JSON.stringify(updatedBrokers));
         toast({ title: "Corretor Adicionado", description: `${trimmedBrokerName} foi adicionado à lista manual.` });
     } else {
-        toast({ variant: "destructive", title: "Corretor já existe", description: `${trimmedBrokerName} já está na lista (manual ou automática).` });
+        toast({ variant: "destructive", title: "Corretor já existe", description: `${trimmedBrokerName} já está na sua lista manual.` });
     }
   };
 

@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState } from "react";
@@ -18,6 +19,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface BrokerSettingsProps {
     brokers: string[];
@@ -50,7 +52,7 @@ export function BrokerSettings({ brokers, manualBrokers, onAddBroker, onDeleteBr
             Corretores
           </CardTitle>
           <CardDescription className="text-xs text-muted-foreground !mt-2">
-            Adicione corretores manualmente ou veja a lista de corretores únicos encontrados automaticamente nas suas planilhas. Corretores adicionados manualmente podem ser removidos.
+            Adicione corretores manualmente ou veja a lista de corretores únicos encontrados automatically nas suas planilhas. Corretores adicionados manualmente podem ser removidos.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-6 space-y-4">
@@ -93,7 +95,7 @@ export function BrokerSettings({ brokers, manualBrokers, onAddBroker, onDeleteBr
                               </span>
                           </TableCell>
                           <TableCell className="text-right">
-                            {isDeletable && (
+                            {isDeletable ? (
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -115,6 +117,21 @@ export function BrokerSettings({ brokers, manualBrokers, onAddBroker, onDeleteBr
                                   </AlertDialogFooter>
                                 </AlertDialogContent>
                               </AlertDialog>
+                            ) : (
+                               <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span tabIndex={0}>
+                                      <Button variant="ghost" size="icon" className="h-8 w-8" disabled>
+                                        <Trash2 className="h-4 w-4 text-muted-foreground/30" />
+                                      </Button>
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p className="text-xs">Apenas corretores adicionados manualmente podem ser removidos.</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
                             )}
                           </TableCell>
                         </TableRow>
