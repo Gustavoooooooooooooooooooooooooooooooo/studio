@@ -2,8 +2,8 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Landmark, Target, Edit, TrendingUp, Key, Trophy, User, Scroll, Users } from "lucide-react";
-import { useMemo, useState, useEffect } from "react";
+import { Landmark, Target, Edit, TrendingUp, Key, Trophy, User, Scroll, Users, Building, BadgeDollarSign } from "lucide-react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,17 +28,15 @@ interface PerformanceGoalsProps {
 export function InventoryHealth({ properties, sales, targets, onTargetsChange, brokers }: PerformanceGoalsProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   
-  const emptyTarget = {
+  const emptyTarget = useMemo(() => ({
     captures: { annual: 0, quarterly: 0, semiannual: 0 },
     sales: { annual: 0, quarterly: 0, semiannual: 0 },
     rentals: { annual: 0, quarterly: 0, semiannual: 0 },
-  };
+  }), []);
   
   const [editableTargets, setEditableTargets] = useState(targets);
 
   useEffect(() => {
-    // When the dialog opens, sync the editable state with the most recent props
-    // And also ensure all brokers have a target entry to avoid errors
     if (isDialogOpen) {
       const newEditableTargets = JSON.parse(JSON.stringify(targets));
       brokers.forEach(b => {
@@ -51,14 +49,12 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
       }
       setEditableTargets(newEditableTargets);
     }
-  }, [isDialogOpen, targets, brokers]);
+  }, [isDialogOpen, targets, brokers, emptyTarget]);
 
-
-  const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  const normalize = useCallback((s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim(), []);
 
   const stats = useMemo(() => {
     const currentCaptures = properties.length;
-    // Note: The logic for sales/rentals should be consistent with how it's calculated elsewhere
     const currentSales = sales.filter(s => normalize(s.tipo || '').includes('venda')).length;
     const currentRentals = sales.filter(s => {
         const tipo = normalize(s.tipo || '');
@@ -68,12 +64,12 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
     const vgv = properties.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0);
     
     return { vgv, currentCaptures, currentSales, currentRentals };
-  }, [properties, sales]);
+  }, [properties, sales, normalize]);
 
   const brokerPerformance = useMemo(() => {
     if (!brokers || brokers.length === 0) return [];
     
-    return brokers.map(brokerName => {
+    const performance = brokers.map(brokerName => {
         const normBrokerName = normalize(brokerName).split(' ')[0];
         
         const brokerSales = sales.filter(s => {
@@ -104,8 +100,13 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
             rentalsGoal: brokerTargets.rentals.annual,
             capturesGoal: brokerTargets.captures.annual,
         };
-    }).sort((a,b) => a.name.localeCompare(b.name));
-  }, [brokers, sales, properties, targets]);
+    });
+
+    return performance
+      .filter(broker => broker.salesGoal > 0 || broker.rentalsGoal > 0 || broker.capturesGoal > 0)
+      .sort((a,b) => a.name.localeCompare(b.name));
+
+  }, [brokers, sales, properties, targets, emptyTarget, normalize]);
 
   const avgComm = 0.055;
   const vgvEstoque = stats.vgv;
@@ -178,29 +179,54 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
               </div>
             </CardHeader>
             <CardContent className="pt-4 px-0">
-              <ScrollArea className="h-[140px] px-6">
-                <div className="space-y-4">
+              <ScrollArea className="h-[180px] px-6">
+                <div className="space-y-6">
                   {brokerPerformance.map(broker => {
+                    const capturesProgress = broker.capturesGoal > 0 ? Math.min(100, (broker.capturesCount / broker.capturesGoal) * 100) : 0;
                     const salesProgress = broker.salesGoal > 0 ? Math.min(100, (broker.salesCount / broker.salesGoal) * 100) : 0;
+                    const rentalsProgress = broker.rentalsGoal > 0 ? Math.min(100, (broker.rentalsCount / broker.rentalsGoal) * 100) : 0;
+                    
                     return (
-                      <div key={broker.name} className="space-y-1">
-                        <div className="flex justify-between items-center text-xs">
-                          <span className="font-semibold text-primary flex items-center gap-1.5">
-                            <User className="h-3 w-3 text-muted-foreground" /> 
-                            {broker.name}
-                          </span>
-                          <span className="font-bold text-primary tabular-nums">
-                            {broker.salesCount} / {broker.salesGoal}
-                            <span className="text-muted-foreground font-normal text-[10px] ml-1">vendas</span>
-                          </span>
+                      <div key={broker.name}>
+                        <div className="font-semibold text-primary flex items-center gap-1.5 text-sm mb-2">
+                          <User className="h-4 w-4 text-muted-foreground" />
+                          {broker.name}
                         </div>
-                        <Progress value={salesProgress} className="h-1 [&>div]:bg-primary" />
+                        <div className="grid grid-cols-3 gap-x-4">
+                          {broker.capturesGoal > 0 ? (
+                            <div className="text-xs">
+                              <div className="flex justify-between items-center text-muted-foreground">
+                                <span>Angariações</span>
+                                <span className="font-bold text-foreground">{broker.capturesCount}/{broker.capturesGoal}</span>
+                              </div>
+                              <Progress value={capturesProgress} className="h-1 mt-0.5 [&>div]:bg-accent" />
+                            </div>
+                          ) : <div />}
+                          {broker.salesGoal > 0 ? (
+                            <div className="text-xs">
+                              <div className="flex justify-between items-center text-muted-foreground">
+                                <span>Vendas</span>
+                                <span className="font-bold text-foreground">{broker.salesCount}/{broker.salesGoal}</span>
+                              </div>
+                              <Progress value={salesProgress} className="h-1 mt-0.5 [&>div]:bg-primary" />
+                            </div>
+                          ) : <div />}
+                          {broker.rentalsGoal > 0 ? (
+                            <div className="text-xs">
+                              <div className="flex justify-between items-center text-muted-foreground">
+                                <span>Locações</span>
+                                <span className="font-bold text-foreground">{broker.rentalsCount}/{broker.rentalsGoal}</span>
+                              </div>
+                              <Progress value={rentalsProgress} className="h-1 mt-0.5 [&>div]:bg-emerald-600" />
+                            </div>
+                          ) : <div />}
+                        </div>
                       </div>
                     );
                   })}
                   {brokerPerformance.length === 0 && (
-                    <div className="text-center text-xs text-muted-foreground pt-12">
-                      Nenhum corretor cadastrado na aba 'Config'.
+                    <div className="text-center text-xs text-muted-foreground pt-16">
+                      Nenhum corretor com metas anuais definidas.
                     </div>
                   )}
                 </div>
@@ -227,7 +253,7 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
                     
                     <div className="space-y-4">
                       <div className="p-4 border rounded-lg bg-muted/20">
-                        <h4 className="text-md font-semibold mb-3 flex items-center gap-2 text-accent"><Target className="h-5 w-5"/> Metas de Angariação</h4>
+                        <h4 className="text-md font-semibold mb-3 flex items-center gap-2 text-accent"><Building className="h-5 w-5"/> Metas de Angariação</h4>
                         <div className="grid grid-cols-3 gap-4">
                           <div className="space-y-2">
                             <Label htmlFor={`captures-annual-${brokerKey}`}>Anual</Label>
@@ -245,7 +271,7 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
                       </div>
                       
                       <div className="p-4 border rounded-lg bg-muted/20">
-                        <h4 className="text-md font-semibold mb-3 flex items-center gap-2 text-primary"><TrendingUp className="h-5 w-5"/> Metas de Vendas</h4>
+                        <h4 className="text-md font-semibold mb-3 flex items-center gap-2 text-primary"><BadgeDollarSign className="h-5 w-5"/> Metas de Vendas</h4>
                         <div className="grid grid-cols-3 gap-4">
                           <div className="space-y-2">
                             <Label htmlFor={`sales-annual-${brokerKey}`}>Anual</Label>
