@@ -106,12 +106,11 @@ export default function AppContainer() {
   const [sales, setSales] = useState<any[]>([]);
   const [inventory, setInventory] = useState<any[]>([]);
 
-  const { auth } = useFirebase();
+  const { auth, user } = useFirebase();
   const syncingRef = useRef(false);
 
   useEffect(() => {
-    setMounted(true);
-    if (auth) {
+    if (auth && !user) {
       initiateAnonymousSignIn(auth);
     }
     const savedUrls = {
@@ -124,7 +123,11 @@ export default function AppContainer() {
     if (savedManualBrokers) {
         setManualBrokers(JSON.parse(savedManualBrokers));
     }
-  }, [auth]);
+  }, [auth, user]);
+
+  useEffect(() => {
+    setMounted(true);
+  },[])
 
   const handleUrlsChange = (newUrls: { inventory: string; leads: string; sales: string; }) => {
     setUrls(newUrls);
@@ -206,7 +209,7 @@ export default function AppContainer() {
 
 
   const handleSync = useCallback(async (silent = false) => {
-    if (syncingRef.current) return;
+    if (syncingRef.current || !auth || !user) return;
     
     syncingRef.current = true;
     if (!silent) setSyncing(true);
@@ -252,7 +255,7 @@ export default function AppContainer() {
             const rowValues = Object.values(row).map((v) => String(v || "").trim()).join("|");
             const leadIdSeed = rowValues.substring(0, 100).replace(/[\/\.\#\$\/\[\] ]/g, "-");
             return {
-              id: `lead-${leadIdSeed}`,
+              id: `lead-${leadIdSeed}-${idx}`,
               ...row
             };
           }
@@ -279,17 +282,17 @@ export default function AppContainer() {
       setSyncing(false);
       toast({ title: "Sincronização Concluída", description: `Dados das planilhas foram atualizados.` });
     }
-  }, [urls, toast]);
+  }, [urls, toast, auth, user]);
 
   // Auto-sync effect
   useEffect(() => {
-    if (!urls.inventory && !urls.leads && !urls.sales) return;
+    if (!auth || !user || (!urls.inventory && !urls.leads && !urls.sales)) return;
 
     handleSync(true); // Initial sync
     const intervalId = setInterval(() => handleSync(true), 60000); // Sync every 60 seconds
     
     return () => clearInterval(intervalId);
-  }, [urls, handleSync]);
+  }, [urls, handleSync, auth, user]);
   
   const processedSales = useMemo(() => sales.map(s => ({
     ...s,
@@ -481,5 +484,7 @@ export default function AppContainer() {
     </div>
   );
 }
+
+    
 
     
