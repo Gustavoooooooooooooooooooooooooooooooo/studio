@@ -138,42 +138,37 @@ export default function AppContainer() {
     handleSync(false);
   };
   
-  const allBrokers = useMemo(() => {
-    // The definitive list of brokers is the one managed manually.
-    // Dashboard analytics will only run for brokers on this list.
-    return [...manualBrokers].sort();
-  }, [manualBrokers]);
-
   const handleAddBroker = useCallback((brokerName: string) => {
     const trimmedBrokerName = brokerName.trim();
     if (!trimmedBrokerName) return;
 
-    setManualBrokers(prevBrokers => {
-        const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-        const brokerExists = prevBrokers.some(b => normalize(b) === normalize(trimmedBrokerName));
+    const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    
+    const brokerExists = manualBrokers.some(b => normalize(b) === normalize(trimmedBrokerName));
 
-        if (brokerExists) {
-            toast({ variant: "destructive", title: "Corretor já existe", description: `"${trimmedBrokerName}" já está na sua lista.` });
-            return prevBrokers;
-        }
-
-        const updatedBrokers = [...prevBrokers, trimmedBrokerName];
-        localStorage.setItem('manual_brokers', JSON.stringify(updatedBrokers));
-        toast({ title: "Corretor Adicionado", description: `"${trimmedBrokerName}" foi adicionado à lista.` });
-        return updatedBrokers;
-    });
-  }, [toast]);
+    if (brokerExists) {
+      toast({ variant: "destructive", title: "Corretor já existe", description: `"${trimmedBrokerName}" já está na sua lista.` });
+    } else {
+      const updatedBrokers = [...manualBrokers, trimmedBrokerName];
+      setManualBrokers(updatedBrokers);
+      localStorage.setItem('manual_brokers', JSON.stringify(updatedBrokers));
+      toast({ title: "Corretor Adicionado", description: `"${trimmedBrokerName}" foi adicionado à lista.` });
+    }
+  }, [manualBrokers, toast]);
 
   const handleDeleteBroker = useCallback((brokerNameToDelete: string) => {
-    setManualBrokers(prevBrokers => {
-        const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-        const updatedBrokers = prevBrokers.filter(b => normalize(b) !== normalize(brokerNameToDelete));
-        
-        localStorage.setItem('manual_brokers', JSON.stringify(updatedBrokers));
-        toast({ title: "Corretor Removido", description: `"${brokerNameToDelete}" foi removido da lista.` });
-        return updatedBrokers;
-    });
-  }, [toast]);
+    const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const updatedBrokers = manualBrokers.filter(b => normalize(b) !== normalize(brokerNameToDelete));
+    
+    setManualBrokers(updatedBrokers);
+    localStorage.setItem('manual_brokers', JSON.stringify(updatedBrokers));
+    toast({ title: "Corretor Removido", description: `"${brokerNameToDelete}" foi removido da lista.` });
+  }, [manualBrokers, toast]);
+  
+  // The definitive list of brokers is the one managed manually.
+  const allBrokers = useMemo(() => {
+    return [...manualBrokers].sort();
+  }, [manualBrokers]);
 
 
   const handleSync = useCallback(async (silent = false) => {
