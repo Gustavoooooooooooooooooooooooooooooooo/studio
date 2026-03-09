@@ -1,9 +1,8 @@
-
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Landmark, Target, Edit, TrendingUp, Key, Trophy, User, Scroll } from "lucide-react";
+import { Landmark, Target, Edit, TrendingUp, Key, Trophy, User, Scroll, Users } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -38,15 +37,28 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
   const [editableTargets, setEditableTargets] = useState(targets);
 
   useEffect(() => {
+    // When the dialog opens, sync the editable state with the most recent props
+    // And also ensure all brokers have a target entry to avoid errors
     if (isDialogOpen) {
-      setEditableTargets(targets);
+      const newEditableTargets = JSON.parse(JSON.stringify(targets));
+      brokers.forEach(b => {
+        if (!newEditableTargets[b]) {
+          newEditableTargets[b] = JSON.parse(JSON.stringify(emptyTarget));
+        }
+      });
+      if (!newEditableTargets['global']) {
+        newEditableTargets['global'] = JSON.parse(JSON.stringify(emptyTarget));
+      }
+      setEditableTargets(newEditableTargets);
     }
-  }, [isDialogOpen, targets]);
+  }, [isDialogOpen, targets, brokers]);
+
+
+  const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
   const stats = useMemo(() => {
-    const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-
     const currentCaptures = properties.length;
+    // Note: The logic for sales/rentals should be consistent with how it's calculated elsewhere
     const currentSales = sales.filter(s => normalize(s.tipo || '').includes('venda')).length;
     const currentRentals = sales.filter(s => {
         const tipo = normalize(s.tipo || '');
@@ -58,15 +70,46 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
     return { vgv, currentCaptures, currentSales, currentRentals };
   }, [properties, sales]);
 
+  const brokerPerformance = useMemo(() => {
+    if (!brokers || brokers.length === 0) return [];
+    
+    return brokers.map(brokerName => {
+        const normBrokerName = normalize(brokerName).split(' ')[0];
+        
+        const brokerSales = sales.filter(s => {
+            const normVendedor = normalize(s.vendedor || '').split(' ')[0];
+            const isSaleType = normalize(s.tipo || '').includes('venda');
+            return normVendedor === normBrokerName && isSaleType;
+        });
+        
+        const brokerRentals = sales.filter(s => {
+            const normVendedor = normalize(s.vendedor || '').split(' ')[0];
+            const isRentalType = normalize(s.tipo || '').includes('loca') || normalize(s.tipo || '').includes('aluguel');
+            return normVendedor === normBrokerName && isRentalType;
+        });
+
+        const brokerCaptures = properties.filter(p => {
+             const normBroker = normalize(p.brokerId || '').split(' ')[0];
+             return normBroker === normBrokerName;
+        });
+
+        const brokerTargets = targets[brokerName] || emptyTarget;
+
+        return {
+            name: brokerName,
+            salesCount: brokerSales.length,
+            rentalsCount: brokerRentals.length,
+            capturesCount: brokerCaptures.length,
+            salesGoal: brokerTargets.sales.annual,
+            rentalsGoal: brokerTargets.rentals.annual,
+            capturesGoal: brokerTargets.captures.annual,
+        };
+    }).sort((a,b) => a.name.localeCompare(b.name));
+  }, [brokers, sales, properties, targets]);
+
   const avgComm = 0.055;
   const vgvEstoque = stats.vgv;
   const previsaoReceita = vgvEstoque * avgComm;
-
-  const globalTargets = targets['global'] || emptyTarget;
-
-  const capturesProgress = globalTargets.captures.annual > 0 ? Math.min(100, (stats.currentCaptures / globalTargets.captures.annual) * 100) : 0;
-  const salesProgress = globalTargets.sales.annual > 0 ? Math.min(100, (stats.currentSales / globalTargets.sales.annual) * 100) : 0;
-  const rentalsProgress = globalTargets.rentals.annual > 0 ? Math.min(100, (stats.currentRentals / globalTargets.rentals.annual) * 100) : 0;
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
@@ -89,7 +132,7 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
     setIsDialogOpen(false);
   };
   
-  const allTargetKeys = useMemo(() => ['global', ...brokers], [brokers]);
+  const allTargetKeys = useMemo(() => ['global', ...brokers.sort((a, b) => a.localeCompare(b))], [brokers]);
 
   return (
     <div className="grid md:grid-cols-2 gap-6">
@@ -128,34 +171,40 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
           <Card className="border-none shadow-sm bg-white cursor-pointer hover:bg-muted/30 transition-colors group">
             <CardHeader className="pb-2 relative">
               <CardTitle className="text-sm font-bold flex items-center gap-2 text-primary">
-                <Trophy className="h-4 w-4" /> Metas de Performance (Globais)
+                <Users className="h-4 w-4" /> Metas por Corretor
               </CardTitle>
               <div className="absolute top-3 right-3 p-1.5 rounded-full bg-muted/60 text-primary/50 group-hover:bg-primary group-hover:text-white transition-colors">
                 <Edit className="h-3 w-3" />
               </div>
             </CardHeader>
-            <CardContent className="space-y-4 pt-4">
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs">
-                  <span className="font-medium text-accent">Meta Anual de Angariações</span>
-                  <span className="font-bold text-accent">{stats.currentCaptures} / {globalTargets.captures.annual}</span>
+            <CardContent className="pt-4 px-0">
+              <ScrollArea className="h-[140px] px-6">
+                <div className="space-y-4">
+                  {brokerPerformance.map(broker => {
+                    const salesProgress = broker.salesGoal > 0 ? Math.min(100, (broker.salesCount / broker.salesGoal) * 100) : 0;
+                    return (
+                      <div key={broker.name} className="space-y-1">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-semibold text-primary flex items-center gap-1.5">
+                            <User className="h-3 w-3 text-muted-foreground" /> 
+                            {broker.name}
+                          </span>
+                          <span className="font-bold text-primary tabular-nums">
+                            {broker.salesCount} / {broker.salesGoal}
+                            <span className="text-muted-foreground font-normal text-[10px] ml-1">vendas</span>
+                          </span>
+                        </div>
+                        <Progress value={salesProgress} className="h-1 [&>div]:bg-primary" />
+                      </div>
+                    );
+                  })}
+                  {brokerPerformance.length === 0 && (
+                    <div className="text-center text-xs text-muted-foreground pt-12">
+                      Nenhum corretor cadastrado na aba 'Config'.
+                    </div>
+                  )}
                 </div>
-                <Progress value={capturesProgress} className="h-1.5 [&>div]:bg-accent" />
-              </div>
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs">
-                  <span className="font-medium text-primary">Meta Anual de Vendas</span>
-                  <span className="font-bold text-primary">{stats.currentSales} / {globalTargets.sales.annual}</span>
-                </div>
-                <Progress value={salesProgress} className="h-1.5 [&>div]:bg-primary" />
-              </div>
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs">
-                  <span className="font-medium text-emerald-600">Meta Anual de Locações</span>
-                  <span className="font-bold text-emerald-600">{stats.currentRentals} / {globalTargets.rentals.annual}</span>
-                </div>
-                <Progress value={rentalsProgress} className="h-1.5 [&>div]:bg-emerald-600" />
-              </div>
+              </ScrollArea>
             </CardContent>
           </Card>
         </DialogTrigger>
@@ -163,7 +212,6 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
           <DialogHeader>
             <DialogTitle>Editar Metas de Performance</DialogTitle>
           </DialogHeader>
-
           <ScrollArea className="max-h-[65vh] pr-6 -mr-2">
             <div className="space-y-8 pt-4">
               {allTargetKeys.map(brokerKey => {
@@ -172,7 +220,7 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
                   <div key={brokerKey} className="border-b last:border-b-0 pb-6 last:pb-0">
                     <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                       {brokerKey === 'global' 
-                        ? <><Landmark className="h-5 w-5 text-primary" /> Metas Globais</>
+                        ? <><Trophy className="h-5 w-5 text-primary" /> Metas Globais</>
                         : <><User className="h-5 w-5 text-muted-foreground" /> {brokerKey}</>
                       }
                     </h3>
