@@ -3,31 +3,44 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Landmark, Target, Edit, TrendingUp, Key, Trophy } from "lucide-react";
+import { Landmark, Target, Edit, TrendingUp, Key, Trophy, User } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 
 interface PerformanceGoalsProps {
   properties: any[];
   sales: any[];
   targets: {
-    captures: { annual: number; quarterly: number; semiannual: number; };
-    sales: { annual: number; quarterly: number; semiannual: number; };
-    rentals: { annual: number; quarterly: number; semiannual: number; };
+    [key: string]: {
+      captures: { annual: number; quarterly: number; semiannual: number; };
+      sales: { annual: number; quarterly: number; semiannual: number; };
+      rentals: { annual: number; quarterly: number; semiannual: number; };
+    }
   };
   onTargetsChange: (newTargets: PerformanceGoalsProps['targets']) => void;
+  brokers: string[];
 }
 
-export function InventoryHealth({ properties, sales, targets, onTargetsChange }: PerformanceGoalsProps) {
+export function InventoryHealth({ properties, sales, targets, onTargetsChange, brokers }: PerformanceGoalsProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editableTargets, setEditableTargets] = useState(targets);
+  const [selectedBroker, setSelectedBroker] = useState('global');
+
+  const emptyTarget = {
+    captures: { annual: 0, quarterly: 0, semiannual: 0 },
+    sales: { annual: 0, quarterly: 0, semiannual: 0 },
+    rentals: { annual: 0, quarterly: 0, semiannual: 0 },
+  };
+  
+  const [editableTargets, setEditableTargets] = useState(targets[selectedBroker] || emptyTarget);
 
   useEffect(() => {
-    setEditableTargets(targets);
-  }, [targets, isDialogOpen]);
+    setEditableTargets(targets[selectedBroker] || emptyTarget);
+  }, [targets, selectedBroker, isDialogOpen]);
 
   const stats = useMemo(() => {
     const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
@@ -48,16 +61,22 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange }:
   const vgvEstoque = stats.vgv;
   const previsaoReceita = vgvEstoque * avgComm;
 
-  const capturesProgress = targets.captures.annual > 0 ? Math.min(100, (stats.currentCaptures / targets.captures.annual) * 100) : 0;
-  const salesProgress = targets.sales.annual > 0 ? Math.min(100, (stats.currentSales / targets.sales.annual) * 100) : 0;
-  const rentalsProgress = targets.rentals.annual > 0 ? Math.min(100, (stats.currentRentals / targets.rentals.annual) * 100) : 0;
+  const globalTargets = targets['global'] || emptyTarget;
+
+  const capturesProgress = globalTargets.captures.annual > 0 ? Math.min(100, (stats.currentCaptures / globalTargets.captures.annual) * 100) : 0;
+  const salesProgress = globalTargets.sales.annual > 0 ? Math.min(100, (stats.currentSales / globalTargets.sales.annual) * 100) : 0;
+  const rentalsProgress = globalTargets.rentals.annual > 0 ? Math.min(100, (stats.currentRentals / globalTargets.rentals.annual) * 100) : 0;
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
   };
 
   const handleSave = () => {
-    onTargetsChange(editableTargets);
+    const newTargets = {
+      ...targets,
+      [selectedBroker]: editableTargets,
+    };
+    onTargetsChange(newTargets);
     setIsDialogOpen(false);
   };
 
@@ -98,7 +117,7 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange }:
           <Card className="border-none shadow-sm bg-white cursor-pointer hover:bg-muted/30 transition-colors group">
             <CardHeader className="pb-2 relative">
               <CardTitle className="text-sm font-bold flex items-center gap-2 text-primary">
-                <Trophy className="h-4 w-4" /> Metas de Performance
+                <Trophy className="h-4 w-4" /> Metas de Performance (Globais)
               </CardTitle>
               <div className="absolute top-3 right-3 p-1.5 rounded-full bg-muted/60 text-primary/50 group-hover:bg-primary group-hover:text-white transition-colors">
                 <Edit className="h-3 w-3" />
@@ -108,21 +127,21 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange }:
               <div className="space-y-1">
                 <div className="flex justify-between text-xs">
                   <span className="font-medium text-accent">Meta Anual de Angariações</span>
-                  <span className="font-bold text-accent">{stats.currentCaptures} / {targets.captures.annual}</span>
+                  <span className="font-bold text-accent">{stats.currentCaptures} / {globalTargets.captures.annual}</span>
                 </div>
                 <Progress value={capturesProgress} className="h-1.5 [&>div]:bg-accent" />
               </div>
               <div className="space-y-1">
                 <div className="flex justify-between text-xs">
                   <span className="font-medium text-primary">Meta Anual de Vendas</span>
-                  <span className="font-bold text-primary">{stats.currentSales} / {targets.sales.annual}</span>
+                  <span className="font-bold text-primary">{stats.currentSales} / {globalTargets.sales.annual}</span>
                 </div>
                 <Progress value={salesProgress} className="h-1.5 [&>div]:bg-primary" />
               </div>
               <div className="space-y-1">
                 <div className="flex justify-between text-xs">
                   <span className="font-medium text-emerald-600">Meta Anual de Locações</span>
-                  <span className="font-bold text-emerald-600">{stats.currentRentals} / {targets.rentals.annual}</span>
+                  <span className="font-bold text-emerald-600">{stats.currentRentals} / {globalTargets.rentals.annual}</span>
                 </div>
                 <Progress value={rentalsProgress} className="h-1.5 [&>div]:bg-emerald-600" />
               </div>
@@ -133,7 +152,31 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange }:
           <DialogHeader>
             <DialogTitle>Editar Metas de Performance</DialogTitle>
           </DialogHeader>
-          <div className="space-y-6 py-4 max-h-[60vh] overflow-y-auto pr-3">
+
+          <div className="flex flex-col gap-2 pt-4">
+            <Label htmlFor="broker-select">Definir metas para</Label>
+            <Select value={selectedBroker} onValueChange={setSelectedBroker}>
+                <SelectTrigger id="broker-select">
+                    <SelectValue placeholder="Selecione..." />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="global">
+                      <div className="flex items-center gap-2">
+                        <Landmark className="h-4 w-4 text-muted-foreground" /> Metas Globais
+                      </div>
+                    </SelectItem>
+                    {brokers.map(broker => (
+                        <SelectItem key={broker} value={broker}>
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4 text-muted-foreground" /> {broker}
+                          </div>
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-6 py-4 max-h-[50vh] overflow-y-auto pr-3">
             <div className="p-4 border rounded-lg">
               <h3 className="text-md font-semibold mb-3 flex items-center gap-2 text-accent"><Target className="h-5 w-5"/> Metas de Angariação</h3>
               <div className="grid grid-cols-3 gap-4">

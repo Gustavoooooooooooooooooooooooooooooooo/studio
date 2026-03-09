@@ -100,10 +100,18 @@ export default function AppContainer() {
 
   const [urls, setUrls] = useState({ inventory: "", leads: "", sales: "" });
   const [manualBrokers, setManualBrokers] = useState<string[]>([]);
-  const [targets, setTargets] = useState({
-    captures: { annual: 400, quarterly: 100, semiannual: 200 },
-    sales: { annual: 120, quarterly: 30, semiannual: 60 },
-    rentals: { annual: 150, quarterly: 40, semiannual: 75 },
+  const [targets, setTargets] = useState<{
+    [key: string]: {
+      captures: { annual: number; quarterly: number; semiannual: number; };
+      sales: { annual: number; quarterly: number; semiannual: number; };
+      rentals: { annual: number; quarterly: number; semiannual: number; };
+    }
+  }>({
+    global: {
+      captures: { annual: 400, quarterly: 100, semiannual: 200 },
+      sales: { annual: 120, quarterly: 30, semiannual: 60 },
+      rentals: { annual: 150, quarterly: 40, semiannual: 75 },
+    }
   });
 
   // Data states
@@ -136,7 +144,7 @@ export default function AppContainer() {
     if (savedTargets) {
       try {
         const parsed = JSON.parse(savedTargets);
-        if (parsed.captures && parsed.sales && parsed.rentals) {
+        if (parsed.global && parsed.global.captures) { // Basic validation for new structure
           setTargets(parsed);
         }
       } catch (e) {
@@ -159,33 +167,34 @@ export default function AppContainer() {
   };
   
   const handleAddBroker = useCallback((brokerName: string) => {
+    const trimmedBrokerName = brokerName.trim();
+    if (!trimmedBrokerName) return;
+
     setManualBrokers(prevBrokers => {
-      const trimmedBrokerName = brokerName.trim();
-      if (!trimmedBrokerName) return prevBrokers;
-  
-      const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-      
+      const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
       const brokerExists = prevBrokers.some(b => normalize(b) === normalize(trimmedBrokerName));
   
       if (brokerExists) {
-        toast({ variant: "destructive", title: "Corretor já existe", description: `"${trimmedBrokerName}" já está na sua lista.` });
+        // We can't call toast here directly because of React's render cycle rules.
+        // Instead, we can schedule it.
+        setTimeout(() => toast({ variant: "destructive", title: "Corretor já existe", description: `"${trimmedBrokerName}" já está na sua lista.` }), 0);
         return prevBrokers;
       }
       
       const updatedBrokers = [...prevBrokers, trimmedBrokerName];
       localStorage.setItem('manual_brokers', JSON.stringify(updatedBrokers));
-      toast({ title: "Corretor Adicionado", description: `"${trimmedBrokerName}" foi adicionado à lista.` });
+      setTimeout(() => toast({ title: "Corretor Adicionado", description: `"${trimmedBrokerName}" foi adicionado à lista.` }), 0);
       return updatedBrokers;
     });
   }, [toast]);
   
   const handleDeleteBroker = useCallback((brokerNameToDelete: string) => {
     setManualBrokers(prevBrokers => {
-      const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
       const updatedBrokers = prevBrokers.filter(b => normalize(b) !== normalize(brokerNameToDelete));
       
       localStorage.setItem('manual_brokers', JSON.stringify(updatedBrokers));
-      toast({ title: "Corretor Removido", description: `"${brokerNameToDelete}" foi removido da lista.` });
+      setTimeout(() => toast({ title: "Corretor Removido", description: `"${brokerNameToDelete}" foi removido da lista.` }), 0);
       return updatedBrokers;
     });
   }, [toast]);
@@ -444,6 +453,7 @@ export default function AppContainer() {
               sales={sales}
               targets={targets}
               onTargetsChange={handleTargetsChange}
+              brokers={allBrokers}
             />
             <div className="space-y-6">
               <MonthlyTrends sales={sales} leads={leads} properties={inventory} />
