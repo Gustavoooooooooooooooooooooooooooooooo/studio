@@ -32,7 +32,7 @@ export interface VisitRecord {
   concluida: boolean;
 }
 
-export const brokers = ['Claudia', 'Henrique', 'João', 'Mila', 'Orlei', 'Felipe', 'Eduardo', 'Wagner', 'Ane'];
+export const brokers: string[] = [];
 export const origins = [
   'Imóvel Web', 
   'Chaves na Mão', 
@@ -65,7 +65,7 @@ const generateMockSales = (count: number): SaleRecord[] => {
       data_venda: saleDate.toISOString().split('T')[0],
       origem: origins[Math.floor(Math.random() * origins.length)],
       cliente: `Cliente ${i + 1}`,
-      corretor: brokers[Math.floor(Math.random() * brokers.length)],
+      corretor: "Corretor Mock",
       valor_anuncio: Math.round(anuncio),
       valor_fechado: Math.round(fechado),
       status: 'Vendido',
@@ -86,7 +86,7 @@ const generateMockLeads = (count: number): LeadRecord[] => {
       id: `L-${i}`,
       data: date.toISOString().split('T')[0],
       origem: origins[Math.floor(Math.random() * origins.length)],
-      corretor: brokers[Math.floor(Math.random() * brokers.length)],
+      corretor: "Corretor Mock",
       status: Math.random() > 0.7 ? 'Convertido' : 'Novo'
     });
   }
@@ -102,7 +102,7 @@ const generateMockVisits = (count: number): VisitRecord[] => {
       data: date.toISOString().split('T')[0],
       tipo: Math.random() > 0.5 ? 'Venda' : 'Aluguel',
       bairro: neighborhoods[Math.floor(Math.random() * neighborhoods.length)],
-      corretor: brokers[Math.floor(Math.random() * brokers.length)],
+      corretor: "Corretor Mock",
       concluida: true
     });
   }
