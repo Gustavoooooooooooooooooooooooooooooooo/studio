@@ -1,20 +1,32 @@
-
 "use client"
 
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Users, UserCheck, AlertCircle, PlusCircle } from "lucide-react";
+import { Users, UserCheck, AlertCircle, PlusCircle, Trash2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface BrokerSettingsProps {
     brokers: string[];
+    manualBrokers: string[];
     onAddBroker: (name: string) => void;
+    onDeleteBroker: (name: string) => void;
 }
 
-export function BrokerSettings({ brokers, onAddBroker }: BrokerSettingsProps) {
+export function BrokerSettings({ brokers, manualBrokers, onAddBroker, onDeleteBroker }: BrokerSettingsProps) {
   const [newBrokerName, setNewBrokerName] = useState("");
 
   const handleAdd = () => {
@@ -23,6 +35,11 @@ export function BrokerSettings({ brokers, onAddBroker }: BrokerSettingsProps) {
         setNewBrokerName("");
     }
   };
+
+  const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+  // Create a set of normalized first names from the manual list for quick lookup
+  const manualBrokerFirstNames = new Set(manualBrokers.map(b => normalize(b).split(' ')[0]));
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -33,7 +50,7 @@ export function BrokerSettings({ brokers, onAddBroker }: BrokerSettingsProps) {
             Corretores
           </CardTitle>
           <CardDescription className="text-xs text-muted-foreground !mt-2">
-            Adicione corretores manualmente ou veja a lista de corretores únicos encontrados automaticamente nas suas planilhas.
+            Adicione corretores manualmente ou veja a lista de corretores únicos encontrados automaticamente nas suas planilhas. Corretores adicionados manualmente podem ser removidos.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-6 space-y-4">
@@ -56,27 +73,56 @@ export function BrokerSettings({ brokers, onAddBroker }: BrokerSettingsProps) {
                 <TableHeader className="bg-muted/30 sticky top-0">
                     <TableRow>
                     <TableHead>Corretor Identificado</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
+                    <TableHead className="text-center w-[120px]">Status</TableHead>
+                    <TableHead className="text-right w-[100px]">Ações</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {brokers && brokers.length > 0 ? (
-                    brokers.map((broker) => (
+                    brokers.map((broker) => {
+                      const isDeletable = manualBrokerFirstNames.has(normalize(broker).split(' ')[0]);
+                      return (
                         <TableRow key={broker}>
-                        <TableCell className="font-semibold flex items-center gap-2 text-sm">
-                            <UserCheck className="h-4 w-4 text-emerald-500" />
-                            {broker}
-                        </TableCell>
-                        <TableCell className="text-center">
-                            <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold uppercase">
-                            Ativo
-                            </span>
-                        </TableCell>
+                          <TableCell className="font-semibold flex items-center gap-2 text-sm">
+                              <UserCheck className="h-4 w-4 text-emerald-500" />
+                              {broker}
+                          </TableCell>
+                          <TableCell className="text-center">
+                              <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold uppercase">
+                              Ativo
+                              </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {isDeletable && (
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Esta ação removerá o corretor <span className="font-bold">{broker}</span> da sua lista manual. Ele ainda poderá aparecer automaticamente se for encontrado nas planilhas.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => onDeleteBroker(broker)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                      Excluir
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            )}
+                          </TableCell>
                         </TableRow>
-                    ))
+                      )
+                    })
                     ) : (
                     <TableRow>
-                        <TableCell colSpan={2} className="text-center py-12 text-muted-foreground">
+                        <TableCell colSpan={3} className="text-center py-12 text-muted-foreground">
                         <div className="flex flex-col items-center gap-2">
                             <AlertCircle className="h-8 w-8 opacity-20" />
                             <p className="text-xs">Nenhum corretor encontrado ou adicionado.</p>

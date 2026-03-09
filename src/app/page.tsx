@@ -15,7 +15,7 @@ import { BrokerSettings } from "@/components/dashboard/broker-settings";
 import { SheetUrlConfig } from "@/components/dashboard/sheet-url-config";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { LayoutDashboard, TrendingUp, Table2, Users, BadgeCheck, Settings, Calendar as CalendarIcon, Loader2, AlertTriangle } from "lucide-react";
 import { useFirebase, initiateAnonymousSignIn } from "@/firebase";
 import { syncGoogleSheets } from "@/ai/flows/sync-sheets-flow";
@@ -135,17 +135,75 @@ export default function AppContainer() {
     handleSync(false);
   };
   
+  const allBrokers = useMemo(() => {
+    const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    
+    const brokersMap = new Map<string, string>();
+
+    const addBrokerToMap = (name: string) => {
+        const trimmedName = String(name || "").trim();
+        if (!trimmedName || trimmedName === 'N/A' || trimmedName.length <= 1) return;
+        
+        const normalizedName = normalize(trimmedName);
+        const firstName = normalizedName.split(' ')[0];
+
+        if (!brokersMap.has(firstName) || normalizedName.length < normalize(brokersMap.get(firstName)!).length) {
+            brokersMap.set(firstName, trimmedName);
+        }
+    };
+
+    manualBrokers.forEach(addBrokerToMap);
+
+    const brokerKeySubstrings = ['corretor', 'broker', 'responsavel', 'atendente', 'vendedor', 'angariador', 'captador'];
+
+    const processItem = (item: any) => {
+      if (!item) return;
+      Object.entries(item).forEach(([key, value]) => {
+        const normalizedKey = normalize(key);
+        if (brokerKeySubstrings.some(sub => normalizedKey.includes(sub))) {
+          addBrokerToMap(String(value || ''));
+        }
+      });
+    };
+
+    [...inventory, ...sales, ...leads].forEach(processItem);
+
+    return Array.from(brokersMap.values())
+      .map(name => {
+          return name.split(' ').map(n => n.charAt(0).toUpperCase() + n.slice(1).toLowerCase()).join(' ');
+      })
+      .sort();
+}, [inventory, sales, leads, manualBrokers]);
+
   const handleAddBroker = (brokerName: string) => {
-    const normalizedNewBroker = brokerName.trim();
-    if (normalizedNewBroker && !manualBrokers.find(b => b.toLowerCase() === normalizedNewBroker.toLowerCase())) {
-        const updatedBrokers = [...manualBrokers, normalizedNewBroker];
+    const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const trimmedBrokerName = brokerName.trim();
+    
+    const brokerExists = allBrokers.some(b => normalize(b).split(' ')[0] === normalize(trimmedBrokerName).split(' ')[0]);
+
+    if (trimmedBrokerName && !brokerExists) {
+        const updatedBrokers = [...manualBrokers, trimmedBrokerName];
         setManualBrokers(updatedBrokers);
         localStorage.setItem('manual_brokers', JSON.stringify(updatedBrokers));
-        toast({ title: "Corretor Adicionado", description: `${normalizedNewBroker} foi adicionado à lista.` });
+        toast({ title: "Corretor Adicionado", description: `${trimmedBrokerName} foi adicionado à lista manual.` });
     } else {
-        toast({ variant: "destructive", title: "Corretor já existe", description: `${normalizedNewBroker} já está na lista.` });
+        toast({ variant: "destructive", title: "Corretor já existe", description: `${trimmedBrokerName} já está na lista (manual ou automática).` });
     }
   };
+
+  const handleDeleteBroker = (brokerNameToDelete: string) => {
+    const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const firstNameToDelete = normalize(brokerNameToDelete).split(' ')[0];
+
+    const updatedManualBrokers = manualBrokers.filter(b => {
+        return normalize(b).split(' ')[0] !== firstNameToDelete;
+    });
+
+    setManualBrokers(updatedManualBrokers);
+    localStorage.setItem('manual_brokers', JSON.stringify(updatedManualBrokers));
+    toast({ title: "Corretor Removido", description: `${brokerNameToDelete} foi removido da sua lista manual.` });
+  };
+
 
   const handleSync = useCallback(async (silent = false) => {
     if (syncingRef.current) return;
@@ -299,49 +357,6 @@ export default function AppContainer() {
     };
   }, [processedSales, leads, processedInventory, inventory, now, selectedMonth, selectedYear]);
 
-  const allBrokers = useMemo(() => {
-      const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-      
-      // A map to hold the shortest version of a name, keyed by the normalized first name.
-      const brokersMap = new Map<string, string>();
-
-      const addBrokerToMap = (name: string) => {
-          const trimmedName = String(name || "").trim();
-          if (!trimmedName || trimmedName === 'N/A' || trimmedName.length <= 1) return;
-          
-          const normalizedName = normalize(trimmedName);
-          const firstName = normalizedName.split(' ')[0];
-
-          if (!brokersMap.has(firstName) || normalizedName.length < normalize(brokersMap.get(firstName)!).length) {
-              brokersMap.set(firstName, trimmedName);
-          }
-      };
-
-      // Prioritize manual brokers
-      manualBrokers.forEach(addBrokerToMap);
-
-      const brokerKeySubstrings = ['corretor', 'broker', 'responsavel', 'atendente', 'vendedor', 'angariador', 'captador'];
-
-      const processItem = (item: any) => {
-        if (!item) return;
-        Object.entries(item).forEach(([key, value]) => {
-          const normalizedKey = normalize(key);
-          if (brokerKeySubstrings.some(sub => normalizedKey.includes(sub))) {
-            addBrokerToMap(String(value || ''));
-          }
-        });
-      };
-
-      [...inventory, ...sales, ...leads].forEach(processItem);
-
-      return Array.from(brokersMap.values())
-        .map(name => {
-            // Capitalize each word in the name
-            return name.split(' ').map(n => n.charAt(0).toUpperCase() + n.slice(1).toLowerCase()).join(' ');
-        })
-        .sort();
-  }, [inventory, sales, leads, manualBrokers]);
-
   if (!mounted) return null;
 
   return (
@@ -448,7 +463,12 @@ export default function AppContainer() {
           <TabsContent value="conclusao" className="space-y-6"><SalesDataTable data={sales} /></TabsContent>
           <TabsContent value="config" className="space-y-6">
             <SheetUrlConfig urls={urls} onUrlsChange={handleUrlsChange} />
-            <BrokerSettings brokers={allBrokers} onAddBroker={handleAddBroker} />
+            <BrokerSettings 
+              brokers={allBrokers} 
+              manualBrokers={manualBrokers}
+              onAddBroker={handleAddBroker}
+              onDeleteBroker={handleDeleteBroker} 
+            />
           </TabsContent>
         </Tabs>
       </main>
