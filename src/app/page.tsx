@@ -178,34 +178,40 @@ export default function AppContainer() {
       .sort();
 }, [inventory, sales, leads, manualBrokers]);
 
-  const handleAddBroker = (brokerName: string) => {
+  const handleAddBroker = useCallback((brokerName: string) => {
     const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
     const trimmedBrokerName = brokerName.trim();
-    
-    const brokerExistsInManual = manualBrokers.some(b => normalize(b).split(' ')[0] === normalize(trimmedBrokerName).split(' ')[0]);
+    if (!trimmedBrokerName) return;
 
-    if (trimmedBrokerName && !brokerExistsInManual) {
-        const updatedBrokers = [...manualBrokers, trimmedBrokerName];
-        setManualBrokers(updatedBrokers);
-        localStorage.setItem('manual_brokers', JSON.stringify(updatedBrokers));
-        toast({ title: "Corretor Adicionado", description: `${trimmedBrokerName} foi adicionado à lista manual.` });
-    } else {
-        toast({ variant: "destructive", title: "Corretor já existe", description: `${trimmedBrokerName} já está na sua lista manual.` });
-    }
-  };
+    setManualBrokers(currentManualBrokers => {
+        const brokerExistsInManual = currentManualBrokers.some(b => normalize(b).split(' ')[0] === normalize(trimmedBrokerName).split(' ')[0]);
 
-  const handleDeleteBroker = (brokerNameToDelete: string) => {
+        if (brokerExistsInManual) {
+            toast({ variant: "destructive", title: "Corretor já existe", description: `${trimmedBrokerName} já está na sua lista manual.` });
+            return currentManualBrokers; // No change
+        } else {
+            const updatedBrokers = [...currentManualBrokers, trimmedBrokerName];
+            localStorage.setItem('manual_brokers', JSON.stringify(updatedBrokers));
+            toast({ title: "Corretor Adicionado", description: `${trimmedBrokerName} foi adicionado à lista manual.` });
+            return updatedBrokers;
+        }
+    });
+  }, [toast]);
+
+  const handleDeleteBroker = useCallback((brokerNameToDelete: string) => {
     const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
     const firstNameToDelete = normalize(brokerNameToDelete).split(' ')[0];
 
-    const updatedManualBrokers = manualBrokers.filter(b => {
-        return normalize(b).split(' ')[0] !== firstNameToDelete;
+    setManualBrokers(currentManualBrokers => {
+        const updatedManualBrokers = currentManualBrokers.filter(b => {
+            return normalize(b).split(' ')[0] !== firstNameToDelete;
+        });
+        localStorage.setItem('manual_brokers', JSON.stringify(updatedManualBrokers));
+        return updatedManualBrokers;
     });
 
-    setManualBrokers(updatedManualBrokers);
-    localStorage.setItem('manual_brokers', JSON.stringify(updatedManualBrokers));
     toast({ title: "Corretor Removido", description: `${brokerNameToDelete} foi removido da sua lista manual.` });
-  };
+  }, [toast]);
 
 
   const handleSync = useCallback(async (silent = false) => {
@@ -488,3 +494,4 @@ export default function AppContainer() {
     
 
     
+
