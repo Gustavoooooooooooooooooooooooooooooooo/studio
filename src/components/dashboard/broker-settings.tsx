@@ -20,6 +20,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
 
 interface BrokerSettingsProps {
     brokers: string[];
@@ -52,7 +53,7 @@ export function BrokerSettings({ brokers, manualBrokers, onAddBroker, onDeleteBr
             Corretores
           </CardTitle>
           <CardDescription className="text-xs text-muted-foreground !mt-2">
-            Adicione corretores manualmente ou veja a lista de corretores únicos encontrados automatically nas suas planilhas. Corretores adicionados manualmente podem ser removidos.
+            Adicione corretores manualmente ou veja a lista de corretores únicos encontrados automaticamente nas suas planilhas. Corretores adicionados manualmente podem ser removidos.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-6 space-y-4">
@@ -75,14 +76,14 @@ export function BrokerSettings({ brokers, manualBrokers, onAddBroker, onDeleteBr
                 <TableHeader className="bg-muted/30 sticky top-0">
                     <TableRow>
                     <TableHead>Corretor Identificado</TableHead>
-                    <TableHead className="text-center w-[120px]">Status</TableHead>
+                    <TableHead className="text-center w-[120px]">Origem</TableHead>
                     <TableHead className="text-right w-[100px]">Ações</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {brokers && brokers.length > 0 ? (
                     brokers.map((broker) => {
-                      const isDeletable = manualBrokerFirstNames.has(normalize(broker).split(' ')[0]);
+                      const isManual = manualBrokerFirstNames.has(normalize(broker).split(' ')[0]);
                       return (
                         <TableRow key={broker}>
                           <TableCell className="font-semibold flex items-center gap-2 text-sm">
@@ -90,12 +91,12 @@ export function BrokerSettings({ brokers, manualBrokers, onAddBroker, onDeleteBr
                               {broker}
                           </TableCell>
                           <TableCell className="text-center">
-                              <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold uppercase">
-                              Ativo
-                              </span>
+                              <Badge variant={isManual ? "outline" : "secondary"} className={isManual ? "border-primary/50 text-primary" : ""}>
+                                {isManual ? "Manual" : "Automático"}
+                              </Badge>
                           </TableCell>
                           <TableCell className="text-right">
-                            {isDeletable ? (
+                            {isManual ? (
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -128,7 +129,7 @@ export function BrokerSettings({ brokers, manualBrokers, onAddBroker, onDeleteBr
                                     </span>
                                   </TooltipTrigger>
                                   <TooltipContent>
-                                    <p className="text-xs">Apenas corretores adicionados manualmente podem ser removidos.</p>
+                                    <p className="text-xs">Corretores automáticos são gerenciados na planilha.</p>
                                   </TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
