@@ -3,13 +3,13 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Landmark, Target, Edit, TrendingUp, Key, Trophy, User } from "lucide-react";
+import { Landmark, Target, Edit, TrendingUp, Key, Trophy, User, Scroll } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 
 interface PerformanceGoalsProps {
@@ -28,19 +28,20 @@ interface PerformanceGoalsProps {
 
 export function InventoryHealth({ properties, sales, targets, onTargetsChange, brokers }: PerformanceGoalsProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedBroker, setSelectedBroker] = useState('global');
-
+  
   const emptyTarget = {
     captures: { annual: 0, quarterly: 0, semiannual: 0 },
     sales: { annual: 0, quarterly: 0, semiannual: 0 },
     rentals: { annual: 0, quarterly: 0, semiannual: 0 },
   };
   
-  const [editableTargets, setEditableTargets] = useState(targets[selectedBroker] || emptyTarget);
+  const [editableTargets, setEditableTargets] = useState(targets);
 
   useEffect(() => {
-    setEditableTargets(targets[selectedBroker] || emptyTarget);
-  }, [targets, selectedBroker, isDialogOpen]);
+    if (isDialogOpen) {
+      setEditableTargets(targets);
+    }
+  }, [isDialogOpen, targets]);
 
   const stats = useMemo(() => {
     const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
@@ -70,15 +71,25 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
   };
+  
+  const handleInputChange = (brokerKey: string, category: 'captures' | 'sales' | 'rentals', period: 'annual' | 'semiannual' | 'quarterly', value: string) => {
+    const numericValue = Number(value) || 0;
+    setEditableTargets(prev => {
+        const newTargets = JSON.parse(JSON.stringify(prev)); 
+        if (!newTargets[brokerKey]) {
+            newTargets[brokerKey] = JSON.parse(JSON.stringify(emptyTarget));
+        }
+        newTargets[brokerKey][category][period] = numericValue;
+        return newTargets;
+    });
+  };
 
   const handleSave = () => {
-    const newTargets = {
-      ...targets,
-      [selectedBroker]: editableTargets,
-    };
-    onTargetsChange(newTargets);
+    onTargetsChange(editableTargets);
     setIsDialogOpen(false);
   };
+  
+  const allTargetKeys = useMemo(() => ['global', ...brokers], [brokers]);
 
   return (
     <div className="grid md:grid-cols-2 gap-6">
@@ -148,94 +159,90 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
             </CardContent>
           </Card>
         </DialogTrigger>
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Editar Metas de Performance</DialogTitle>
           </DialogHeader>
 
-          <div className="flex flex-col gap-2 pt-4">
-            <Label htmlFor="broker-select">Definir metas para</Label>
-            <Select value={selectedBroker} onValueChange={setSelectedBroker}>
-                <SelectTrigger id="broker-select">
-                    <SelectValue placeholder="Selecione..." />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="global">
-                      <div className="flex items-center gap-2">
-                        <Landmark className="h-4 w-4 text-muted-foreground" /> Metas Globais
-                      </div>
-                    </SelectItem>
-                    {brokers.map(broker => (
-                        <SelectItem key={broker} value={broker}>
-                          <div className="flex items-center gap-2">
-                            <User className="h-4 w-4 text-muted-foreground" /> {broker}
+          <ScrollArea className="max-h-[65vh] pr-6 -mr-2">
+            <div className="space-y-8 pt-4">
+              {allTargetKeys.map(brokerKey => {
+                const currentBrokerTargets = editableTargets[brokerKey] || emptyTarget;
+                return (
+                  <div key={brokerKey} className="border-b last:border-b-0 pb-6 last:pb-0">
+                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                      {brokerKey === 'global' 
+                        ? <><Landmark className="h-5 w-5 text-primary" /> Metas Globais</>
+                        : <><User className="h-5 w-5 text-muted-foreground" /> {brokerKey}</>
+                      }
+                    </h3>
+                    
+                    <div className="space-y-4">
+                      <div className="p-4 border rounded-lg bg-muted/20">
+                        <h4 className="text-md font-semibold mb-3 flex items-center gap-2 text-accent"><Target className="h-5 w-5"/> Metas de Angariação</h4>
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor={`captures-annual-${brokerKey}`}>Anual</Label>
+                            <Input id={`captures-annual-${brokerKey}`} type="number" value={currentBrokerTargets.captures.annual} onChange={(e) => handleInputChange(brokerKey, 'captures', 'annual', e.target.value)} />
                           </div>
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor={`captures-semiannual-${brokerKey}`}>Semestral</Label>
+                            <Input id={`captures-semiannual-${brokerKey}`} type="number" value={currentBrokerTargets.captures.semiannual} onChange={(e) => handleInputChange(brokerKey, 'captures', 'semiannual', e.target.value)} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor={`captures-quarterly-${brokerKey}`}>Trimestral</Label>
+                            <Input id={`captures-quarterly-${brokerKey}`} type="number" value={currentBrokerTargets.captures.quarterly} onChange={(e) => handleInputChange(brokerKey, 'captures', 'quarterly', e.target.value)} />
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="p-4 border rounded-lg bg-muted/20">
+                        <h4 className="text-md font-semibold mb-3 flex items-center gap-2 text-primary"><TrendingUp className="h-5 w-5"/> Metas de Vendas</h4>
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor={`sales-annual-${brokerKey}`}>Anual</Label>
+                            <Input id={`sales-annual-${brokerKey}`} type="number" value={currentBrokerTargets.sales.annual} onChange={(e) => handleInputChange(brokerKey, 'sales', 'annual', e.target.value)} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor={`sales-semiannual-${brokerKey}`}>Semestral</Label>
+                            <Input id={`sales-semiannual-${brokerKey}`} type="number" value={currentBrokerTargets.sales.semiannual} onChange={(e) => handleInputChange(brokerKey, 'sales', 'semiannual', e.target.value)} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor={`sales-quarterly-${brokerKey}`}>Trimestral</Label>
+                            <Input id={`sales-quarterly-${brokerKey}`} type="number" value={currentBrokerTargets.sales.quarterly} onChange={(e) => handleInputChange(brokerKey, 'sales', 'quarterly', e.target.value)} />
+                          </div>
+                        </div>
+                      </div>
 
-          <div className="space-y-6 py-4 max-h-[50vh] overflow-y-auto pr-3">
-            <div className="p-4 border rounded-lg">
-              <h3 className="text-md font-semibold mb-3 flex items-center gap-2 text-accent"><Target className="h-5 w-5"/> Metas de Angariação</h3>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="captures-annual-target">Anual</Label>
-                  <Input id="captures-annual-target" type="number" value={editableTargets.captures.annual} onChange={(e) => setEditableTargets(t => ({...t, captures: {...t.captures, annual: Number(e.target.value)}}))} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="captures-semiannual-target">Semestral</Label>
-                  <Input id="captures-semiannual-target" type="number" value={editableTargets.captures.semiannual} onChange={(e) => setEditableTargets(t => ({...t, captures: {...t.captures, semiannual: Number(e.target.value)}}))} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="captures-quarterly-target">Trimestral</Label>
-                  <Input id="captures-quarterly-target" type="number" value={editableTargets.captures.quarterly} onChange={(e) => setEditableTargets(t => ({...t, captures: {...t.captures, quarterly: Number(e.target.value)}}))} />
-                </div>
-              </div>
+                      <div className="p-4 border rounded-lg bg-muted/20">
+                        <h4 className="text-md font-semibold mb-3 flex items-center gap-2 text-emerald-600"><Key className="h-5 w-5"/> Metas de Locação</h4>
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor={`rentals-annual-${brokerKey}`}>Anual</Label>
+                            <Input id={`rentals-annual-${brokerKey}`} type="number" value={currentBrokerTargets.rentals.annual} onChange={(e) => handleInputChange(brokerKey, 'rentals', 'annual', e.target.value)} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor={`rentals-semiannual-${brokerKey}`}>Semestral</Label>
+                            <Input id={`rentals-semiannual-${brokerKey}`} type="number" value={currentBrokerTargets.rentals.semiannual} onChange={(e) => handleInputChange(brokerKey, 'rentals', 'semiannual', e.target.value)} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor={`rentals-quarterly-${brokerKey}`}>Trimestral</Label>
+                            <Input id={`rentals-quarterly-${brokerKey}`} type="number" value={currentBrokerTargets.rentals.quarterly} onChange={(e) => handleInputChange(brokerKey, 'rentals', 'quarterly', e.target.value)} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            
-            <div className="p-4 border rounded-lg">
-              <h3 className="text-md font-semibold mb-3 flex items-center gap-2 text-primary"><TrendingUp className="h-5 w-5"/> Metas de Vendas</h3>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="sales-annual-target">Anual</Label>
-                  <Input id="sales-annual-target" type="number" value={editableTargets.sales.annual} onChange={(e) => setEditableTargets(t => ({...t, sales: {...t.sales, annual: Number(e.target.value)}}))} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sales-semiannual-target">Semestral</Label>
-                  <Input id="sales-semiannual-target" type="number" value={editableTargets.sales.semiannual} onChange={(e) => setEditableTargets(t => ({...t, sales: {...t.sales, semiannual: Number(e.target.value)}}))} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="sales-quarterly-target">Trimestral</Label>
-                  <Input id="sales-quarterly-target" type="number" value={editableTargets.sales.quarterly} onChange={(e) => setEditableTargets(t => ({...t, sales: {...t.sales, quarterly: Number(e.target.value)}}))} />
-                </div>
-              </div>
-            </div>
+          </ScrollArea>
 
-            <div className="p-4 border rounded-lg">
-              <h3 className="text-md font-semibold mb-3 flex items-center gap-2 text-emerald-600"><Key className="h-5 w-5"/> Metas de Locação</h3>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="rentals-annual-target">Anual</Label>
-                  <Input id="rentals-annual-target" type="number" value={editableTargets.rentals.annual} onChange={(e) => setEditableTargets(t => ({...t, rentals: {...t.rentals, annual: Number(e.target.value)}}))} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="rentals-semiannual-target">Semestral</Label>
-                  <Input id="rentals-semiannual-target" type="number" value={editableTargets.rentals.semiannual} onChange={(e) => setEditableTargets(t => ({...t, rentals: {...t.rentals, semiannual: Number(e.target.value)}}))} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="rentals-quarterly-target">Trimestral</Label>
-                  <Input id="rentals-quarterly-target" type="number" value={editableTargets.rentals.quarterly} onChange={(e) => setEditableTargets(t => ({...t, rentals: {...t.rentals, quarterly: Number(e.target.value)}}))} />
-                </div>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
+          <DialogFooter className="pt-4">
             <DialogClose asChild>
               <Button variant="outline">Cancelar</Button>
             </DialogClose>
-            <Button onClick={handleSave}>Salvar Metas</Button>
+            <Button onClick={handleSave}>Salvar Todas as Metas</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
