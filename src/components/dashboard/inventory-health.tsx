@@ -3,21 +3,25 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
-import { Landmark, Target, Edit } from "lucide-react";
+import { Landmark, Target, Edit, TrendingUp, Key, Trophy } from "lucide-react";
 import { useMemo, useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-interface InventoryHealthProps {
+interface PerformanceGoalsProps {
   properties: any[];
-  targets: { annual: number; quarterly: number; semiannual: number; };
-  onTargetsChange: (newTargets: { annual: number; quarterly: number; semiannual: number; }) => void;
+  sales: any[];
+  targets: {
+    captures: { annual: number; quarterly: number; semiannual: number; };
+    sales: { annual: number; quarterly: number; semiannual: number; };
+    rentals: { annual: number; quarterly: number; semiannual: number; };
+  };
+  onTargetsChange: (newTargets: PerformanceGoalsProps['targets']) => void;
 }
 
-export function InventoryHealth({ properties, targets, onTargetsChange }: InventoryHealthProps) {
+export function InventoryHealth({ properties, sales, targets, onTargetsChange }: PerformanceGoalsProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editableTargets, setEditableTargets] = useState(targets);
 
@@ -26,17 +30,27 @@ export function InventoryHealth({ properties, targets, onTargetsChange }: Invent
   }, [targets, isDialogOpen]);
 
   const stats = useMemo(() => {
-    const count = properties.length;
-    const vgv = properties.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0);
-    return { count, vgv };
-  }, [properties]);
+    const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-  const avgComm = 0.055; 
+    const currentCaptures = properties.length;
+    const currentSales = sales.filter(s => normalize(s.tipo || '').includes('venda')).length;
+    const currentRentals = sales.filter(s => {
+        const tipo = normalize(s.tipo || '');
+        return tipo.includes('loca') || tipo.includes('aluguel');
+    }).length;
+
+    const vgv = properties.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0);
+    
+    return { vgv, currentCaptures, currentSales, currentRentals };
+  }, [properties, sales]);
+
+  const avgComm = 0.055;
   const vgvEstoque = stats.vgv;
   const previsaoReceita = vgvEstoque * avgComm;
-  
-  const currentAngariados = stats.count;
-  const progress = targets.annual > 0 ? Math.min(100, (currentAngariados / targets.annual) * 100) : 0;
+
+  const capturesProgress = targets.captures.annual > 0 ? Math.min(100, (stats.currentCaptures / targets.captures.annual) * 100) : 0;
+  const salesProgress = targets.sales.annual > 0 ? Math.min(100, (stats.currentSales / targets.sales.annual) * 100) : 0;
+  const rentalsProgress = targets.rentals.annual > 0 ? Math.min(100, (stats.currentRentals / targets.rentals.annual) * 100) : 0;
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
@@ -69,11 +83,11 @@ export function InventoryHealth({ properties, targets, onTargetsChange }: Invent
           <div className="pt-2 border-t border-primary/10">
              <div className="flex justify-between text-xs mb-1">
                 <span className="text-muted-foreground font-medium">Imóveis Ativos:</span>
-                <span className="font-bold">{currentAngariados} unidades</span>
+                <span className="font-bold">{stats.currentCaptures} unidades</span>
              </div>
              <div className="flex justify-between text-xs">
                 <span className="text-muted-foreground font-medium">Ticket Médio Estoque:</span>
-                <span className="font-bold">{formatCurrency(currentAngariados > 0 ? vgvEstoque / currentAngariados : 0)}</span>
+                <span className="font-bold">{formatCurrency(stats.currentCaptures > 0 ? vgvEstoque / stats.currentCaptures : 0)}</span>
              </div>
           </div>
         </CardContent>
@@ -81,85 +95,105 @@ export function InventoryHealth({ properties, targets, onTargetsChange }: Invent
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogTrigger asChild>
-            <Card className="border-none shadow-sm bg-accent/5 cursor-pointer hover:bg-accent/10 transition-colors group">
-                <CardHeader className="pb-2 relative">
-                  <CardTitle className="text-sm font-bold flex items-center gap-2 text-accent">
-                      <Target className="h-4 w-4" /> Metas de Angariação
-                  </CardTitle>
-                  <div className="absolute top-3 right-3 p-1.5 rounded-full bg-white/60 text-accent/50 group-hover:bg-white group-hover:text-accent transition-colors">
-                      <Edit className="h-3 w-3" />
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                <div className="space-y-2">
-                    <div className="flex justify-between text-xs">
-                    <span className="font-semibold text-accent">Meta Anual Real</span>
-                    <span className="font-bold">{currentAngariados} / {targets.annual}</span>
-                    </div>
-                    <Progress value={progress} className="h-2 [&>div]:bg-accent" />
-                    <p className="text-[10px] text-muted-foreground text-center">
-                    Você atingiu {progress.toFixed(1)}% da meta de angariações baseada nos dados reais.
-                    </p>
+          <Card className="border-none shadow-sm bg-white cursor-pointer hover:bg-muted/30 transition-colors group">
+            <CardHeader className="pb-2 relative">
+              <CardTitle className="text-sm font-bold flex items-center gap-2 text-primary">
+                <Trophy className="h-4 w-4" /> Metas de Performance
+              </CardTitle>
+              <div className="absolute top-3 right-3 p-1.5 rounded-full bg-muted/60 text-primary/50 group-hover:bg-primary group-hover:text-white transition-colors">
+                <Edit className="h-3 w-3" />
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-4">
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="font-medium text-accent">Meta Anual de Angariações</span>
+                  <span className="font-bold text-accent">{stats.currentCaptures} / {targets.captures.annual}</span>
                 </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-white p-2 rounded-lg text-center border border-accent/10">
-                        <p className="text-[9px] text-muted-foreground uppercase">Meta Trimestral</p>
-                        <p className="text-sm font-bold">{currentAngariados} / {targets.quarterly}</p>
-                        <Badge className={`text-[8px] ${currentAngariados >= targets.quarterly ? 'bg-emerald-500' : 'bg-amber-500'}`}>
-                        {currentAngariados >= targets.quarterly ? 'Atingida' : 'Em andamento'}
-                        </Badge>
-                    </div>
-                    <div className="bg-white p-2 rounded-lg text-center border border-accent/10">
-                        <p className="text-[9px] text-muted-foreground uppercase">Meta Semestral</p>
-                        <p className="text-sm font-bold">{currentAngariados} / {targets.semiannual}</p>
-                        <Badge className={`text-[8px] ${currentAngariados >= targets.semiannual ? 'bg-emerald-500' : 'bg-amber-500'}`}>
-                        {currentAngariados >= targets.semiannual ? 'Atingida' : 'Em andamento'}
-                        </Badge>
-                    </div>
+                <Progress value={capturesProgress} className="h-1.5 [&>div]:bg-accent" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="font-medium text-primary">Meta Anual de Vendas</span>
+                  <span className="font-bold text-primary">{stats.currentSales} / {targets.sales.annual}</span>
                 </div>
-                </CardContent>
-            </Card>
+                <Progress value={salesProgress} className="h-1.5 [&>div]:bg-primary" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="font-medium text-emerald-600">Meta Anual de Locações</span>
+                  <span className="font-bold text-emerald-600">{stats.currentRentals} / {targets.rentals.annual}</span>
+                </div>
+                <Progress value={rentalsProgress} className="h-1.5 [&>div]:bg-emerald-600" />
+              </div>
+            </CardContent>
+          </Card>
         </DialogTrigger>
-        <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-                <DialogTitle>Editar Metas de Angariação</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Editar Metas de Performance</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6 py-4 max-h-[60vh] overflow-y-auto pr-3">
+            <div className="p-4 border rounded-lg">
+              <h3 className="text-md font-semibold mb-3 flex items-center gap-2 text-accent"><Target className="h-5 w-5"/> Metas de Angariação</h3>
+              <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
-                    <Label htmlFor="annual-target">Meta Anual</Label>
-                    <Input 
-                        id="annual-target" 
-                        type="number" 
-                        value={editableTargets.annual}
-                        onChange={(e) => setEditableTargets(t => ({...t, annual: Number(e.target.value)}))}
-                    />
+                  <Label htmlFor="captures-annual-target">Anual</Label>
+                  <Input id="captures-annual-target" type="number" value={editableTargets.captures.annual} onChange={(e) => setEditableTargets(t => ({...t, captures: {...t.captures, annual: Number(e.target.value)}}))} />
                 </div>
                 <div className="space-y-2">
-                    <Label htmlFor="semiannual-target">Meta Semestral</Label>
-                    <Input 
-                        id="semiannual-target" 
-                        type="number" 
-                        value={editableTargets.semiannual}
-                        onChange={(e) => setEditableTargets(t => ({...t, semiannual: Number(e.target.value)}))}
-                    />
+                  <Label htmlFor="captures-semiannual-target">Semestral</Label>
+                  <Input id="captures-semiannual-target" type="number" value={editableTargets.captures.semiannual} onChange={(e) => setEditableTargets(t => ({...t, captures: {...t.captures, semiannual: Number(e.target.value)}}))} />
                 </div>
                 <div className="space-y-2">
-                    <Label htmlFor="quarterly-target">Meta Trimestral</Label>
-                    <Input 
-                        id="quarterly-target" 
-                        type="number" 
-                        value={editableTargets.quarterly}
-                        onChange={(e) => setEditableTargets(t => ({...t, quarterly: Number(e.target.value)}))}
-                    />
+                  <Label htmlFor="captures-quarterly-target">Trimestral</Label>
+                  <Input id="captures-quarterly-target" type="number" value={editableTargets.captures.quarterly} onChange={(e) => setEditableTargets(t => ({...t, captures: {...t.captures, quarterly: Number(e.target.value)}}))} />
                 </div>
+              </div>
             </div>
-            <DialogFooter>
-                <DialogClose asChild>
-                  <Button variant="outline">Cancelar</Button>
-                </DialogClose>
-                <Button onClick={handleSave}>Salvar Metas</Button>
-            </DialogFooter>
+            
+            <div className="p-4 border rounded-lg">
+              <h3 className="text-md font-semibold mb-3 flex items-center gap-2 text-primary"><TrendingUp className="h-5 w-5"/> Metas de Vendas</h3>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="sales-annual-target">Anual</Label>
+                  <Input id="sales-annual-target" type="number" value={editableTargets.sales.annual} onChange={(e) => setEditableTargets(t => ({...t, sales: {...t.sales, annual: Number(e.target.value)}}))} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="sales-semiannual-target">Semestral</Label>
+                  <Input id="sales-semiannual-target" type="number" value={editableTargets.sales.semiannual} onChange={(e) => setEditableTargets(t => ({...t, sales: {...t.sales, semiannual: Number(e.target.value)}}))} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="sales-quarterly-target">Trimestral</Label>
+                  <Input id="sales-quarterly-target" type="number" value={editableTargets.sales.quarterly} onChange={(e) => setEditableTargets(t => ({...t, sales: {...t.sales, quarterly: Number(e.target.value)}}))} />
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border rounded-lg">
+              <h3 className="text-md font-semibold mb-3 flex items-center gap-2 text-emerald-600"><Key className="h-5 w-5"/> Metas de Locação</h3>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="rentals-annual-target">Anual</Label>
+                  <Input id="rentals-annual-target" type="number" value={editableTargets.rentals.annual} onChange={(e) => setEditableTargets(t => ({...t, rentals: {...t.rentals, annual: Number(e.target.value)}}))} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="rentals-semiannual-target">Semestral</Label>
+                  <Input id="rentals-semiannual-target" type="number" value={editableTargets.rentals.semiannual} onChange={(e) => setEditableTargets(t => ({...t, rentals: {...t.rentals, semiannual: Number(e.target.value)}}))} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="rentals-quarterly-target">Trimestral</Label>
+                  <Input id="rentals-quarterly-target" type="number" value={editableTargets.rentals.quarterly} onChange={(e) => setEditableTargets(t => ({...t, rentals: {...t.rentals, quarterly: Number(e.target.value)}}))} />
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancelar</Button>
+            </DialogClose>
+            <Button onClick={handleSave}>Salvar Metas</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

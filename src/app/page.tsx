@@ -100,7 +100,11 @@ export default function AppContainer() {
 
   const [urls, setUrls] = useState({ inventory: "", leads: "", sales: "" });
   const [manualBrokers, setManualBrokers] = useState<string[]>([]);
-  const [targets, setTargets] = useState({ annual: 400, quarterly: 100, semiannual: 200 });
+  const [targets, setTargets] = useState({
+    captures: { annual: 400, quarterly: 100, semiannual: 200 },
+    sales: { annual: 120, quarterly: 30, semiannual: 60 },
+    rentals: { annual: 150, quarterly: 40, semiannual: 75 },
+  });
 
   // Data states
   const [leads, setLeads] = useState<any[]>([]);
@@ -122,11 +126,22 @@ export default function AppContainer() {
     setUrls(savedUrls);
     const savedManualBrokers = localStorage.getItem('manual_brokers');
     if (savedManualBrokers) {
+      try {
         setManualBrokers(JSON.parse(savedManualBrokers));
+      } catch (e) {
+        console.error("Failed to parse manual brokers from localStorage", e);
+      }
     }
-    const savedTargets = localStorage.getItem('sales_targets');
+    const savedTargets = localStorage.getItem('app_targets');
     if (savedTargets) {
-      setTargets(JSON.parse(savedTargets));
+      try {
+        const parsed = JSON.parse(savedTargets);
+        if (parsed.captures && parsed.sales && parsed.rentals) {
+          setTargets(parsed);
+        }
+      } catch (e) {
+        console.error("Failed to parse targets from localStorage", e);
+      }
     }
   }, [auth, user]);
 
@@ -175,10 +190,10 @@ export default function AppContainer() {
     });
   }, [toast]);
 
-  const handleTargetsChange = useCallback((newTargets: { annual: number; quarterly: number; semiannual: number; }) => {
+  const handleTargetsChange = useCallback((newTargets: typeof targets) => {
     setTargets(newTargets);
-    localStorage.setItem('sales_targets', JSON.stringify(newTargets));
-    toast({ title: "Metas Atualizadas", description: "As novas metas de angariação foram salvas." });
+    localStorage.setItem('app_targets', JSON.stringify(newTargets));
+    toast({ title: "Metas Atualizadas", description: "As novas metas de performance foram salvas." });
   }, [toast]);
   
   // The definitive list of brokers is the one managed manually.
@@ -426,6 +441,7 @@ export default function AppContainer() {
             <StatsCards metrics={metrics} />
             <InventoryHealth 
               properties={inventory} 
+              sales={sales}
               targets={targets}
               onTargetsChange={handleTargetsChange}
             />
