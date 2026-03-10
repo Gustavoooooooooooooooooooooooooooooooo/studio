@@ -32,14 +32,14 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
       const month = parseInt(dmyMatch[2], 10) - 1;
       let year = parseInt(dmyMatch[3], 10);
       if (year < 100) year += 2000;
-      const date = new Date(year, month, day);
+      const date = new Date(Date.UTC(year, month, day)); // Use UTC
       if (!isNaN(date.getTime())) return date;
     }
 
     // 2. Tentar ISO YYYY-MM-DD
     const isoMatch = strVal.match(/^(\d{4})[./-](\d{2})[./-](\d{2})/);
     if (isoMatch) {
-      const date = new Date(parseInt(isoMatch[1], 10), parseInt(isoMatch[2], 10) - 1, parseInt(isoMatch[3], 10));
+      const date = new Date(Date.UTC(parseInt(isoMatch[1], 10), parseInt(isoMatch[2], 10) - 1, parseInt(isoMatch[3], 10))); // Use UTC
       if (!isNaN(date.getTime())) return date;
     }
 
@@ -47,7 +47,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
     const cleanNumStr = strVal.replace(/[^\d]/g, '');
     const num = Number(cleanNumStr);
     if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('-') && !strVal.includes('.')) {
-      return new Date(Math.round((num - 25569) * 86400 * 1000));
+      const date = new Date(Math.round((num - 25569) * 86400 * 1000));
+      if (!isNaN(date.getTime())) return date;
     }
 
     const date = new Date(strVal);
@@ -65,8 +66,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
       const filterByPeriod = (item: any, dateField: string) => {
         const d = parseDate(item[dateField]);
         if (!d) return false;
-        const monthMatch = selectedMonth === "all" || d.getMonth() === parseInt(selectedMonth);
-        const yearMatch = selectedYear === "all" || d.getFullYear() === parseInt(selectedYear);
+        const monthMatch = selectedMonth === "all" || d.getUTCMonth() === parseInt(selectedMonth); // Use UTC
+        const yearMatch = selectedYear === "all" || d.getUTCFullYear() === parseInt(selectedYear); // Use UTC
         return monthMatch && yearMatch;
       };
 
@@ -74,8 +75,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
       const bProps = properties.filter(p => normalize(p.brokerId).split(' ')[0] === normName.split(' ')[0]);
       const bPropsFiltered = bProps.filter(p => filterByPeriod(p, "captureDate"));
       
-      const vPropsCount = bPropsFiltered.filter(p => Number(p.saleValue || 0) > 0).length;
-      const lPropsCount = bPropsFiltered.filter(p => Number(p.rentalValue || 0) > 0).length;
+      const capturesCount = bPropsFiltered.length;
 
       // 2. Leads & Visitas
       const brokerLeads = leads.filter(l => {
@@ -145,9 +145,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
 
       return {
         name: brokerName,
+        captures: capturesCount,
         leads: brokerLeadsFiltered.length,
-        vProps: vPropsCount,
-        lProps: lPropsCount,
         visitsVenda,
         visitsLocacao,
         totalVisits: totalVisitsFiltered,
@@ -210,15 +209,9 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
                     </Badge>
                   </TableCell>
                   <TableCell className="text-center border-r py-2">
-                    <div className="flex flex-col items-center leading-tight">
-                      <span className={`font-black text-xs ${row.vProps > 0 ? 'text-emerald-600' : 'text-muted-foreground/10'}`}>
-                        {row.vProps}
-                      </span>
-                      <div className="h-[1px] w-4 bg-muted/20 my-0.5" />
-                      <span className={`font-black text-xs ${row.lProps > 0 ? 'text-blue-600' : 'text-muted-foreground/10'}`}>
-                        {row.lProps}
-                      </span>
-                    </div>
+                    <Badge variant="outline" className={`border-emerald-200 text-emerald-700 text-xs font-bold ${row.captures === 0 && 'opacity-20'}`}>
+                      {row.captures}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-center border-r py-2 bg-indigo-50/10">
                     <Badge variant="outline" className={`border-indigo-200 text-indigo-700 text-[10px] ${row.visitsVenda === 0 && 'opacity-20'}`}>
@@ -289,6 +282,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
     </Card>
   );
 }
+
+    
 
     
 
