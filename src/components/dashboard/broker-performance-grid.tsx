@@ -105,6 +105,9 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       
       const capturesSale = bPropsFiltered.filter(p => p.saleValue && Number(p.saleValue) > 0).length;
       const capturesRent = bPropsFiltered.filter(p => p.rentalValue && Number(p.rentalValue) > 0).length;
+      const vgvAngariado = bPropsFiltered.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0);
+      const vglAngariado = bPropsFiltered.reduce((acc, p) => acc + (Number(p.rentalValue) || 0), 0);
+
 
       // 2. Leads & Visitas
       const brokerLeadsAll = leads.filter(l => {
@@ -156,9 +159,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       
       const numSales = brokerSalesFiltered.length;
       const numRentals = brokerRentalsFiltered.length;
-
-      const vgvVendido = brokerSalesFiltered.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
-      const vglFechado = brokerRentalsFiltered.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
       
       // Frequencies
       const salesFrequency = brokerSalesAll.length > 0 ? Math.floor(totalDaysCount / brokerSalesAll.length) : 0;
@@ -190,8 +190,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         visitsLocacao,
         numSales,
         numRentals,
-        vgvVendido,
-        vglFechado,
+        vgvVendido: vgvAngariado,
+        vglFechado: vglAngariado,
         salesFrequency,
         rentalsFrequency,
         conversionLeadToVisitVenda,
@@ -252,7 +252,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                    Média Leads p/ {performanceView === 'venda' ? 'Venda' : 'Loc.'}
                 </TableHead>
                 <TableHead className="text-right border-r text-xs uppercase">Frequência</TableHead>
-                <TableHead className="text-right font-bold text-xs uppercase bg-primary/5">{performanceView === 'venda' ? 'VGV Vendido' : 'VGL Fechado'}</TableHead>
+                <TableHead className="text-right font-bold text-xs uppercase bg-primary/5">{performanceView === 'venda' ? 'VGV Angariado' : 'VGL Angariado'}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -327,5 +327,3 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
     </Card>
   );
 }
-
-    
