@@ -10,7 +10,13 @@ import { BrokerPerformanceGrid } from "@/components/dashboard/broker-performance
 import { InventoryHealth } from "@/components/dashboard/inventory-health";
 import { BrokerSettings } from "@/components/dashboard/broker-settings";
 import { SheetUrlConfig } from "@/components/dashboard/sheet-url-config";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { LayoutDashboard, TrendingUp, Table2, Settings, Calendar as CalendarIcon, Loader2, AlertTriangle, RefreshCcw } from "lucide-react";
 import { useFirebase, initiateAnonymousSignIn } from "@/firebase";
@@ -103,6 +109,7 @@ export default function AppContainer() {
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
   const [selectedYears, setSelectedYears] = useState<string[]>([String(now.getFullYear())]);
   const [syncing, setSyncing] = useState(false);
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
   const { toast } = useToast();
 
   const [urls, setUrls] = useState({ inventory: "", leads: "", sales: "" });
@@ -434,7 +441,7 @@ export default function AppContainer() {
                     </span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56">
+                <DropdownMenuContent className="w-56" onPointerDownOutside={(e) => e.preventDefault()}>
                   <DropdownMenuLabel>Filtrar por Mês</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuCheckboxItem
@@ -471,7 +478,7 @@ export default function AppContainer() {
                     </span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56">
+                <DropdownMenuContent className="w-56" onPointerDownOutside={(e) => e.preventDefault()}>
                   <DropdownMenuLabel>Filtrar por Ano</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuCheckboxItem
@@ -493,34 +500,30 @@ export default function AppContainer() {
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
-
             </div>
+            <Button variant="ghost" size="icon" onClick={() => setIsConfigOpen(true)}>
+                <Settings className="h-5 w-5 text-primary" />
+            </Button>
           </div>
         </div>
       </header>
 
       <main className="container mx-auto px-4 py-6 max-w-7xl">
-        <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="grid grid-cols-2 w-full max-w-sm mx-auto h-12 p-1 bg-muted/50 rounded-xl">
-            <TabsTrigger value="dashboard" className="rounded-lg"><LayoutDashboard className="h-4 w-4 mr-2" /> Dashboard</TabsTrigger>
-            <TabsTrigger value="config" className="rounded-lg"><Settings className="h-4 w-4 mr-2" /> Config</TabsTrigger>
-          </TabsList>
-          
-          {(!urls.inventory || !urls.leads || !urls.sales) && (
-            <Card className="mt-6 bg-amber-50 border-amber-200">
+        {(!urls.inventory || !urls.leads || !urls.sales) && (
+            <Card className="mb-6 bg-amber-50 border-amber-200">
                 <CardHeader className="flex flex-row items-center gap-3">
                     <AlertTriangle className="h-6 w-6 text-amber-600" />
                     <div>
                         <CardTitle className="text-amber-800">Ação Necessária</CardTitle>
                         <p className="text-sm text-muted-foreground">
-                            Para começar, por favor, vá até a aba 'Config' e insira os links das suas planilhas.
+                            Para começar, por favor, clique no ícone de engrenagem e insira os links das suas planilhas.
                         </p>
                     </div>
                 </CardHeader>
             </Card>
           )}
 
-          <TabsContent value="dashboard" className="space-y-8 animate-in fade-in duration-500">
+          <div className="space-y-8 animate-in fade-in duration-500">
             <StatsCards metrics={metrics} />
             <InventoryHealth 
               properties={inventory} 
@@ -541,18 +544,31 @@ export default function AppContainer() {
               />
               <ChannelPerformance leads={leads} />
             </div>
-          </TabsContent>
-          
-          <TabsContent value="config" className="space-y-6">
+          </div>
+      </main>
+
+      <Sheet open={isConfigOpen} onOpenChange={setIsConfigOpen}>
+        <SheetContent className="sm:max-w-lg w-[90vw]">
+          <SheetHeader>
+            <SheetTitle className="text-xl flex items-center gap-2 text-primary">
+              <Settings className="h-5 w-5" />
+              Configurações
+            </SheetTitle>
+            <SheetDescription>
+              Gerencie os links para suas planilhas e a lista de corretores para análise.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="py-8 space-y-8">
             <SheetUrlConfig urls={urls} onUrlsChange={handleUrlsChange} />
             <BrokerSettings 
               brokers={allBrokers} 
               onAddBroker={handleAddBroker}
               onDeleteBroker={handleDeleteBroker} 
             />
-          </TabsContent>
-        </Tabs>
-      </main>
+          </div>
+        </SheetContent>
+      </Sheet>
+
 
       <footer className="mt-12 py-8 border-t bg-white">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
@@ -562,7 +578,3 @@ export default function AppContainer() {
     </div>
   );
 }
-
-    
-
-    
