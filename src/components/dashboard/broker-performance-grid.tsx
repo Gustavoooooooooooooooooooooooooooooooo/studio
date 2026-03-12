@@ -171,6 +171,10 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
       // Locacao Conversion
       const conversionLeadsToRental = leadsLocacao > 0 ? (numRentals / leadsLocacao) * 100 : 0;
       const conversionVisitToRental = visitsLocacao > 0 ? (numRentals / visitsLocacao) * 100 : 0;
+      
+      // Leads per Visit
+      const leadsPerVisitVenda = visitsVenda > 0 ? leadsVenda / visitsVenda : 0;
+      const leadsPerVisitLocacao = visitsLocacao > 0 ? leadsLocacao / visitsLocacao : 0;
 
       return {
         name: brokerName,
@@ -190,6 +194,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
         conversionVisitToSale,
         conversionLeadsToRental,
         conversionVisitToRental,
+        leadsPerVisitVenda,
+        leadsPerVisitLocacao,
       };
     }).sort((a, b) => {
       if (performanceView === 'venda') {
@@ -226,10 +232,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
                 <TableHead className="text-center border-r text-xs uppercase">Angariados</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase">Visitas</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase bg-primary/5">{performanceView === 'venda' ? 'Vendas' : 'Locações'}</TableHead>
-                <TableHead className="text-center border-r text-xs uppercase relative">
-                   <span className="absolute top-1 left-1 text-[8px] opacity-40">%</span>
-                   Leads / {performanceView === 'venda' ? 'Venda' : 'Loc.'}
-                </TableHead>
+                <TableHead className="text-center border-r text-xs uppercase">Leads p/ Visita</TableHead>
                 <TableHead className="text-center border-r text-xs uppercase relative">
                    <span className="absolute top-1 left-1 text-[8px] opacity-40">%</span>
                    Visitas / {performanceView === 'venda' ? 'Venda' : 'Loc.'}
@@ -261,14 +264,14 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
                     {performanceView === 'venda' ? row.numSales : row.numRentals}
                   </TableCell>
                   <TableCell className="text-center border-r py-2 bg-orange-50/10 text-xs font-bold text-orange-700 relative">
-                    <div className="flex flex-col items-center justify-center h-full leading-tight">
-                      <span className="font-bold text-orange-700">
-                        {(performanceView === 'venda' ? row.conversionLeadsToSale : row.conversionLeadsToRental).toFixed(1)}%
-                      </span>
-                      <span className="text-[9px] text-orange-700/60 font-medium">
-                        {performanceView === 'venda' ? `${row.numSales}/${row.leadsVenda}` : `${row.numRentals}/${row.leadsLocacao}`}
-                      </span>
-                    </div>
+                     <div className="flex flex-col items-center justify-center h-full leading-tight">
+                        <span className="font-bold text-orange-700">
+                          {(performanceView === 'venda' ? row.leadsPerVisitVenda : row.leadsPerVisitLocacao).toFixed(1)}
+                        </span>
+                        <span className="text-[9px] text-orange-700/60 font-medium">
+                            {performanceView === 'venda' ? `${row.leadsVenda}/${row.visitsVenda}` : `${row.leadsLocacao}/${row.visitsLocacao}`}
+                        </span>
+                      </div>
                   </TableCell>
                   <TableCell className="text-center border-r py-2 bg-rose-50/10 text-xs font-bold text-rose-700 relative">
                      <div className="flex flex-col items-center justify-center h-full leading-tight">
