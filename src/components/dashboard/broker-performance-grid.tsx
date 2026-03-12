@@ -20,40 +20,58 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
 
   const parseDate = (d: any): Date | null => {
     if (!d) return null;
-    if (d instanceof Date) return isNaN(d.getTime()) ? null : d;
+    if (d instanceof Date) {
+        if (isNaN(d.getTime())) return null;
+        // Create a new UTC date from the local date's components to avoid timezone shift
+        return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    }
+
     const strVal = String(d).trim();
     if (!strVal || ["n/a", "undefined", "null", ""].includes(strVal.toLowerCase())) return null;
 
-    // 1. Tentar DD/MM/YYYY ou DD.MM.YYYY ou DD-MM-YYYY
+    // Try to match DD/MM/YYYY or DD.MM.YYYY, which is the most common format in Brazil
     const dmyMatch = strVal.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
     if (dmyMatch) {
       const day = parseInt(dmyMatch[1], 10);
       const month = parseInt(dmyMatch[2], 10) - 1;
       let year = parseInt(dmyMatch[3], 10);
       if (year < 100) year += 2000;
-      const date = new Date(Date.UTC(year, month, day));
-      if (!isNaN(date.getTime())) return date;
+      if (day > 0 && day <= 31 && month >= 0 && month < 12) {
+        const date = new Date(Date.UTC(year, month, day));
+        if (!isNaN(date.getTime())) return date;
+      }
     }
 
-    // 2. Tentar ISO YYYY-MM-DD
+    // Try ISO format YYYY-MM-DD
     const isoMatch = strVal.match(/^(\d{4})[./-](\d{2})[./-](\d{2})/);
     if (isoMatch) {
-      const date = new Date(Date.UTC(parseInt(isoMatch[1], 10), parseInt(isoMatch[2], 10) - 1, parseInt(isoMatch[3], 10)));
-      if (!isNaN(date.getTime())) return date;
+        const year = parseInt(isoMatch[1], 10);
+        const month = parseInt(isoMatch[2], 10) - 1;
+        const day = parseInt(isoMatch[3], 10);
+        if (day > 0 && day <= 31 && month >= 0 && month < 12) {
+            const date = new Date(Date.UTC(year, month, day));
+            if (!isNaN(date.getTime())) return date;
+        }
+    }
+    
+    // Try Excel serial number
+    if (/^\d{5}$/.test(strVal)) {
+        const num = Number(strVal);
+        if (!isNaN(num) && num > 30000 && num < 70000) {
+            const excelEpoch = Date.UTC(1899, 11, 30);
+            const date = new Date(excelEpoch + num * 86400000);
+            if (!isNaN(date.getTime())) return date;
+        }
     }
 
-    // 3. Serial Excel
-    const cleanNumStr = strVal.replace(/[^\d]/g, '');
-    const num = Number(cleanNumStr);
-    if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('-') && !strVal.includes('.')) {
-      const excelEpoch = Date.UTC(1899, 11, 30);
-      const date = new Date(excelEpoch + num * 86400000);
-      if (!isNaN(date.getTime())) return date;
+    // Last resort: try native Date parser
+    const nativeDate = new Date(strVal);
+    if (!isNaN(nativeDate.getTime())) {
+        const utcDate = new Date(Date.UTC(nativeDate.getFullYear(), nativeDate.getMonth(), nativeDate.getDate()));
+        if (!isNaN(utcDate.getTime())) return utcDate;
     }
 
-    // 4. Fallback para o construtor Date
-    const date = new Date(strVal);
-    return isNaN(date.getTime()) ? null : date;
+    return null;
   };
 
   const stats = useMemo(() => {
@@ -69,7 +87,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
         const normalizedSheetName = normalize(String(sheetName || ""));
         if (!normalizedSheetName) return false;
 
-        // Lógica de correspondência flexível
+        // Flexible matching logic: checks if one name contains the other
         return normalizedSheetName.includes(configBrokerName) || configBrokerName.includes(normalizedSheetName);
       };
 
