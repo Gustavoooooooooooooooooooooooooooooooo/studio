@@ -235,7 +235,7 @@ export default function AppContainer() {
               saleValue: parseCurrency(getVal(row, ["valor venda", "venda"])),
               rentalValue: parseCurrency(getVal(row, ["valor locacao", "aluguel", "locacao", "valor aluguel"])),
               brokerId: String(getVal(row, ["angariador", "corretor", "captador"]) || "N/A"),
-              captureDate: formatDateDisplay(getVal(row, ["data entrada", "entrada", "cadastro"])),
+              captureDate: formatDateDisplay(getVal(row, ["data entrada", "entrada", "cadastro", "carimbo"])),
               status: String(getVal(row, ["status", "situacao"]) || "Disponível"),
             };
           } else if (mode === 'sales') {
@@ -250,7 +250,7 @@ export default function AppContainer() {
               advertisedValue: parseCurrency(getVal(row, ["valor anuncio", "anuncio"])),
               closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda"])),
               saleDate: formatDateDisplay(getVal(row, ["data do venda", "data venda", "fechamento", "venda"], ["vendedor", "corretor"])),
-              propertyCaptureDate: formatDateDisplay(getVal(row, ["data entrada", "entrada", "cadastro"])),
+              propertyCaptureDate: formatDateDisplay(getVal(row, ["data entrada", "entrada", "cadastro", "carimbo"])),
               tipo: String(getVal(row, ["tipo", "natureza", "negocio"]) || "Venda"),
               status: "Vendido",
             };
