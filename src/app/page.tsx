@@ -13,10 +13,11 @@ import { SheetUrlConfig } from "@/components/dashboard/sheet-url-config";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { LayoutDashboard, TrendingUp, Table2, Settings, Calendar as CalendarIcon, Loader2, AlertTriangle } from "lucide-react";
+import { LayoutDashboard, TrendingUp, Table2, Settings, Calendar as CalendarIcon, Loader2, AlertTriangle, RefreshCcw } from "lucide-react";
 import { useFirebase, initiateAnonymousSignIn } from "@/firebase";
 import { syncGoogleSheets } from "@/ai/flows/sync-sheets-flow";
 import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
 
 
 // Engine for specialized date handling (Performant Version)
@@ -214,7 +215,7 @@ export default function AppContainer() {
     if (syncingRef.current || !auth || !user) return;
     
     syncingRef.current = true;
-    if (!silent) setSyncing(true);
+    setSyncing(true);
 
     const processSheet = async (url: string, mode: 'inventory' | 'sales' | 'leads') => {
       if (!url) return { success: false, data: [] };
@@ -280,8 +281,8 @@ export default function AppContainer() {
     if (salesResult.success) setSales(salesResult.data);
 
     syncingRef.current = false;
+    setSyncing(false);
     if (!silent) {
-      setSyncing(false);
       toast({ title: "Sincronização Concluída", description: `Dados das planilhas foram atualizados.` });
     }
   }, [urls, toast, auth, user]);
@@ -378,7 +379,9 @@ export default function AppContainer() {
           </div>
           
           <div className="flex items-center gap-3">
-             {syncing && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
+             <Button variant="ghost" size="icon" onClick={() => handleSync(false)} disabled={syncing} aria-label="Sincronizar dados">
+                <RefreshCcw className={`h-5 w-5 text-primary ${syncing ? 'animate-spin' : ''}`} />
+             </Button>
             <div className="flex items-center gap-2 bg-muted/30 px-3 py-1.5 rounded-lg border">
               <CalendarIcon className="h-4 w-4 text-primary" />
               <Select value={selectedMonth} onValueChange={setSelectedMonth}>
@@ -422,9 +425,8 @@ export default function AppContainer() {
 
       <main className="container mx-auto px-4 py-6 max-w-7xl">
         <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="grid grid-cols-3 w-full max-w-xl mx-auto h-12 p-1 bg-muted/50 rounded-xl">
+          <TabsList className="grid grid-cols-2 w-full max-w-sm mx-auto h-12 p-1 bg-muted/50 rounded-xl">
             <TabsTrigger value="dashboard" className="rounded-lg"><LayoutDashboard className="h-4 w-4 mr-2" /> Dashboard</TabsTrigger>
-            <TabsTrigger value="base" className="rounded-lg"><Table2 className="h-4 w-4 mr-2" /> Base</TabsTrigger>
             <TabsTrigger value="config" className="rounded-lg"><Settings className="h-4 w-4 mr-2" /> Config</TabsTrigger>
           </TabsList>
           
@@ -464,8 +466,7 @@ export default function AppContainer() {
               <ChannelPerformance leads={leads} />
             </div>
           </TabsContent>
-
-          <TabsContent value="base" className="space-y-8"><SalesMatrix sales={sales} /></TabsContent>
+          
           <TabsContent value="config" className="space-y-6">
             <SheetUrlConfig urls={urls} onUrlsChange={handleUrlsChange} />
             <BrokerSettings 
@@ -485,3 +486,5 @@ export default function AppContainer() {
     </div>
   );
 }
+
+    
