@@ -11,12 +11,12 @@ interface BrokerPerformanceGridProps {
   sales: any[];
   leads: any[];
   properties: any[];
-  selectedMonth: string;
-  selectedYear: string;
+  selectedMonths: string[];
+  selectedYears: string[];
   brokers: string[];
 }
 
-export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth, selectedYear, brokers }: BrokerPerformanceGridProps) {
+export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths, selectedYears, brokers }: BrokerPerformanceGridProps) {
   const [performanceView, setPerformanceView] = useState<'venda' | 'locacao'>('venda');
 
   const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
@@ -90,8 +90,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
       const filterByPeriod = (item: any, dateField: string) => {
         const d = parseDate(item[dateField]);
         if (!d) return false;
-        const monthMatch = selectedMonth === "all" || d.getUTCMonth() === parseInt(selectedMonth);
-        const yearMatch = selectedYear === "all" || d.getUTCFullYear() === parseInt(selectedYear);
+        const monthMatch = selectedMonths.length === 0 || selectedMonths.includes(String(d.getUTCMonth()));
+        const yearMatch = selectedYears.length === 0 || selectedYears.includes(String(d.getUTCFullYear()));
         return monthMatch && yearMatch;
       };
 
@@ -213,7 +213,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
       }
       return b.numRentals - a.numRentals || b.vglFechado - a.vglFechado;
     });
-  }, [sales, leads, properties, brokers, selectedMonth, selectedYear, performanceView]);
+  }, [sales, leads, properties, brokers, selectedMonths, selectedYears, performanceView]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
@@ -327,3 +327,5 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
     </Card>
   );
 }
+
+    

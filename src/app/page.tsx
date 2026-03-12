@@ -11,13 +11,20 @@ import { InventoryHealth } from "@/components/dashboard/inventory-health";
 import { BrokerSettings } from "@/components/dashboard/broker-settings";
 import { SheetUrlConfig } from "@/components/dashboard/sheet-url-config";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { LayoutDashboard, TrendingUp, Table2, Settings, Calendar as CalendarIcon, Loader2, AlertTriangle, RefreshCcw } from "lucide-react";
 import { useFirebase, initiateAnonymousSignIn } from "@/firebase";
 import { syncGoogleSheets } from "@/ai/flows/sync-sheets-flow";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 
 // Engine for specialized date handling (Performant Version)
@@ -93,8 +100,8 @@ const parseCurrency = (val: any) => {
 export default function AppContainer() {
   const [mounted, setMounted] = useState(false);
   const [now] = useState<Date>(new Date());
-  const [selectedMonth, setSelectedMonth] = useState<string>("all");
-  const [selectedYear, setSelectedYear] = useState<string>(String(now.getFullYear()));
+  const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
+  const [selectedYears, setSelectedYears] = useState<string[]>([String(now.getFullYear())]);
   const [syncing, setSyncing] = useState(false);
   const { toast } = useToast();
 
@@ -314,8 +321,8 @@ export default function AppContainer() {
         return items.filter(item => {
             const d = item[dateField];
             if (!d) return false;
-            const monthMatch = selectedMonth === "all" || d.getMonth() === parseInt(selectedMonth);
-            const yearMatch = selectedYear === "all" || d.getFullYear() === parseInt(selectedYear);
+            const monthMatch = selectedMonths.length === 0 || selectedMonths.includes(String(d.getMonth()));
+            const yearMatch = selectedYears.length === 0 || selectedYears.includes(String(d.getFullYear()));
             return monthMatch && yearMatch;
         });
     };
@@ -361,7 +368,37 @@ export default function AppContainer() {
       avgTicketRent,
       salesFrequency
     };
-  }, [processedSales, leads, processedInventory, inventory, now, selectedMonth, selectedYear]);
+  }, [processedSales, leads, processedInventory, inventory, now, selectedMonths, selectedYears]);
+
+  const monthOptions = [
+    { value: '0', label: 'Janeiro' }, { value: '1', label: 'Fevereiro' }, { value: '2', label: 'Março' },
+    { value: '3', label: 'Abril' }, { value: '4', label: 'Maio' }, { value: '5', label: 'Junho' },
+    { value: '6', label: 'Julho' }, { value: '7', label: 'Agosto' }, { value: '8', label: 'Setembro' },
+    { value: '9', label: 'Outubro' }, { value: '10', label: 'Novembro' }, { value: '11', label: 'Dezembro' }
+  ];
+  
+  const yearOptions = [...Array(5)].map((_, i) => ({
+    value: String(now.getFullYear() - i),
+    label: String(now.getFullYear() - i)
+  }));
+
+  const handleMonthSelect = (month: string) => {
+    setSelectedMonths(prev => {
+      const newSelection = prev.includes(month)
+        ? prev.filter(m => m !== month)
+        : [...prev, month];
+      return newSelection;
+    });
+  };
+
+  const handleYearSelect = (year: string) => {
+    setSelectedYears(prev => {
+      const newSelection = prev.includes(year)
+        ? prev.filter(y => y !== year)
+        : [...prev, year];
+      return newSelection;
+    });
+  };
 
   if (!mounted) return null;
 
@@ -384,40 +421,75 @@ export default function AppContainer() {
              </Button>
             <div className="flex items-center gap-2 bg-muted/30 px-3 py-1.5 rounded-lg border">
               <CalendarIcon className="h-4 w-4 text-primary" />
-              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger className="w-[140px] h-8 border-none bg-transparent shadow-none focus:ring-0">
-                  <SelectValue placeholder="Mês" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os Meses</SelectItem>
-                  <SelectItem value="0">Janeiro</SelectItem>
-                  <SelectItem value="1">Fevereiro</SelectItem>
-                  <SelectItem value="2">Março</SelectItem>
-                  <SelectItem value="3">Abril</SelectItem>
-                  <SelectItem value="4">Maio</SelectItem>
-                  <SelectItem value="5">Junho</SelectItem>
-                  <SelectItem value="6">Julho</SelectItem>
-                  <SelectItem value="7">Agosto</SelectItem>
-                  <SelectItem value="8">Setembro</SelectItem>
-                  <SelectItem value="9">Outubro</SelectItem>
-                  <SelectItem value="10">Novembro</SelectItem>
-                  <SelectItem value="11">Dezembro</SelectItem>
-                </SelectContent>
-              </Select>
-              <div className="w-[1px] h-4 bg-muted-foreground/20 mx-1" />
-              <Select value={selectedYear} onValueChange={setSelectedYear}>
-                <SelectTrigger className="w-[100px] h-8 border-none bg-transparent shadow-none focus:ring-0">
-                  <SelectValue placeholder="Ano" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  {[...Array(3)].map((_, i) => (
-                    <SelectItem key={i} value={String(now.getFullYear() - i)}>
-                      {now.getFullYear() - i}
-                    </SelectItem>
+              
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="h-8 border-none bg-transparent shadow-none focus:ring-0 px-2 text-sm">
+                    <span className="truncate max-w-[120px]">
+                      {selectedMonths.length === 0 
+                        ? "Todos os Meses" 
+                        : selectedMonths.length === 1 
+                          ? monthOptions.find(m => m.value === selectedMonths[0])?.label 
+                          : `${selectedMonths.length} meses`}
+                    </span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56">
+                  <DropdownMenuLabel>Filtrar por Mês</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuCheckboxItem
+                      checked={selectedMonths.length === 0}
+                      onCheckedChange={() => setSelectedMonths([])}
+                    >
+                      Todos os Meses
+                    </DropdownMenuCheckboxItem>
+                  {monthOptions.map((option) => (
+                    <DropdownMenuCheckboxItem
+                      key={option.value}
+                      checked={selectedMonths.includes(option.value)}
+                      onCheckedChange={() => handleMonthSelect(option.value)}
+                    >
+                      {option.label}
+                    </DropdownMenuCheckboxItem>
                   ))}
-                </SelectContent>
-              </Select>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <div className="w-[1px] h-4 bg-muted-foreground/20 mx-1" />
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="h-8 border-none bg-transparent shadow-none focus:ring-0 px-2 text-sm">
+                     <span className="truncate max-w-[100px]">
+                      {selectedYears.length === 0 
+                        ? "Todos os Anos" 
+                        : selectedYears.length === 1 
+                          ? selectedYears[0] 
+                          : `${selectedYears.length} anos`}
+                    </span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56">
+                  <DropdownMenuLabel>Filtrar por Ano</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuCheckboxItem
+                      checked={selectedYears.length === 0}
+                      onCheckedChange={() => setSelectedYears([])}
+                    >
+                      Todos os Anos
+                    </DropdownMenuCheckboxItem>
+                  {yearOptions.map((option) => (
+                    <DropdownMenuCheckboxItem
+                      key={option.value}
+                      checked={selectedYears.includes(option.value)}
+                      onCheckedChange={() => handleYearSelect(option.value)}
+                    >
+                      {option.label}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
             </div>
           </div>
         </div>
@@ -459,8 +531,8 @@ export default function AppContainer() {
                 sales={sales} 
                 leads={leads} 
                 properties={inventory} 
-                selectedMonth={selectedMonth}
-                selectedYear={selectedYear}
+                selectedMonths={selectedMonths}
+                selectedYears={selectedYears}
                 brokers={allBrokers}
               />
               <ChannelPerformance leads={leads} />
@@ -486,5 +558,7 @@ export default function AppContainer() {
     </div>
   );
 }
+
+    
 
     
