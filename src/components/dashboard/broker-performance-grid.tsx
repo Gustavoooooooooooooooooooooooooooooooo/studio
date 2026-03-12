@@ -1,5 +1,4 @@
-
-'use client';
+"use client";
 
 import { useMemo } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -75,7 +74,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
       const bProps = properties.filter(p => normalize(p.brokerId).split(' ')[0] === normName.split(' ')[0]);
       const bPropsFiltered = bProps.filter(p => filterByPeriod(p, "captureDate"));
       
-      const capturesCount = bPropsFiltered.length;
+      const capturesSale = bPropsFiltered.filter(p => p.saleValue && Number(p.saleValue) > 0).length;
+      const capturesRent = bPropsFiltered.filter(p => p.rentalValue && Number(p.rentalValue) > 0).length;
 
       // 2. Leads & Visitas
       const brokerLeads = leads.filter(l => {
@@ -145,7 +145,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
 
       return {
         name: brokerName,
-        captures: capturesCount,
+        capturesSale,
+        capturesRent,
         leads: brokerLeadsFiltered.length,
         visitsVenda,
         visitsLocacao,
@@ -208,10 +209,15 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
                       {row.leads}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-center border-r py-2">
-                    <Badge variant="outline" className={`border-emerald-200 text-emerald-700 text-xs font-bold ${row.captures === 0 && 'opacity-20'}`}>
-                      {row.captures}
-                    </Badge>
+                  <TableCell className="text-center border-r py-1">
+                    <div className="flex flex-col items-center justify-center space-y-1">
+                        <Badge variant="outline" className={`border-emerald-200 bg-emerald-50/50 text-emerald-700 text-[10px] font-bold ${row.capturesSale === 0 && 'opacity-20'}`}>
+                            {row.capturesSale} Venda
+                        </Badge>
+                        <Badge variant="outline" className={`border-amber-300 bg-amber-50/50 text-amber-800 text-[10px] font-bold ${row.capturesRent === 0 && 'opacity-20'}`}>
+                            {row.capturesRent} Locação
+                        </Badge>
+                    </div>
                   </TableCell>
                   <TableCell className="text-center border-r py-2 bg-indigo-50/10">
                     <Badge variant="outline" className={`border-indigo-200 text-indigo-700 text-[10px] ${row.visitsVenda === 0 && 'opacity-20'}`}>
@@ -282,9 +288,3 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
     </Card>
   );
 }
-
-    
-
-    
-
-    
