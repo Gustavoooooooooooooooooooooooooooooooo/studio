@@ -64,7 +64,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
       
       const isMatch = (sheetName: string | undefined | null) => {
         if (!sheetName || sheetName === "N/A") return false;
-        const normalizedSheetName = normalize(String(sheetName));
+        const normalizedSheetName = normalize(String(sheetName || ""));
         if (!normalizedSheetName) return false;
 
         return normalizedSheetName.includes(configBrokerName) || configBrokerName.includes(normalizedSheetName);
@@ -78,9 +78,9 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
         return monthMatch && yearMatch;
       };
 
-      // 1. Angariações Filtradas
+      // 1. Angariações Filtradas (DIAGNOSTIC CHANGE)
       const bProps = properties.filter(p => isMatch(p.brokerId));
-      const bPropsFiltered = bProps.filter(p => filterByPeriod(p, "captureDate"));
+      const bPropsFiltered = bProps; // Bypassing date filter for diagnostics
       
       const capturesSale = bPropsFiltered.filter(p => p.saleValue && Number(p.saleValue) > 0).length;
       const capturesRent = bPropsFiltered.filter(p => p.rentalValue && Number(p.rentalValue) > 0).length;
