@@ -440,6 +440,7 @@ export default function AppContainer() {
                   <DropdownMenuCheckboxItem
                       checked={selectedMonths.length === 0}
                       onCheckedChange={() => setSelectedMonths([])}
+                      onSelect={(e) => e.preventDefault()}
                     >
                       Todos os Meses
                     </DropdownMenuCheckboxItem>
@@ -448,6 +449,7 @@ export default function AppContainer() {
                       key={option.value}
                       checked={selectedMonths.includes(option.value)}
                       onCheckedChange={() => handleMonthSelect(option.value)}
+                      onSelect={(e) => e.preventDefault()}
                     >
                       {option.label}
                     </DropdownMenuCheckboxItem>
@@ -475,6 +477,7 @@ export default function AppContainer() {
                   <DropdownMenuCheckboxItem
                       checked={selectedYears.length === 0}
                       onCheckedChange={() => setSelectedYears([])}
+                      onSelect={(e) => e.preventDefault()}
                     >
                       Todos os Anos
                     </DropdownMenuCheckboxItem>
@@ -483,6 +486,7 @@ export default function AppContainer() {
                       key={option.value}
                       checked={selectedYears.includes(option.value)}
                       onCheckedChange={() => handleYearSelect(option.value)}
+                      onSelect={(e) => e.preventDefault()}
                     >
                       {option.label}
                     </DropdownMenuCheckboxItem>
