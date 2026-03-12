@@ -28,6 +28,8 @@ interface StatsCardsProps {
     salesFrequency: number;
     avgDiscountSale: number;
     avgDiscountRent: number;
+    avgDiscountValueSale: number;
+    avgDiscountValueRent: number;
     avgCommissionSale: number;
     avgCommissionRent: number;
   }
@@ -93,8 +95,8 @@ export function StatsCards({ metrics }: StatsCardsProps) {
       color: "text-orange-600",
       group: "Negociação",
       values: [
-        { label: "Venda", value: `${metrics.avgDiscountSale.toFixed(1)}%` },
-        { label: "Locação", value: `${metrics.avgDiscountRent.toFixed(1)}%` },
+        { label: "Venda", percentage: `${metrics.avgDiscountSale.toFixed(1)}%`, value: formatCurrency(metrics.avgDiscountValueSale) },
+        { label: "Locação", percentage: `${metrics.avgDiscountRent.toFixed(1)}%`, value: formatCurrency(metrics.avgDiscountValueRent) },
       ]
     },
     {
@@ -128,7 +130,14 @@ export function StatsCards({ metrics }: StatsCardsProps) {
                 {kpi.values.map((v: any) => (
                   <div key={v.label} className="border-l first:border-l-0 pl-2 first:pl-0">
                     <p className="text-xs text-muted-foreground">{v.label}</p>
-                    <p className="text-lg font-bold">{v.value}</p>
+                    {v.percentage ? (
+                      <>
+                        <p className="text-lg font-bold">{v.percentage}</p>
+                        <p className="text-xs text-muted-foreground">{v.value}</p>
+                      </>
+                    ) : (
+                      <p className="text-lg font-bold">{v.value}</p>
+                    )}
                   </div>
                 ))}
               </div>

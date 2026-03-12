@@ -261,8 +261,8 @@ export default function AppContainer() {
               propertyCode,
               neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
               clientName: String(getVal(row, ["cliente", "comprador"]) || "N/A"),
-              advertisedValue: parseCurrency(getVal(row, ["valor anuncio", "anuncio"])),
-              closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda"])),
+              advertisedValue: parseCurrency(getVal(row, ["valor anuncio", "anuncio", "qual valor anunciado?"])),
+              closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda", "qual valor final de venda?"])),
               commission: parseCurrency(getVal(row, ["comissao", "comissão"])),
               saleDate: formatDateDisplay(getVal(row, ["data do venda", "data venda", "fechamento", "venda"], ["vendedor", "corretor"])),
               propertyCaptureDate: formatDateDisplay(getVal(row, ["data entrada", "entrada", "cadastro", "carimbo"])),
@@ -369,10 +369,14 @@ export default function AppContainer() {
     const salesForDiscount = filteredSales.filter(s => normalizeTipo(s.tipo).includes('venda') && s.advertisedValue > 0 && s.closedValue > 0 && s.advertisedValue >= s.closedValue);
     const totalSaleDiscountPercent = salesForDiscount.reduce((acc, s) => acc + ((s.advertisedValue - s.closedValue) / s.advertisedValue), 0);
     const avgDiscountSale = salesForDiscount.length > 0 ? (totalSaleDiscountPercent / salesForDiscount.length) * 100 : 0;
+    const totalSaleDiscountValue = salesForDiscount.reduce((acc, s) => acc + (s.advertisedValue - s.closedValue), 0);
+    const avgDiscountValueSale = salesForDiscount.length > 0 ? totalSaleDiscountValue / salesForDiscount.length : 0;
 
     const rentalsForDiscount = filteredSales.filter(s => normalizeTipo(s.tipo).includes('loca') && s.advertisedValue > 0 && s.closedValue > 0 && s.advertisedValue >= s.closedValue);
     const totalRentDiscountPercent = rentalsForDiscount.reduce((acc, s) => acc + ((s.advertisedValue - s.closedValue) / s.advertisedValue), 0);
     const avgDiscountRent = rentalsForDiscount.length > 0 ? (totalRentDiscountPercent / rentalsForDiscount.length) * 100 : 0;
+    const totalRentDiscountValue = rentalsForDiscount.reduce((acc, s) => acc + (s.advertisedValue - s.closedValue), 0);
+    const avgDiscountValueRent = rentalsForDiscount.length > 0 ? totalRentDiscountValue / rentalsForDiscount.length : 0;
 
     const salesForCommission = filteredSales.filter(s => normalizeTipo(s.tipo).includes('venda') && s.commission > 0);
     const totalSaleCommission = salesForCommission.reduce((acc, s) => acc + s.commission, 0);
@@ -395,6 +399,8 @@ export default function AppContainer() {
       salesFrequency,
       avgDiscountSale,
       avgDiscountRent,
+      avgDiscountValueSale,
+      avgDiscountValueRent,
       avgCommissionSale,
       avgCommissionRent
     };
