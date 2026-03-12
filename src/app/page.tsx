@@ -17,6 +17,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { LayoutDashboard, TrendingUp, Table2, Settings, Calendar as CalendarIcon, Loader2, AlertTriangle, RefreshCcw } from "lucide-react";
 import { useFirebase, initiateAnonymousSignIn } from "@/firebase";
@@ -610,8 +611,8 @@ export default function AppContainer() {
       </main>
 
       <Sheet open={isConfigOpen} onOpenChange={setIsConfigOpen}>
-        <SheetContent className="sm:max-w-lg w-[90vw]">
-          <SheetHeader>
+        <SheetContent className="sm:max-w-lg w-[90vw] p-0 flex flex-col">
+          <SheetHeader className="p-6 border-b">
             <SheetTitle className="text-xl flex items-center gap-2 text-primary">
               <Settings className="h-5 w-5" />
               Configurações
@@ -620,14 +621,16 @@ export default function AppContainer() {
               Gerencie os links para suas planilhas e a lista de corretores para análise.
             </SheetDescription>
           </SheetHeader>
-          <div className="py-8 space-y-8">
-            <SheetUrlConfig urls={urls} onUrlsChange={handleUrlsChange} />
-            <BrokerSettings 
-              brokers={allBrokers} 
-              onAddBroker={handleAddBroker}
-              onDeleteBroker={handleDeleteBroker} 
-            />
-          </div>
+          <ScrollArea className="flex-1">
+            <div className="p-6 space-y-8">
+              <SheetUrlConfig urls={urls} onUrlsChange={handleUrlsChange} />
+              <BrokerSettings 
+                brokers={allBrokers} 
+                onAddBroker={handleAddBroker}
+                onDeleteBroker={handleDeleteBroker} 
+              />
+            </div>
+          </ScrollArea>
         </SheetContent>
       </Sheet>
 
