@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useMemo, useState } from "react";
@@ -260,16 +261,22 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
                     {performanceView === 'venda' ? row.numSales : row.numRentals}
                   </TableCell>
                   <TableCell className="text-center border-r py-2 bg-orange-50/10 text-xs font-bold text-orange-700 relative">
-                    <div className="flex flex-col items-center justify-center h-full">
+                    <div className="flex flex-col items-center justify-center h-full leading-tight">
                       <span className="font-bold text-orange-700">
                         {(performanceView === 'venda' ? row.conversionLeadsToSale : row.conversionLeadsToRental).toFixed(1)}%
+                      </span>
+                      <span className="text-[9px] text-orange-700/60 font-medium">
+                        {performanceView === 'venda' ? `${row.numSales}/${row.leadsVenda}` : `${row.numRentals}/${row.leadsLocacao}`}
                       </span>
                     </div>
                   </TableCell>
                   <TableCell className="text-center border-r py-2 bg-rose-50/10 text-xs font-bold text-rose-700 relative">
-                     <div className="flex flex-col items-center justify-center h-full">
+                     <div className="flex flex-col items-center justify-center h-full leading-tight">
                         <span className="font-bold text-rose-700">
                           {(performanceView === 'venda' ? row.conversionVisitToSale : row.conversionVisitToRental).toFixed(1)}%
+                        </span>
+                        <span className="text-[9px] text-rose-700/60 font-medium">
+                            {performanceView === 'venda' ? `${row.numSales}/${row.visitsVenda}` : `${row.numRentals}/${row.visitsLocacao}`}
                         </span>
                       </div>
                   </TableCell>
