@@ -72,7 +72,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
       };
 
       // 1. Angariações Filtradas
-      const bProps = properties.filter(p => normalize(p.brokerId) === normName);
+      const bProps = properties.filter(p => normalize(p.brokerId).split(' ')[0] === normName.split(' ')[0]);
       const bPropsFiltered = bProps.filter(p => filterByPeriod(p, "captureDate"));
       
       const capturesCount = bPropsFiltered.length;
