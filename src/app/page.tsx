@@ -8,15 +8,12 @@ import { MonthlyTrends } from "@/components/dashboard/monthly-trends";
 import { SalesMatrix } from "@/components/dashboard/sales-matrix";
 import { BrokerPerformanceGrid } from "@/components/dashboard/broker-performance-grid";
 import { InventoryHealth } from "@/components/dashboard/inventory-health";
-import { ImportedDataTable } from "@/components/dashboard/imported-data-table";
-import { SalesDataTable } from "@/components/dashboard/sales-data-table";
-import { LeadsDataTable } from "@/components/dashboard/leads-data-table";
 import { BrokerSettings } from "@/components/dashboard/broker-settings";
 import { SheetUrlConfig } from "@/components/dashboard/sheet-url-config";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { LayoutDashboard, TrendingUp, Table2, Users, BadgeCheck, Settings, Calendar as CalendarIcon, Loader2, AlertTriangle } from "lucide-react";
+import { LayoutDashboard, TrendingUp, Table2, Settings, Calendar as CalendarIcon, Loader2, AlertTriangle } from "lucide-react";
 import { useFirebase, initiateAnonymousSignIn } from "@/firebase";
 import { syncGoogleSheets } from "@/ai/flows/sync-sheets-flow";
 import { useToast } from "@/hooks/use-toast";
@@ -72,7 +69,9 @@ const getVal = (row: any, searchKeys: string[], excludeKeys: string[] = []) => {
       });
       if (match) {
         const val = row[match];
-        if (sKey.includes("data") && val && !/\d/.test(String(val))) continue;
+        if (sKey.includes("data") || sKey.includes("carimbo")) {
+            if (val && !/\d/.test(String(val))) continue;
+        }
         return val;
       }
     }
@@ -423,12 +422,9 @@ export default function AppContainer() {
 
       <main className="container mx-auto px-4 py-6 max-w-7xl">
         <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="grid grid-cols-6 w-full max-w-5xl mx-auto h-12 p-1 bg-muted/50 rounded-xl">
+          <TabsList className="grid grid-cols-3 w-full max-w-xl mx-auto h-12 p-1 bg-muted/50 rounded-xl">
             <TabsTrigger value="dashboard" className="rounded-lg"><LayoutDashboard className="h-4 w-4 mr-2" /> Dashboard</TabsTrigger>
             <TabsTrigger value="base" className="rounded-lg"><Table2 className="h-4 w-4 mr-2" /> Base</TabsTrigger>
-            <TabsTrigger value="cadastro" className="rounded-lg"><Table2 className="h-4 w-4 mr-2" /> Cadastro</TabsTrigger>
-            <TabsTrigger value="leads" className="rounded-lg"><Users className="h-4 w-4 mr-2" /> Leads</TabsTrigger>
-            <TabsTrigger value="conclusao" className="rounded-lg"><BadgeCheck className="h-4 w-4 mr-2" /> Conclusão</TabsTrigger>
             <TabsTrigger value="config" className="rounded-lg"><Settings className="h-4 w-4 mr-2" /> Config</TabsTrigger>
           </TabsList>
           
@@ -470,9 +466,6 @@ export default function AppContainer() {
           </TabsContent>
 
           <TabsContent value="base" className="space-y-8"><SalesMatrix sales={sales} /></TabsContent>
-          <TabsContent value="cadastro" className="space-y-6"><ImportedDataTable data={inventory} /></TabsContent>
-          <TabsContent value="leads" className="space-y-6"><LeadsDataTable data={leads} /></TabsContent>
-          <TabsContent value="conclusao" className="space-y-6"><SalesDataTable data={sales} /></TabsContent>
           <TabsContent value="config" className="space-y-6">
             <SheetUrlConfig urls={urls} onUrlsChange={handleUrlsChange} />
             <BrokerSettings 
