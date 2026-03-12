@@ -167,14 +167,18 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
       // Venda Conversion
       const conversionLeadToVisitVenda = leadsVenda > 0 ? (visitsVenda / leadsVenda) * 100 : 0;
       const conversionVisitToSale = visitsVenda > 0 ? (numSales / visitsVenda) * 100 : 0;
+      const conversionLeadToSale = leadsVenda > 0 ? (numSales / leadsVenda) * 100 : 0;
       const avgLeadsPerVisitVenda = visitsVenda > 0 ? leadsVenda / visitsVenda : 0;
       const avgVisitsPerSale = numSales > 0 ? visitsVenda / numSales : 0;
+      const avgLeadsPerSale = numSales > 0 ? leadsVenda / numSales : 0;
 
       // Locacao Conversion
       const conversionLeadToVisitLocacao = leadsLocacao > 0 ? (visitsLocacao / leadsLocacao) * 100 : 0;
       const conversionVisitToRental = visitsLocacao > 0 ? (numRentals / visitsLocacao) * 100 : 0;
+      const conversionLeadToRental = leadsLocacao > 0 ? (numRentals / leadsLocacao) * 100 : 0;
       const avgLeadsPerVisitLocacao = visitsLocacao > 0 ? leadsLocacao / visitsLocacao : 0;
       const avgVisitsPerRental = numRentals > 0 ? visitsLocacao / numRentals : 0;
+      const avgLeadsPerRental = numRentals > 0 ? leadsLocacao / numRentals : 0;
 
       return {
         name: brokerName,
@@ -192,12 +196,16 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
         rentalsFrequency,
         conversionLeadToVisitVenda,
         conversionVisitToSale,
+        conversionLeadToSale,
         conversionLeadToVisitLocacao,
         conversionVisitToRental,
+        conversionLeadToRental,
         avgLeadsPerVisitVenda,
         avgVisitsPerSale,
+        avgLeadsPerSale,
         avgLeadsPerVisitLocacao,
         avgVisitsPerRental,
+        avgLeadsPerRental,
       };
     }).sort((a, b) => {
       if (performanceView === 'venda') {
@@ -239,6 +247,9 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
                 </TableHead>
                 <TableHead className="text-center border-r text-xs uppercase">
                    Média Visitas p/ {performanceView === 'venda' ? 'Venda' : 'Loc.'}
+                </TableHead>
+                <TableHead className="text-center border-r text-xs uppercase bg-green-50/20">
+                   Média Leads p/ {performanceView === 'venda' ? 'Venda' : 'Loc.'}
                 </TableHead>
                 <TableHead className="text-right border-r text-xs uppercase">Frequência</TableHead>
                 <TableHead className="text-right font-bold text-xs uppercase bg-primary/5">{performanceView === 'venda' ? 'VGV Vendido' : 'VGL Fechado'}</TableHead>
@@ -283,6 +294,16 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
                         </span>
                         <span className="text-[9px] text-rose-700/60 font-medium">
                           {(performanceView === 'venda' ? row.conversionVisitToSale : row.conversionVisitToRental).toFixed(1)}%
+                        </span>
+                      </div>
+                  </TableCell>
+                  <TableCell className="text-center border-r py-2 bg-green-50/20 text-xs font-bold text-green-700 relative">
+                     <div className="flex flex-col items-center justify-center h-full leading-tight">
+                        <span className="font-bold text-green-700">
+                          {(performanceView === 'venda' ? row.avgLeadsPerSale : row.avgLeadsPerRental).toFixed(1)}
+                        </span>
+                        <span className="text-[9px] text-green-700/60 font-medium">
+                          {(performanceView === 'venda' ? row.conversionLeadToSale : row.conversionLeadToRental).toFixed(1)}%
                         </span>
                       </div>
                   </TableCell>
