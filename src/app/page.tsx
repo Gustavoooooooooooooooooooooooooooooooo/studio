@@ -119,7 +119,7 @@ export default function AppContainer() {
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const { toast } = useToast();
 
-  const [urls, setUrls] = useState({ inventory: "", leads: "", sales: "" });
+  const [urls, setUrls] = useState({ inventory: "", leads: "", sales: "", rentals: "" });
   const [manualBrokers, setManualBrokers] = useState<string[]>([]);
   const [targets, setTargets] = useState<{
     [key: string]: {
@@ -150,7 +150,8 @@ export default function AppContainer() {
     const savedUrls = {
       inventory: localStorage.getItem('sheet_url_inventory') || "",
       leads: localStorage.getItem('sheet_url_leads') || "",
-      sales: localStorage.getItem('sheet_url_sales') || ""
+      sales: localStorage.getItem('sheet_url_sales') || "",
+      rentals: localStorage.getItem('sheet_url_rentals') || ""
     };
     setUrls(savedUrls);
     const savedManualBrokers = localStorage.getItem('manual_brokers');
@@ -178,11 +179,12 @@ export default function AppContainer() {
     setMounted(true);
   },[])
 
-  const handleUrlsChange = (newUrls: { inventory: string; leads: string; sales: string; }) => {
+  const handleUrlsChange = (newUrls: { inventory: string; leads: string; sales: string; rentals: string; }) => {
     setUrls(newUrls);
     localStorage.setItem('sheet_url_inventory', newUrls.inventory);
     localStorage.setItem('sheet_url_leads', newUrls.leads);
     localStorage.setItem('sheet_url_sales', newUrls.sales);
+    localStorage.setItem('sheet_url_rentals', newUrls.rentals);
     // Trigger a sync after saving new URLs
     handleSync(false);
   };
@@ -292,15 +294,21 @@ export default function AppContainer() {
       }
     };
     
-    const [inventoryResult, leadsResult, salesResult] = await Promise.all([
+    const [inventoryResult, leadsResult, salesResult, rentalsResult] = await Promise.all([
       processSheet(urls.inventory, 'inventory'),
       processSheet(urls.leads, 'leads'),
-      processSheet(urls.sales, 'sales')
+      processSheet(urls.sales, 'sales'),
+      processSheet(urls.rentals, 'sales')
     ]);
 
     if (inventoryResult.success) setInventory(inventoryResult.data);
     if (leadsResult.success) setLeads(leadsResult.data);
-    if (salesResult.success) setSales(salesResult.data);
+    
+    const combinedSales = [];
+    if (salesResult.success) combinedSales.push(...salesResult.data);
+    if (rentalsResult.success) combinedSales.push(...rentalsResult.data);
+    setSales(combinedSales);
+
 
     syncingRef.current = false;
     setSyncing(false);
@@ -311,7 +319,7 @@ export default function AppContainer() {
 
   // Auto-sync effect
   useEffect(() => {
-    if (!auth || !user || (!urls.inventory && !urls.leads && !urls.sales)) return;
+    if (!auth || !user || (!urls.inventory && !urls.leads && !urls.sales && !urls.rentals)) return;
 
     handleSync(true); // Initial sync
     const intervalId = setInterval(() => handleSync(true), 60000); // Sync every 60 seconds
@@ -563,7 +571,7 @@ export default function AppContainer() {
       </header>
 
       <main className="container mx-auto px-4 py-6 max-w-7xl">
-        {(!urls.inventory || !urls.leads || !urls.sales) && (
+        {(!urls.inventory || !urls.leads || !urls.sales || !urls.rentals) && (
             <Card className="mb-6 bg-amber-50 border-amber-200">
                 <CardHeader className="flex flex-row items-center gap-3">
                     <AlertTriangle className="h-6 w-6 text-amber-600" />

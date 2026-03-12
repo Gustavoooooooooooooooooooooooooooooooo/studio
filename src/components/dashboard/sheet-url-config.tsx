@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react";
@@ -9,20 +10,22 @@ import { Link, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface SheetUrlConfigProps {
-  urls: { inventory: string; leads: string; sales: string; };
-  onUrlsChange: (urls: { inventory: string; leads: string; sales: string; }) => void;
+  urls: { inventory: string; leads: string; sales: string; rentals: string; };
+  onUrlsChange: (urls: { inventory: string; leads: string; sales: string; rentals: string; }) => void;
 }
 
 export function SheetUrlConfig({ urls, onUrlsChange }: SheetUrlConfigProps) {
   const [inventoryUrl, setInventoryUrl] = useState(urls.inventory);
   const [leadsUrl, setLeadsUrl] = useState(urls.leads);
   const [salesUrl, setSalesUrl] = useState(urls.sales);
+  const [rentalsUrl, setRentalsUrl] = useState(urls.rentals);
   const { toast } = useToast();
 
   useEffect(() => {
     setInventoryUrl(urls.inventory);
     setLeadsUrl(urls.leads);
     setSalesUrl(urls.sales);
+    setRentalsUrl(urls.rentals);
   }, [urls]);
 
   const handleSave = () => {
@@ -30,6 +33,7 @@ export function SheetUrlConfig({ urls, onUrlsChange }: SheetUrlConfigProps) {
       inventory: inventoryUrl,
       leads: leadsUrl,
       sales: salesUrl,
+      rentals: rentalsUrl,
     };
     onUrlsChange(newUrls);
     toast({
@@ -75,6 +79,15 @@ export function SheetUrlConfig({ urls, onUrlsChange }: SheetUrlConfigProps) {
             placeholder="Cole o link CSV publicado do Google Sheets..." 
             value={salesUrl} 
             onChange={(e) => setSalesUrl(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="rentals-url">URL da Planilha de Conclusão (Locação)</Label>
+          <Input 
+            id="rentals-url"
+            placeholder="Cole o link CSV publicado do Google Sheets..." 
+            value={rentalsUrl} 
+            onChange={(e) => setRentalsUrl(e.target.value)}
           />
         </div>
         <Button onClick={handleSave}>
