@@ -22,14 +22,12 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
     if (!d) return null;
     if (d instanceof Date) {
         if (isNaN(d.getTime())) return null;
-        // Create a new UTC date from the local date's components to avoid timezone shift
         return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
     }
 
     const strVal = String(d).trim();
     if (!strVal || ["n/a", "undefined", "null", ""].includes(strVal.toLowerCase())) return null;
 
-    // Try to match DD/MM/YYYY or DD.MM.YYYY, which is the most common format in Brazil
     const dmyMatch = strVal.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
     if (dmyMatch) {
       const day = parseInt(dmyMatch[1], 10);
@@ -42,7 +40,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
       }
     }
 
-    // Try ISO format YYYY-MM-DD
     const isoMatch = strVal.match(/^(\d{4})[./-](\d{2})[./-](\d{2})/);
     if (isoMatch) {
         const year = parseInt(isoMatch[1], 10);
@@ -54,7 +51,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
         }
     }
     
-    // Try Excel serial number
     if (/^\d{5}$/.test(strVal)) {
         const num = Number(strVal);
         if (!isNaN(num) && num > 30000 && num < 70000) {
@@ -64,7 +60,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
         }
     }
 
-    // Last resort: try native Date parser
     const nativeDate = new Date(strVal);
     if (!isNaN(nativeDate.getTime())) {
         const utcDate = new Date(Date.UTC(nativeDate.getFullYear(), nativeDate.getMonth(), nativeDate.getDate()));
@@ -86,8 +81,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
         if (!sheetName || sheetName === "N/A") return false;
         const normalizedSheetName = normalize(String(sheetName || ""));
         if (!normalizedSheetName) return false;
-
-        // Flexible matching logic: checks if one name contains the other
         return normalizedSheetName.includes(configBrokerName) || configBrokerName.includes(normalizedSheetName);
       };
 
@@ -101,7 +94,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
 
       // 1. Angariações
       const bPropsFiltered = properties.filter(p => {
-        if (!isMatch(p.brokerId)) return false;
+        const brokerField = p.brokerId || p.angariador || p.captador;
+        if (!isMatch(brokerField)) return false;
         return filterByPeriod(p, "captureDate");
       });
       
@@ -153,7 +147,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
       const brokerSalesFiltered = brokerSalesAll.filter(s => filterByPeriod(s, "saleDate"));
       
       const numSalesFiltered = brokerSalesFiltered.length;
-      const totalVgvFiltered = brokerSalesFiltered.reduce((acc, s) => acc + (Number(s.closedValue) || 0), 0);
+      
+      const vgvAngariadoPeriodo = bPropsFiltered.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0);
       
       const numSalesTotal = brokerSalesAll.length;
       const avgFrequency = numSalesTotal > 0 ? Math.floor(totalDaysCount / numSalesTotal) : 0;
@@ -184,7 +179,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
         conversionLeadsToSale,
         visitsPerSale,
         conversionVisitToSale,
-        vgv: totalVgvFiltered,
+        vgv: vgvAngariadoPeriodo,
         avgFrequency
       };
     }).sort((a, b) => b.numSales - a.numSales || b.vgv - a.vgv);
@@ -314,3 +309,5 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
     </Card>
   );
 }
+
+    
