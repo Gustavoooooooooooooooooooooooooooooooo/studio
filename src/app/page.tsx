@@ -441,7 +441,7 @@ export default function AppContainer() {
                     </span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56" onPointerDownOutside={(e) => e.preventDefault()}>
+                <DropdownMenuContent className="w-56">
                   <DropdownMenuLabel>Filtrar por Mês</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuCheckboxItem
@@ -478,7 +478,7 @@ export default function AppContainer() {
                     </span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56" onPointerDownOutside={(e) => e.preventDefault()}>
+                <DropdownMenuContent className="w-56">
                   <DropdownMenuLabel>Filtrar por Ano</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuCheckboxItem
