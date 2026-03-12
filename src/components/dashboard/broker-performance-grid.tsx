@@ -18,7 +18,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
   
   const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-  const parseDate = (d: any) => {
+  const parseDate = (d: any): Date | null => {
     if (!d) return null;
     if (d instanceof Date) return isNaN(d.getTime()) ? null : d;
     const strVal = String(d).trim();
@@ -31,14 +31,14 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
       const month = parseInt(dmyMatch[2], 10) - 1;
       let year = parseInt(dmyMatch[3], 10);
       if (year < 100) year += 2000;
-      const date = new Date(Date.UTC(year, month, day)); // Use UTC
+      const date = new Date(Date.UTC(year, month, day));
       if (!isNaN(date.getTime())) return date;
     }
 
     // 2. Tentar ISO YYYY-MM-DD
     const isoMatch = strVal.match(/^(\d{4})[./-](\d{2})[./-](\d{2})/);
     if (isoMatch) {
-      const date = new Date(Date.UTC(parseInt(isoMatch[1], 10), parseInt(isoMatch[2], 10) - 1, parseInt(isoMatch[3], 10))); // Use UTC
+      const date = new Date(Date.UTC(parseInt(isoMatch[1], 10), parseInt(isoMatch[2], 10) - 1, parseInt(isoMatch[3], 10)));
       if (!isNaN(date.getTime())) return date;
     }
 
@@ -46,10 +46,12 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
     const cleanNumStr = strVal.replace(/[^\d]/g, '');
     const num = Number(cleanNumStr);
     if (!isNaN(num) && num > 40000 && num < 60000 && !strVal.includes('/') && !strVal.includes('-') && !strVal.includes('.')) {
-      const date = new Date(Math.round((num - 25569) * 86400 * 1000));
+      const excelEpoch = Date.UTC(1899, 11, 30);
+      const date = new Date(excelEpoch + num * 86400000);
       if (!isNaN(date.getTime())) return date;
     }
 
+    // 4. Fallback para o construtor Date
     const date = new Date(strVal);
     return isNaN(date.getTime()) ? null : date;
   };
@@ -67,20 +69,23 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonth,
         const normalizedSheetName = normalize(String(sheetName || ""));
         if (!normalizedSheetName) return false;
 
+        // Lógica de correspondência flexível
         return normalizedSheetName.includes(configBrokerName) || configBrokerName.includes(normalizedSheetName);
       };
 
       const filterByPeriod = (item: any, dateField: string) => {
         const d = parseDate(item[dateField]);
         if (!d) return false;
-        const monthMatch = selectedMonth === "all" || d.getUTCMonth() === parseInt(selectedMonth); // Use UTC
-        const yearMatch = selectedYear === "all" || d.getUTCFullYear() === parseInt(selectedYear); // Use UTC
+        const monthMatch = selectedMonth === "all" || d.getUTCMonth() === parseInt(selectedMonth);
+        const yearMatch = selectedYear === "all" || d.getUTCFullYear() === parseInt(selectedYear);
         return monthMatch && yearMatch;
       };
 
-      // 1. Angariações Filtradas (DIAGNOSTIC CHANGE)
-      const bProps = properties.filter(p => isMatch(p.brokerId));
-      const bPropsFiltered = bProps; // Bypassing date filter for diagnostics
+      // 1. Angariações
+      const bPropsFiltered = properties.filter(p => {
+        if (!isMatch(p.brokerId)) return false;
+        return filterByPeriod(p, "captureDate");
+      });
       
       const capturesSale = bPropsFiltered.filter(p => p.saleValue && Number(p.saleValue) > 0).length;
       const capturesRent = bPropsFiltered.filter(p => p.rentalValue && Number(p.rentalValue) > 0).length;
