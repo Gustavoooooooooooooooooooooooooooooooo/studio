@@ -4,14 +4,14 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   TrendingUp, 
-  Calendar, 
   Clock, 
   Target, 
-  Home,
   CheckCircle2,
   ArrowUpRight,
   Zap,
-  Key
+  Key,
+  Percent,
+  BadgeDollarSign
 } from "lucide-react";
 
 interface StatsCardsProps {
@@ -26,6 +26,10 @@ interface StatsCardsProps {
     avgTicket: number;
     avgTicketRent: number;
     salesFrequency: number;
+    avgDiscountSale: number;
+    avgDiscountRent: number;
+    avgCommissionSale: number;
+    avgCommissionRent: number;
   }
 }
 
@@ -56,8 +60,16 @@ export function StatsCards({ metrics }: StatsCardsProps) {
       value: formatCurrency(metrics.avgTicketRent),
       description: "Média de aluguel no estoque",
       icon: Key,
-      color: "text-emerald-600",
+      color: "text-cyan-600",
       group: "Financeiro"
+    },
+    {
+      title: "Última Venda Realizada",
+      value: metrics.lastSaleDisplay,
+      description: "Tempo desde o último fechamento",
+      icon: CheckCircle2,
+      color: "text-emerald-600",
+      group: "Histórico"
     },
     {
       title: "Frequência de Vendas",
@@ -76,35 +88,71 @@ export function StatsCards({ metrics }: StatsCardsProps) {
       group: "Performance"
     },
     {
-      title: "Última Venda Realizada",
-      value: metrics.lastSaleDisplay,
-      description: "Tempo desde o último fechamento",
-      icon: CheckCircle2,
-      color: "text-emerald-600",
-      group: "Histórico"
+      title: "Média de Desconto",
+      icon: Percent,
+      color: "text-orange-600",
+      group: "Negociação",
+      values: [
+        { label: "Venda", value: `${metrics.avgDiscountSale.toFixed(1)}%` },
+        { label: "Locação", value: `${metrics.avgDiscountRent.toFixed(1)}%` },
+      ]
+    },
+    {
+      title: "Comissão Média",
+      icon: BadgeDollarSign,
+      color: "text-green-600",
+      group: "Financeiro",
+      values: [
+        { label: "Venda", value: formatCurrency(metrics.avgCommissionSale) },
+        { label: "Locação", value: formatCurrency(metrics.avgCommissionRent) },
+      ]
     }
   ];
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {kpis.map((kpi, index) => (
-        <Card key={index} className="border-none shadow-sm hover:shadow-md transition-all duration-300 bg-white">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{kpi.group}</p>
-              <CardTitle className="text-sm font-semibold">{kpi.title}</CardTitle>
-            </div>
-            <div className={`p-2 rounded-full bg-muted/30 ${kpi.color}`}>
-              <kpi.icon className="h-4 w-4" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{kpi.value}</div>
-            <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
-              <ArrowUpRight className="h-3 w-3" /> {kpi.description}
-            </p>
-          </CardContent>
-        </Card>
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {kpis.map((kpi: any, index) => (
+        'values' in kpi ? (
+          <Card key={index} className="border-none shadow-sm hover:shadow-md transition-all duration-300 bg-white">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{kpi.group}</p>
+                <CardTitle className="text-sm font-semibold">{kpi.title}</CardTitle>
+              </div>
+              <div className={`p-2 rounded-full bg-muted/30 ${kpi.color}`}>
+                <kpi.icon className="h-4 w-4" />
+              </div>
+            </CardHeader>
+            <CardContent className="pt-2">
+              <div className="grid grid-cols-2 gap-2">
+                {kpi.values.map((v: any) => (
+                  <div key={v.label} className="border-l first:border-l-0 pl-2 first:pl-0">
+                    <p className="text-xs text-muted-foreground">{v.label}</p>
+                    <p className="text-lg font-bold">{v.value}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card key={index} className="border-none shadow-sm hover:shadow-md transition-all duration-300 bg-white">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{kpi.group}</p>
+                <CardTitle className="text-sm font-semibold">{kpi.title}</CardTitle>
+              </div>
+              <div className={`p-2 rounded-full bg-muted/30 ${kpi.color}`}>
+                <kpi.icon className="h-4 w-4" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{kpi.value}</div>
+              <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
+                <ArrowUpRight className="h-3 w-3" /> {kpi.description}
+              </p>
+            </CardContent>
+          </Card>
+        )
       ))}
     </div>
   );
