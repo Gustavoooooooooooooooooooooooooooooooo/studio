@@ -57,13 +57,20 @@ const formatDateDisplay = (val: any) => {
 const toDate = (val: any): Date | null => {
   const formatted = formatDateDisplay(val);
   if (formatted === "N/A") return null;
+  
   const parts = formatted.split('/');
   if (parts.length === 3) {
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
     const year = parts[2].length === 2 ? 2000 + parseInt(parts[2], 10) : parseInt(parts[2], 10);
-    return new Date(year, Number(parts[1]) - 1, Number(parts[0]));
+    const date = new Date(Date.UTC(year, month, day));
+    return isNaN(date.getTime()) ? null : date;
   }
+  
   const d = new Date(val);
-  return isNaN(d.getTime()) ? null : d;
+  if (isNaN(d.getTime())) return null;
+  // Ensure it's a UTC date by re-creating it
+  return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
 };
 
 // Helper functions from the old google-sheets-sync component
@@ -329,8 +336,8 @@ export default function AppContainer() {
         return items.filter(item => {
             const d = item[dateField];
             if (!d) return false;
-            const monthMatch = selectedMonths.length === 0 || selectedMonths.includes(String(d.getMonth()));
-            const yearMatch = selectedYears.length === 0 || selectedYears.includes(String(d.getFullYear()));
+            const monthMatch = selectedMonths.length === 0 || selectedMonths.includes(String(d.getUTCMonth()));
+            const yearMatch = selectedYears.length === 0 || selectedYears.includes(String(d.getUTCFullYear()));
             return monthMatch && yearMatch;
         });
     };
@@ -366,23 +373,41 @@ export default function AppContainer() {
 
     const normalizeTipo = (tipo: any) => String(tipo || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-    const salesForDiscount = filteredSales.filter(s => normalizeTipo(s.tipo).includes('venda') && s.advertisedValue > 0 && s.closedValue > 0 && s.advertisedValue >= s.closedValue);
+    const salesForDiscount = filteredSales.filter(s => 
+      !normalizeTipo(s.tipo).includes('loca') && 
+      !normalizeTipo(s.tipo).includes('aluguel') && 
+      s.advertisedValue > 0 && 
+      s.closedValue > 0 && 
+      s.advertisedValue >= s.closedValue
+    );
     const totalSaleDiscountPercent = salesForDiscount.reduce((acc, s) => acc + ((s.advertisedValue - s.closedValue) / s.advertisedValue), 0);
     const avgDiscountSale = salesForDiscount.length > 0 ? (totalSaleDiscountPercent / salesForDiscount.length) * 100 : 0;
     const totalSaleDiscountValue = salesForDiscount.reduce((acc, s) => acc + (s.advertisedValue - s.closedValue), 0);
     const avgDiscountValueSale = salesForDiscount.length > 0 ? totalSaleDiscountValue / salesForDiscount.length : 0;
 
-    const rentalsForDiscount = filteredSales.filter(s => normalizeTipo(s.tipo).includes('loca') && s.advertisedValue > 0 && s.closedValue > 0 && s.advertisedValue >= s.closedValue);
+    const rentalsForDiscount = filteredSales.filter(s => 
+      (normalizeTipo(s.tipo).includes('loca') || normalizeTipo(s.tipo).includes('aluguel')) && 
+      s.advertisedValue > 0 && 
+      s.closedValue > 0 && 
+      s.advertisedValue >= s.closedValue
+    );
     const totalRentDiscountPercent = rentalsForDiscount.reduce((acc, s) => acc + ((s.advertisedValue - s.closedValue) / s.advertisedValue), 0);
     const avgDiscountRent = rentalsForDiscount.length > 0 ? (totalRentDiscountPercent / rentalsForDiscount.length) * 100 : 0;
     const totalRentDiscountValue = rentalsForDiscount.reduce((acc, s) => acc + (s.advertisedValue - s.closedValue), 0);
     const avgDiscountValueRent = rentalsForDiscount.length > 0 ? totalRentDiscountValue / rentalsForDiscount.length : 0;
 
-    const salesForCommission = filteredSales.filter(s => normalizeTipo(s.tipo).includes('venda') && s.commission > 0);
+    const salesForCommission = filteredSales.filter(s => 
+      !normalizeTipo(s.tipo).includes('loca') && 
+      !normalizeTipo(s.tipo).includes('aluguel') && 
+      s.commission > 0
+    );
     const totalSaleCommission = salesForCommission.reduce((acc, s) => acc + s.commission, 0);
     const avgCommissionSale = salesForCommission.length > 0 ? totalSaleCommission / salesForCommission.length : 0;
 
-    const rentalsForCommission = filteredSales.filter(s => normalizeTipo(s.tipo).includes('loca') && s.commission > 0);
+    const rentalsForCommission = filteredSales.filter(s => 
+      (normalizeTipo(s.tipo).includes('loca') || normalizeTipo(s.tipo).includes('aluguel')) && 
+      s.commission > 0
+    );
     const totalRentCommission = rentalsForCommission.reduce((acc, s) => acc + s.commission, 0);
     const avgCommissionRent = rentalsForCommission.length > 0 ? totalRentCommission / rentalsForCommission.length : 0;
 
@@ -607,3 +632,5 @@ export default function AppContainer() {
     </div>
   );
 }
+
+    
