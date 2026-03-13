@@ -163,11 +163,12 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       const brokerSalesFiltered = brokerSalesAll.filter(s => filterByPeriod(s, "saleDate"));
       const numSales = brokerSalesFiltered.length;
 
-      // --- ISOLATED FIX FOR RENTALS ---
+      // --- ISOLATED & CORRECTED FIX FOR RENTALS ---
       const brokerRentalsAll = sales.filter(s => {
           const isRentalType = normalize(s.tipo || '').includes('loca') || normalize(s.tipo || '').includes('aluguel');
           if (!isRentalType) return false;
-          // Use a strict comparison for the broker name ONLY for rentals.
+          
+          // Use a strict, exact, case-insensitive comparison for the broker name.
           const sheetBrokerName = normalize(String(s.vendedor || ""));
           const configBrokerNameExact = normalize(brokerName);
           return sheetBrokerName === configBrokerNameExact;
