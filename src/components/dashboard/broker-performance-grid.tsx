@@ -154,9 +154,24 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       }, { leadsVenda: 0, leadsLocacao: 0, visitsVenda: 0, visitsLocacao: 0 });
 
       // 3. Vendas & Locações (Deals)
-      const brokerDealsAll = sales.filter(s => isMatch(s.vendedor));
-      const brokerSalesAll = brokerDealsAll.filter(s => !normalize(s.tipo || '').includes('loca') && !normalize(s.tipo || '').includes('aluguel'));
-      const brokerRentalsAll = brokerDealsAll.filter(s => normalize(s.tipo || '').includes('loca') || normalize(s.tipo || '').includes('aluguel'));
+      // Logic for sales remains UNCHANGED, using the existing isMatch function to avoid side effects.
+      const brokerSalesAll = sales.filter(s => 
+          isMatch(s.vendedor) && 
+          !normalize(s.tipo || '').includes('loca') && 
+          !normalize(s.tipo || '').includes('aluguel')
+      );
+
+      // Logic for rentals is now separate and uses a STRICTER, EXACT match.
+      const brokerRentalsAll = sales.filter(s => {
+          const isRentalType = normalize(s.tipo || '').includes('loca') || normalize(s.tipo || '').includes('aluguel');
+          if (!isRentalType) return false;
+
+          // Use a strict comparison for the broker name ONLY for rentals.
+          const sheetBrokerName = normalize(String(s.vendedor || ""));
+          const configBrokerNameExact = normalize(brokerName);
+          
+          return sheetBrokerName === configBrokerNameExact;
+      });
 
       const brokerSalesFiltered = brokerSalesAll.filter(s => filterByPeriod(s, "saleDate"));
       const brokerRentalsFiltered = brokerRentalsAll.filter(s => filterByPeriod(s, "saleDate"));
