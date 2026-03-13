@@ -277,12 +277,12 @@ export default function AppContainer() {
               angariador: String(getVal(row, ["angariador", "captador"]) || "N/A"),
               propertyCode,
               neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
-              clientName: String(getVal(row, ["cliente", "comprador"]) || "N/A"),
-              advertisedValue: parseCurrency(getVal(row, ["valor anuncio", "anuncio", "qual valor anunciado?"])),
+              clientName: String(getVal(row, ["cliente", "comprador", "quem entrou em"]) || "N/A"),
+              advertisedValue: parseCurrency(getVal(row, ["valor do anuncio", "valor anuncio", "anuncio", "qual valor anunciado?"])),
               closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda", "qual valor final de venda?"])),
               commission: parseCurrency(getVal(row, ["comissao", "comissão"])),
-              saleDate: formatDateDisplay(getVal(row, ["data do venda", "data venda", "fechamento", "venda"], ["vendedor", "corretor"])),
-              propertyCaptureDate: formatDateDisplay(getVal(row, ["data entrada", "entrada", "cadastro", "carimbo"])),
+              saleDate: formatDateDisplay(getVal(row, ["negocio fechado", "data do venda", "data venda", "fechamento", "venda"], ["vendedor", "corretor"])),
+              propertyCaptureDate: formatDateDisplay(getVal(row, ["entrada do imovel", "data entrada", "entrada", "cadastro", "carimbo"])),
               tipo: finalDealType,
               status: finalDealType === 'Locação' ? 'Alugado' : 'Vendido',
             };
@@ -650,5 +650,7 @@ export default function AppContainer() {
     </div>
   );
 }
+
+    
 
     
