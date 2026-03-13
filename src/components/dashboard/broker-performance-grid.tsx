@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useMemo, useState } from "react";
@@ -159,23 +158,19 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
           !normalize(s.tipo || '').includes('loca') && 
           !normalize(s.tipo || '').includes('aluguel')
       );
-
       const brokerSalesFiltered = brokerSalesAll.filter(s => filterByPeriod(s, "saleDate"));
       const numSales = brokerSalesFiltered.length;
 
-      // --- ISOLATED & CORRECTED FIX FOR RENTALS ---
-      const brokerRentalsAll = sales.filter(s => {
-          const isRentalType = normalize(s.tipo || '').includes('loca') || normalize(s.tipo || '').includes('aluguel');
-          if (!isRentalType) return false;
-          
-          // Use a strict, exact, case-insensitive comparison for the broker name.
-          const sheetBrokerName = normalize(String(s.vendedor || ""));
-          const configBrokerNameExact = normalize(brokerName);
-          return sheetBrokerName === configBrokerNameExact;
+      // ISOLATED AND STRICT FIX FOR RENTALS
+      const myRentals = sales.filter(s => {
+        const isRental = normalize(s.tipo || '').includes('loca') || normalize(s.tipo || '').includes('aluguel');
+        const isCorrectBroker = normalize(s.vendedor || '') === normalize(brokerName);
+        return isRental && isCorrectBroker;
       });
-      const brokerRentalsFiltered = brokerRentalsAll.filter(s => filterByPeriod(s, "saleDate"));
+
+      const brokerRentalsAll = myRentals; // Used for frequency calculation
+      const brokerRentalsFiltered = myRentals.filter(s => filterByPeriod(s, "saleDate"));
       const numRentals = brokerRentalsFiltered.length;
-      // --- END ISOLATED FIX ---
       
       // Frequencies
       const salesFrequency = brokerSalesAll.length > 0 ? Math.floor(totalDaysCount / brokerSalesAll.length) : 0;
