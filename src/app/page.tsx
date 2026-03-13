@@ -241,7 +241,7 @@ export default function AppContainer() {
     syncingRef.current = true;
     setSyncing(true);
 
-    const processSheet = async (url: string, mode: 'inventory' | 'sales' | 'leads') => {
+    const processSheet = async (url: string, mode: 'inventory' | 'sales' | 'leads', dealType?: 'Venda' | 'Locação') => {
       if (!url) return { success: false, data: [] };
       try {
         const result = await syncGoogleSheets({ sheetUrl: url });
@@ -264,6 +264,13 @@ export default function AppContainer() {
             };
           } else if (mode === 'sales') {
             const propertyCode = getVal(row, ["codigo", "unidade", "referencia", "id_imovel"]) || `REF-${idx + 1}`;
+            
+            const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+            const sheetType = getVal(row, ["tipo", "natureza", "negocio"]);
+            const isRentalBasedOnSheet = sheetType ? (normalize(sheetType).includes('loca') || normalize(sheetType).includes('aluguel')) : false;
+            
+            const finalDealType = dealType || (isRentalBasedOnSheet ? 'Locação' : 'Venda');
+
             return {
               id: `${propertyCode}-${idx}`,
               vendedor: String(getVal(row, ["vendedor", "corretor", "responsavel"]) || "N/A"),
@@ -276,8 +283,8 @@ export default function AppContainer() {
               commission: parseCurrency(getVal(row, ["comissao", "comissão"])),
               saleDate: formatDateDisplay(getVal(row, ["data do venda", "data venda", "fechamento", "venda"], ["vendedor", "corretor"])),
               propertyCaptureDate: formatDateDisplay(getVal(row, ["data entrada", "entrada", "cadastro", "carimbo"])),
-              tipo: String(getVal(row, ["tipo", "natureza", "negocio"]) || "Venda"),
-              status: "Vendido",
+              tipo: finalDealType,
+              status: finalDealType === 'Locação' ? 'Alugado' : 'Vendido',
             };
           } else { // leads
             const rowValues = Object.values(row).map((v) => String(v || "").trim()).join("|");
@@ -298,8 +305,8 @@ export default function AppContainer() {
     const [inventoryResult, leadsResult, salesResult, rentalsResult] = await Promise.all([
       processSheet(urls.inventory, 'inventory'),
       processSheet(urls.leads, 'leads'),
-      processSheet(urls.sales, 'sales'),
-      processSheet(urls.rentals, 'sales')
+      processSheet(urls.sales, 'sales', 'Venda'),
+      processSheet(urls.rentals, 'sales', 'Locação')
     ]);
 
     if (inventoryResult.success) setInventory(inventoryResult.data);
