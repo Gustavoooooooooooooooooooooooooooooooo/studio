@@ -82,10 +82,23 @@ const getVal = (row: any, searchKeys: string[], excludeKeys: string[] = []) => {
     const normalizedSearch = searchKeys.map(normalize);
     const normalizedExclude = excludeKeys.map(normalize);
 
+    // Prioritize exact matches
+    for (const sKey of normalizedSearch) {
+      const match = rowKeys.find(rk => normalize(rk) === sKey);
+      if (match) {
+        const val = row[match];
+        if (sKey.includes("data") || sKey.includes("carimbo")) {
+          if (val && !/\d/.test(String(val))) continue;
+        }
+        return val;
+      }
+    }
+
+    // Fallback to includes for flexibility
     for (const sKey of normalizedSearch) {
       const match = rowKeys.find(rk => {
         const nrk = normalize(rk);
-        const isMatch = nrk === sKey || nrk.includes(sKey);
+        const isMatch = nrk.includes(sKey);
         const isExcluded = normalizedExclude.some(ex => nrk.includes(ex));
         return isMatch && !isExcluded;
       });
@@ -650,6 +663,8 @@ export default function AppContainer() {
     </div>
   );
 }
+
+    
 
     
 
