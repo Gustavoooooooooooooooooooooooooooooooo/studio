@@ -84,7 +84,11 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         if (!sheetName || sheetName === "N/A") return false;
         const normalizedSheetName = normalize(String(sheetName || ""));
         if (!normalizedSheetName) return false;
-        return normalizedSheetName.includes(configBrokerName) || configBrokerName.includes(normalizedSheetName);
+        
+        const configWords = configBrokerName.split(' ');
+        const sheetWords = normalizedSheetName.split(' ');
+        
+        return configWords.every(cw => sheetWords.includes(cw));
       };
 
       const filterByPeriod = (item: any, dateField: string) => {
