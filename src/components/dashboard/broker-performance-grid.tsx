@@ -76,6 +76,22 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
 
     const totalDaysCount = 427;
 
+    const rentalPeriodDays = (() => {
+        const now = new Date();
+        const years = selectedYears.length > 0 ? selectedYears.map(Number) : [now.getFullYear()];
+        const months = selectedMonths.length > 0 ? selectedMonths.map(Number) : [];
+        const monthsToCalc = months.length > 0 ? months : Array.from(Array(12).keys());
+
+        let totalDays = 0;
+        for (const year of years) {
+            for (const month of monthsToCalc) {
+                totalDays += new Date(year, month + 1, 0).getDate();
+            }
+        }
+        
+        return totalDays > 0 ? totalDays : 1;
+    })();
+
     return brokers.map(brokerName => {
       const configBrokerName = normalize(brokerName);
       
@@ -174,7 +190,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       
       // Frequencies
       const salesFrequency = brokerSalesAll.length > 0 ? Math.floor(totalDaysCount / brokerSalesAll.length) : 0;
-      const rentalsFrequency = brokerRentalsAll.length > 0 ? Math.floor(totalDaysCount / brokerRentalsAll.length) : 0;
+      const rentalsFrequency = numRentals > 0 ? Math.floor(rentalPeriodDays / numRentals) : 0;
       
       // Venda Conversion
       const conversionLeadToVisitVenda = leadsVenda > 0 ? (visitsVenda / leadsVenda) * 100 : 0;
