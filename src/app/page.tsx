@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
@@ -373,9 +374,25 @@ export default function AppContainer() {
 
     const filteredSales = filterByDate(processedSales, 'saleDateObj');
     const filteredProperties = filterByDate(processedInventory, 'captureDateObj');
+    const normalizeTipo = (tipo: any) => String(tipo || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-    const totalDaysSinceStart = 427; 
-    const salesFrequency = sales.length > 0 ? totalDaysSinceStart / sales.length : 0;
+    let salesFrequency = 0;
+    const salesForFrequency = filteredSales.filter(s => !normalizeTipo(s.tipo).includes('loca') && !normalizeTipo(s.tipo).includes('aluguel'));
+
+    if (salesForFrequency.length > 1) {
+      const saleDates = salesForFrequency
+        .map(s => s.saleDateObj)
+        .filter((d): d is Date => d !== null)
+        .sort((a, b) => a.getTime() - b.getTime());
+      
+      if (saleDates.length > 1) {
+        const firstDate = saleDates[0];
+        const lastDate = saleDates[saleDates.length - 1];
+        const diffTime = Math.abs(lastDate.getTime() - firstDate.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        salesFrequency = diffDays / (saleDates.length - 1);
+      }
+    }
 
     const validCycles = processedSales.map(s => {
       const start = s.propertyCaptureDateObj;
@@ -399,8 +416,6 @@ export default function AppContainer() {
 
     const lastSaleDate = allSaleDates[0];
     const daysSinceLastSale = lastSaleDate ? Math.floor((now.getTime() - lastSaleDate.getTime()) / (1000 * 60 * 60 * 24)) : null;
-
-    const normalizeTipo = (tipo: any) => String(tipo || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
     const salesForDiscount = filteredSales.filter(s => 
       !normalizeTipo(s.tipo).includes('loca') && 
@@ -663,6 +678,8 @@ export default function AppContainer() {
     </div>
   );
 }
+
+    
 
     
 
