@@ -362,6 +362,8 @@ export default function AppContainer() {
 
 
   const metrics = useMemo(() => {
+    const normalizeTipo = (tipo: any) => String(tipo || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
     const filterByDate = (items: any[], dateField: keyof (typeof items)[0]) => {
         return items.filter(item => {
             const d = item[dateField];
@@ -374,36 +376,30 @@ export default function AppContainer() {
 
     const filteredSales = filterByDate(processedSales, 'saleDateObj');
     const filteredProperties = filterByDate(processedInventory, 'captureDateObj');
-    const normalizeTipo = (tipo: any) => String(tipo || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-
+    
     let salesFrequency = 0;
-    // Special calculation for sales frequency: use all sales from selected year(s) up to today, ignoring month filter.
     const salesForFrequency = processedSales.filter(s => {
       const d = s.saleDateObj;
       if (!d) return false;
-      const isSaleType = !normalizeTipo(s.tipo).includes('loca') && !normalizeTipo(s.tipo).includes('aluguel');
+      const isSaleType = normalizeTipo(s.tipo) === 'venda';
       const yearMatch = selectedYears.length === 0 || selectedYears.includes(String(d.getUTCFullYear()));
       const isPastOrPresent = d.getTime() <= now.getTime();
       return isSaleType && yearMatch && isPastOrPresent;
     });
 
-    if (salesForFrequency.length > 1) {
-      const saleDates = salesForFrequency
-        .map(s => s.saleDateObj)
-        .filter((d): d is Date => d !== null)
-        .sort((a, b) => a.getTime() - b.getTime());
+    if (salesForFrequency.length > 0) {
+      const years = selectedYears.length > 0 ? selectedYears.map(y => parseInt(y, 10)) : [now.getFullYear()];
+      const minYear = Math.min(...years);
+      const startOfPeriod = new Date(Date.UTC(minYear, 0, 1));
+      const endOfPeriod = now;
+      const diffTime = endOfPeriod.getTime() - startOfPeriod.getTime();
+      const totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       
-      if (saleDates.length > 1) {
-        const firstDate = saleDates[0];
-        const lastDate = saleDates[saleDates.length - 1];
-        const diffTime = Math.abs(lastDate.getTime() - firstDate.getTime());
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        if (diffDays > 0 && saleDates.length > 1) {
-          salesFrequency = diffDays / (saleDates.length - 1);
-        }
+      if (totalDays > 0) {
+        salesFrequency = totalDays / salesForFrequency.length;
       }
     }
-
+    
     const validCycles = processedSales.map(s => {
       const start = s.propertyCaptureDateObj;
       const end = s.saleDateObj;
