@@ -76,33 +76,10 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
 
     const totalDaysCount = 427; // Maintained for sales frequency as requested
 
-    const rentalPeriodDays = (() => {
-        const now = new Date();
-        const years = selectedYears.length > 0 ? selectedYears.map(Number) : [now.getFullYear()];
-        const months = selectedMonths.length > 0 ? selectedMonths.map(Number) : [];
-
-        if (months.length === 0) {
-            let totalDays = 0;
-            for (const year of years) {
-                const isLeap = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
-                totalDays += isLeap ? 366 : 365;
-            }
-            return totalDays;
-        }
-        
-        let totalDays = 0;
-        for (const year of years) {
-            for (const month of months) {
-                totalDays += new Date(year, month + 1, 0).getDate();
-            }
-        }
-        
-        return totalDays > 0 ? totalDays : 1;
-    })();
-
     return brokers.map(brokerName => {
       const configBrokerName = normalize(brokerName);
       
+      // Fuzzy match for sales, as requested to be kept
       const isMatch = (sheetName: string | undefined | null) => {
         if (!sheetName || sheetName === "N/A") return false;
         const normalizedSheetName = normalize(String(sheetName || ""));
@@ -113,6 +90,12 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         
         return configWords.every(cw => sheetWords.includes(cw));
       };
+
+      // Exact match for rentals to avoid ambiguity
+      const isExactMatch = (sheetName: string | undefined | null) => {
+        if (!sheetName) return false;
+        return normalize(sheetName) === configBrokerName;
+      }
 
       const filterByPeriod = (item: any, dateField: string) => {
         const d = parseDate(item[dateField]);
@@ -185,8 +168,9 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       const brokerSalesFiltered = brokerSalesAll.filter(s => filterByPeriod(s, "saleDate"));
       const numSales = brokerSalesFiltered.length;
 
+      // Use exact match for rentals
       const brokerRentalsAll = sales.filter(s => 
-          isMatch(s.vendedor) && 
+          isExactMatch(s.vendedor) && 
           (normalize(s.tipo || '').includes('loca') || normalize(s.tipo || '').includes('aluguel'))
       );
       const brokerRentalsFiltered = brokerRentalsAll.filter(s => filterByPeriod(s, "saleDate"));
@@ -194,7 +178,23 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       
       // Frequencies
       const salesFrequency = brokerSalesAll.length > 0 ? Math.floor(totalDaysCount / brokerSalesAll.length) : 0;
-      const rentalsFrequency = numRentals > 0 ? Math.floor(rentalPeriodDays / numRentals) : 0;
+      
+      let rentalsFrequency = 0;
+      if (numRentals > 1) {
+        const rentalDates = brokerRentalsFiltered
+          .map(r => parseDate(r.saleDate))
+          .filter((d): d is Date => d !== null)
+          .sort((a, b) => a.getTime() - b.getTime());
+        
+        if (rentalDates.length > 1) {
+          const firstDate = rentalDates[0];
+          const lastDate = rentalDates[rentalDates.length - 1];
+          const diffTime = lastDate.getTime() - firstDate.getTime();
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          
+          rentalsFrequency = Math.floor(diffDays / (numRentals - 1));
+        }
+      }
       
       // Venda Conversion
       const conversionLeadToVisitVenda = leadsVenda > 0 ? (visitsVenda / leadsVenda) * 100 : 0;
