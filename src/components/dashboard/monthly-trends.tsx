@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useMemo } from "react";
@@ -18,23 +17,61 @@ export function MonthlyTrends({ sales, leads, properties }: MonthlyTrendsProps) 
     const monthsNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     const monthlyData: Record<string, any> = {};
     
-    // Inicializar 12 meses do ano atual real (2026)
+    // Inicializar 12 meses do ano atual
     monthsNames.forEach((name, i) => {
       const key = `${currentYear}-${String(i+1).padStart(2, '0')}`;
-      monthlyData[key] = { month: name, vendas: 0, locacoes: 0, leads: 0, angariados: 0 };
+      monthlyData[key] = { month: name, vendas: 0, locacoes: 0, angariados: 0 };
     });
 
-    const parseDate = (d: any) => {
-      if (!d) return null;
-      if (typeof d === 'string') {
-        const parts = d.split('/');
-        if (parts.length === 3) {
-          const year = parts[2].length === 2 ? 2000 + Number(parts[2]) : Number(parts[2]);
-          return new Date(year, Number(parts[1]) - 1, Number(parts[0]));
+    const parseDate = (d: any): Date | null => {
+        if (!d) return null;
+        if (d instanceof Date) {
+            if (isNaN(d.getTime())) return null;
+            return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
         }
-        return new Date(d);
-      }
-      return null;
+
+        const strVal = String(d).trim();
+        if (!strVal || ["n/a", "undefined", "null", ""].includes(strVal.toLowerCase())) return null;
+
+        const dmyMatch = strVal.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})/);
+        if (dmyMatch) {
+        const day = parseInt(dmyMatch[1], 10);
+        const month = parseInt(dmyMatch[2], 10) - 1;
+        let year = parseInt(dmyMatch[3], 10);
+        if (year < 100) year += 2000;
+        if (day > 0 && day <= 31 && month >= 0 && month < 12) {
+            const date = new Date(Date.UTC(year, month, day));
+            if (!isNaN(date.getTime())) return date;
+        }
+        }
+
+        const isoMatch = strVal.match(/^(\d{4})[.\/-](\d{2})[.\/-](\d{2})/);
+        if (isoMatch) {
+            const year = parseInt(isoMatch[1], 10);
+            const month = parseInt(isoMatch[2], 10) - 1;
+            const day = parseInt(isoMatch[3], 10);
+            if (day > 0 && day <= 31 && month >= 0 && month < 12) {
+                const date = new Date(Date.UTC(year, month, day));
+                if (!isNaN(date.getTime())) return date;
+            }
+        }
+        
+        if (/^\d{5}$/.test(strVal)) {
+            const num = Number(strVal);
+            if (!isNaN(num) && num > 30000 && num < 70000) {
+                const excelEpoch = Date.UTC(1899, 11, 30);
+                const date = new Date(excelEpoch + num * 86400000);
+                if (!isNaN(date.getTime())) return date;
+            }
+        }
+
+        const nativeDate = new Date(strVal);
+        if (!isNaN(nativeDate.getTime())) {
+            const utcDate = new Date(Date.UTC(nativeDate.getFullYear(), nativeDate.getMonth(), nativeDate.getDate()));
+            if (!isNaN(utcDate.getTime())) return utcDate;
+        }
+
+        return null;
     };
 
     const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
@@ -44,20 +81,13 @@ export function MonthlyTrends({ sales, leads, properties }: MonthlyTrendsProps) 
       if (date && date.getFullYear() === currentYear) {
         const key = `${currentYear}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         if (monthlyData[key]) {
-          if (sale.tipo && normalize(sale.tipo).includes("venda")) monthlyData[key].vendas += 1;
-          else monthlyData[key].locacoes += 1;
+          const tipo = normalize(sale.tipo || '');
+          if (tipo.includes("venda")) {
+            monthlyData[key].vendas += 1;
+          } else if (tipo.includes("loca") || tipo.includes("aluguel")) {
+            monthlyData[key].locacoes += 1;
+          }
         }
-      }
-    });
-
-    leads.forEach(lead => {
-      const keys = Object.keys(lead);
-      const dateKey = keys.find(k => normalize(k).includes("data") || normalize(k).includes("carimbo"));
-      const date = dateKey ? parseDate(lead[dateKey]) : null;
-      
-      if (date && date.getFullYear() === currentYear) {
-        const key = `${currentYear}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        if (monthlyData[key]) monthlyData[key].leads += 1;
       }
     });
 
@@ -70,12 +100,11 @@ export function MonthlyTrends({ sales, leads, properties }: MonthlyTrendsProps) 
     });
 
     return Object.values(monthlyData);
-  }, [sales, leads, properties]);
+  }, [sales, properties]);
 
   const config = {
     vendas: { label: "Vendas", color: "hsl(var(--primary))" },
     locacoes: { label: "Locações", color: "hsl(var(--accent))" },
-    leads: { label: "Leads", color: "#94a3b8" },
     angariados: { label: "Angariados", color: "#fbbf24" },
   };
 
@@ -95,7 +124,6 @@ export function MonthlyTrends({ sales, leads, properties }: MonthlyTrendsProps) 
               <Legend verticalAlign="top" height={36}/>
               <Line type="monotone" dataKey="vendas" stroke="var(--color-vendas)" strokeWidth={3} dot={{ r: 4 }} />
               <Line type="monotone" dataKey="locacoes" stroke="var(--color-locacoes)" strokeWidth={3} dot={{ r: 4 }} />
-              <Line type="monotone" dataKey="leads" stroke="var(--color-leads)" strokeWidth={2} strokeDasharray="5 5" />
               <Line type="monotone" dataKey="angariados" stroke="var(--color-angariados)" strokeWidth={2} dot={{ r: 3 }} />
             </LineChart>
           </ResponsiveContainer>
