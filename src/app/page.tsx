@@ -410,6 +410,7 @@ export default function AppContainer() {
     const avgTicketRent = rentPropsInventory.length > 0 ? rentPropsInventory.reduce((acc, p) => acc + (Number(p.rentalValue) || 0), 0) / rentPropsInventory.length : 0;
 
     const allSaleDates = processedSales
+      .filter(s => normalizeTipo(s.tipo) === 'venda')
       .map(s => s.saleDateObj)
       .filter((d): d is Date => d !== null)
       .sort((a, b) => b.getTime() - a.getTime());
