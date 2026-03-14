@@ -74,17 +74,25 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
   const stats = useMemo(() => {
     if (!brokers || brokers.length === 0) return [];
 
-    const totalDaysCount = 427;
+    const totalDaysCount = 427; // Maintained for sales frequency as requested
 
     const rentalPeriodDays = (() => {
         const now = new Date();
         const years = selectedYears.length > 0 ? selectedYears.map(Number) : [now.getFullYear()];
         const months = selectedMonths.length > 0 ? selectedMonths.map(Number) : [];
-        const monthsToCalc = months.length > 0 ? months : Array.from(Array(12).keys());
 
+        if (months.length === 0) {
+            let totalDays = 0;
+            for (const year of years) {
+                const isLeap = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+                totalDays += isLeap ? 366 : 365;
+            }
+            return totalDays;
+        }
+        
         let totalDays = 0;
         for (const year of years) {
-            for (const month of monthsToCalc) {
+            for (const month of months) {
                 totalDays += new Date(year, month + 1, 0).getDate();
             }
         }
@@ -177,15 +185,11 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       const brokerSalesFiltered = brokerSalesAll.filter(s => filterByPeriod(s, "saleDate"));
       const numSales = brokerSalesFiltered.length;
 
-      // ISOLATED AND STRICT FIX FOR RENTALS
-      const myRentals = sales.filter(s => {
-        const isRental = normalize(s.tipo || '').includes('loca') || normalize(s.tipo || '').includes('aluguel');
-        const isCorrectBroker = normalize(s.vendedor || '') === normalize(brokerName);
-        return isRental && isCorrectBroker;
-      });
-
-      const brokerRentalsAll = myRentals; // Used for frequency calculation
-      const brokerRentalsFiltered = myRentals.filter(s => filterByPeriod(s, "saleDate"));
+      const brokerRentalsAll = sales.filter(s => 
+          isMatch(s.vendedor) && 
+          (normalize(s.tipo || '').includes('loca') || normalize(s.tipo || '').includes('aluguel'))
+      );
+      const brokerRentalsFiltered = brokerRentalsAll.filter(s => filterByPeriod(s, "saleDate"));
       const numRentals = brokerRentalsFiltered.length;
       
       // Frequencies
