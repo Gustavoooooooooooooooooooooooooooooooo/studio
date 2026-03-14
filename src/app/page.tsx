@@ -377,7 +377,15 @@ export default function AppContainer() {
     const normalizeTipo = (tipo: any) => String(tipo || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
     let salesFrequency = 0;
-    const salesForFrequency = filteredSales.filter(s => !normalizeTipo(s.tipo).includes('loca') && !normalizeTipo(s.tipo).includes('aluguel'));
+    // Special calculation for sales frequency: use all sales from selected year(s) up to today, ignoring month filter.
+    const salesForFrequency = processedSales.filter(s => {
+      const d = s.saleDateObj;
+      if (!d) return false;
+      const isSaleType = !normalizeTipo(s.tipo).includes('loca') && !normalizeTipo(s.tipo).includes('aluguel');
+      const yearMatch = selectedYears.length === 0 || selectedYears.includes(String(d.getUTCFullYear()));
+      const isPastOrPresent = d.getTime() <= now.getTime();
+      return isSaleType && yearMatch && isPastOrPresent;
+    });
 
     if (salesForFrequency.length > 1) {
       const saleDates = salesForFrequency
@@ -390,7 +398,9 @@ export default function AppContainer() {
         const lastDate = saleDates[saleDates.length - 1];
         const diffTime = Math.abs(lastDate.getTime() - firstDate.getTime());
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        salesFrequency = diffDays / (saleDates.length - 1);
+        if (diffDays > 0 && saleDates.length > 1) {
+          salesFrequency = diffDays / (saleDates.length - 1);
+        }
       }
     }
 
