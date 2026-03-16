@@ -250,7 +250,7 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
     return matrixData.rows.map(row => {
       const costConfig = channelCosts[row.channel];
       const totalAnnualCost = costConfig 
-        ? (costConfig.type === 'fixed' ? costConfig.value : costConfig.value.reduce((a, b) => a + b, 0))
+        ? (costConfig.type === 'fixed' ? costConfig.value : (Array.isArray(costConfig.value) ? costConfig.value.reduce((a, b) => a + (b || 0), 0) : 0))
         : 0;
       
       const totalLeads = row.totalVenda + row.totalLocacao;
@@ -527,3 +527,5 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
     </Card>
   );
 }
+
+    
