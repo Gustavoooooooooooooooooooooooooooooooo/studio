@@ -1,4 +1,3 @@
-
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -254,12 +253,16 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
         : 0;
       
       const totalLeads = row.totalVenda + row.totalLocacao;
-      const cpl = totalLeads > 0 ? totalAnnualCost / totalLeads : 0;
+      const cplTotal = totalLeads > 0 ? totalAnnualCost / totalLeads : 0;
+      const cplVenda = row.totalVenda > 0 ? totalAnnualCost / row.totalVenda : 0;
+      const cplLocacao = row.totalLocacao > 0 ? totalAnnualCost / row.totalLocacao : 0;
 
       return {
         ...row,
         cost: totalAnnualCost,
-        cpl: cpl,
+        cplTotal,
+        cplVenda,
+        cplLocacao,
         totalLeads: totalLeads
       };
     }).sort((a,b) => a.channel.localeCompare(b.channel));
@@ -429,8 +432,10 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
                             <TableRow>
                                 <TableHead className="w-[200px] text-xs uppercase sticky left-0 bg-background z-10 border-r font-bold">Canal</TableHead>
                                 <TableHead className="w-[250px] text-center text-xs uppercase">Investimento Anual (R$)</TableHead>
-                                <TableHead className="text-center text-xs uppercase bg-gray-100">CPL Total (R$)</TableHead>
                                 <TableHead className="text-center text-xs uppercase">Total Leads</TableHead>
+                                <TableHead className="text-center text-xs uppercase bg-emerald-50 text-emerald-800">CPL Venda (R$)</TableHead>
+                                <TableHead className="text-center text-xs uppercase bg-blue-50 text-blue-800">CPL Locação (R$)</TableHead>
+                                <TableHead className="text-center text-xs uppercase bg-gray-100">CPL Total (R$)</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -445,8 +450,10 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
                                         </Button>
                                     </div>
                                 </TableCell>
-                                <TableCell className="text-center font-bold text-sm bg-gray-50">{formatCurrency(row.cpl)}</TableCell>
                                 <TableCell className="text-center font-medium text-sm">{row.totalLeads}</TableCell>
+                                <TableCell className="text-center font-bold text-sm bg-emerald-50/60 text-emerald-700">{formatCurrency(row.cplVenda)}</TableCell>
+                                <TableCell className="text-center font-bold text-sm bg-blue-50/60 text-blue-700">{formatCurrency(row.cplLocacao)}</TableCell>
+                                <TableCell className="text-center font-bold text-sm bg-gray-50">{formatCurrency(row.cplTotal)}</TableCell>
                             </TableRow>
                         ))}
                         </TableBody>
@@ -527,5 +534,3 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
     </Card>
   );
 }
-
-    
