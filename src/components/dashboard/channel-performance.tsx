@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,15 +7,28 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { useMemo, useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { Edit } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+
 
 interface ChannelPerformanceProps {
   leads: any[];
   sales: any[];
 }
 
+type ChannelCost = { type: 'fixed'; value: number } | { type: 'monthly'; value: number[] };
+
+
 export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
   const [view, setView] = useState<'anual' | 'media' | 'custos'>('anual');
-  const [channelCosts, setChannelCosts] = useState<Record<string, number>>({});
+  const [channelCosts, setChannelCosts] = useState<Record<string, ChannelCost>>({});
+  const [isCostDialogOpen, setIsCostDialogOpen] = useState(false);
+  const [editingChannel, setEditingChannel] = useState<string | null>(null);
+  const [tempCost, setTempCost] = useState<ChannelCost | null>(null);
+
   const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
   
   const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
@@ -32,12 +44,38 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
     }
   }, []);
 
-  const handleCostChange = (channel: string, cost: string) => {
-    const numericCost = Number(cost) || 0;
-    const newCosts = { ...channelCosts, [channel]: numericCost };
-    setChannelCosts(newCosts);
-    localStorage.setItem('channel_costs', JSON.stringify(newCosts));
+  const handleOpenCostDialog = (channel: string) => {
+    const currentCost = channelCosts[channel] || { type: 'fixed', value: 0 };
+    setTempCost(currentCost);
+    setEditingChannel(channel);
+    setIsCostDialogOpen(true);
   };
+
+  const handleSaveCosts = () => {
+    if (editingChannel && tempCost) {
+      const newCosts = { ...channelCosts, [editingChannel]: tempCost };
+      setChannelCosts(newCosts);
+      localStorage.setItem('channel_costs', JSON.stringify(newCosts));
+    }
+    setIsCostDialogOpen(false);
+    setEditingChannel(null);
+    setTempCost(null);
+  };
+
+  const handleCostTypeChange = (isFixed: boolean) => {
+    if (!tempCost) return;
+
+    if (isFixed) {
+      // De mensal para fixo: soma os valores mensais
+      const annualValue = Array.isArray(tempCost.value) ? tempCost.value.reduce((a, b) => a + b, 0) : tempCost.value;
+      setTempCost({ type: 'fixed', value: annualValue });
+    } else {
+      // De fixo para mensal: divide o valor anual por 12
+      const monthlyValue = typeof tempCost.value === 'number' ? tempCost.value / 12 : 0;
+      setTempCost({ type: 'monthly', value: Array(12).fill(monthlyValue) });
+    }
+  };
+
 
   const parseDate = (d: any) => {
     if (!d) return null;
@@ -210,14 +248,19 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
 
   const costData = useMemo(() => {
     return matrixData.rows.map(row => {
-      const cost = channelCosts[row.channel] || 0;
-      const cplVenda = row.totalVenda > 0 ? cost / row.totalVenda : 0;
-      const cplLocacao = row.totalLocacao > 0 ? cost / row.totalLocacao : 0;
+      const costConfig = channelCosts[row.channel];
+      const totalAnnualCost = costConfig 
+        ? (costConfig.type === 'fixed' ? costConfig.value : costConfig.value.reduce((a, b) => a + b, 0))
+        : 0;
+      
+      const totalLeads = row.totalVenda + row.totalLocacao;
+      const cpl = totalLeads > 0 ? totalAnnualCost / totalLeads : 0;
+
       return {
         ...row,
-        cost,
-        cplVenda,
-        cplLocacao
+        cost: totalAnnualCost,
+        cpl: cpl,
+        totalLeads: totalLeads
       };
     }).sort((a,b) => a.channel.localeCompare(b.channel));
   }, [matrixData.rows, channelCosts]);
@@ -385,30 +428,25 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
                         <TableHeader>
                             <TableRow>
                                 <TableHead className="w-[200px] text-xs uppercase sticky left-0 bg-background z-10 border-r font-bold">Canal</TableHead>
-                                <TableHead className="w-[250px] text-xs uppercase">Investimento Mensal (R$)</TableHead>
-                                <TableHead className="text-center text-xs uppercase bg-emerald-50 text-emerald-800">CPL Venda (R$)</TableHead>
-                                <TableHead className="text-center text-xs uppercase bg-blue-50 text-blue-800">CPL Locação (R$)</TableHead>
-                                <TableHead className="text-center text-xs uppercase">Leads Venda</TableHead>
-                                <TableHead className="text-center text-xs uppercase">Leads Locação</TableHead>
+                                <TableHead className="w-[250px] text-center text-xs uppercase">Investimento Anual (R$)</TableHead>
+                                <TableHead className="text-center text-xs uppercase bg-gray-100">CPL Total (R$)</TableHead>
+                                <TableHead className="text-center text-xs uppercase">Total Leads</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                         {costData.map(row => (
                             <TableRow key={row.channel} className="hover:bg-muted/20">
                                 <TableCell className="font-semibold text-xs sticky left-0 bg-background z-10 border-r">{row.channel}</TableCell>
-                                <TableCell>
-                                    <Input
-                                      type="number"
-                                      placeholder="0.00"
-                                      value={row.cost || ''}
-                                      onChange={(e) => handleCostChange(row.channel, e.target.value)}
-                                      className="h-8 w-48"
-                                    />
+                                <TableCell className="text-center">
+                                    <div className="flex items-center justify-center gap-2">
+                                        <span className="font-medium text-sm">{formatCurrency(row.cost)}</span>
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenCostDialog(row.channel)}>
+                                            <Edit className="h-3 w-3" />
+                                        </Button>
+                                    </div>
                                 </TableCell>
-                                <TableCell className="text-center font-bold text-sm bg-emerald-50/30 text-emerald-700">{formatCurrency(row.cplVenda)}</TableCell>
-                                <TableCell className="text-center font-bold text-sm bg-blue-50/30 text-blue-700">{formatCurrency(row.cplLocacao)}</TableCell>
-                                <TableCell className="text-center font-medium text-sm">{row.totalVenda}</TableCell>
-                                <TableCell className="text-center font-medium text-sm">{row.totalLocacao}</TableCell>
+                                <TableCell className="text-center font-bold text-sm bg-gray-50">{formatCurrency(row.cpl)}</TableCell>
+                                <TableCell className="text-center font-medium text-sm">{row.totalLeads}</TableCell>
                             </TableRow>
                         ))}
                         </TableBody>
@@ -425,6 +463,67 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
           </TabsContent>
         </CardContent>
       </Tabs>
+      <Dialog open={isCostDialogOpen} onOpenChange={setIsCostDialogOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Editar Custos para: {editingChannel}</DialogTitle>
+          </DialogHeader>
+          {tempCost && (
+            <div className="py-4 space-y-6">
+              <div className="flex items-center space-x-2">
+                <Switch 
+                  id="cost-type-switch" 
+                  checked={tempCost.type === 'fixed'}
+                  onCheckedChange={handleCostTypeChange}
+                />
+                <Label htmlFor="cost-type-switch">Custo Fixo Anual</Label>
+              </div>
+
+              {tempCost.type === 'fixed' ? (
+                <div className="space-y-2">
+                  <Label>Valor Total Anual (R$)</Label>
+                  <Input 
+                      type="number"
+                      placeholder="0.00"
+                      value={tempCost.value}
+                      onChange={(e) => setTempCost({ type: 'fixed', value: Number(e.target.value) })}
+                  />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                    <Label>Valores Mensais (R$)</Label>
+                    <ScrollArea className="h-64 border rounded-md p-4">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-6">
+                            {months.map((month, i) => (
+                                <div key={month} className="space-y-1">
+                                    <Label htmlFor={`month-${i}`} className="text-xs">{month}</Label>
+                                    <Input 
+                                        id={`month-${i}`}
+                                        type="number"
+                                        placeholder="0.00"
+                                        value={Array.isArray(tempCost.value) ? tempCost.value[i] : 0}
+                                        onChange={(e) => {
+                                            if (Array.isArray(tempCost.value)) {
+                                                const newMonthlyValues = [...tempCost.value];
+                                                newMonthlyValues[i] = Number(e.target.value);
+                                                setTempCost({ type: 'monthly', value: newMonthlyValues });
+                                            }
+                                        }}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    </ScrollArea>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCostDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSaveCosts}>Salvar Custos</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
