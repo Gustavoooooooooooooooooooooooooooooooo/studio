@@ -1,16 +1,20 @@
 
+
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface ChannelPerformanceProps {
   leads: any[];
+  sales: any[];
 }
 
-export function ChannelPerformance({ leads }: ChannelPerformanceProps) {
+export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
+  const [view, setView] = useState<'anual' | 'media'>('anual');
   const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
   
   const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
@@ -116,101 +120,221 @@ export function ChannelPerformance({ leads }: ChannelPerformanceProps) {
     return { rows, monthlyTotals, grandTotalVenda, grandTotalLocacao };
   }, [leads]);
 
+  const averageData = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+
+    const allChannels = Array.from(new Set(leads.map(lead => {
+        const keys = Object.keys(lead);
+        const sourceKey = keys.find(k => normalize(k) === "fonte" || normalize(k).includes("fonte") || normalize(k) === "origem" || normalize(k).includes("origem") || normalize(k) === "canal");
+        return sourceKey && lead[sourceKey] ? String(lead[sourceKey]).trim() : "Direto/Indicação";
+    }))).filter(c => c && c !== "undefined" && c !== "null" && c !== "");
+
+    const data = allChannels.map(channel => {
+      const channelLeads = leads.filter(lead => {
+        const keys = Object.keys(lead);
+        const sourceKey = keys.find(k => normalize(k) === "fonte" || normalize(k).includes("fonte") || normalize(k) === "origem" || normalize(k).includes("origem") || normalize(k) === "canal");
+        const leadChannel = sourceKey && lead[sourceKey] ? String(lead[sourceKey]).trim() : "Direto/Indicação";
+        
+        const dateKey = keys.find(k => normalize(k).includes("data") || normalize(k).includes("carimbo") || normalize(k).includes("criado"));
+        const date = dateKey ? parseDate(lead[dateKey]) : null;
+        
+        return leadChannel === channel && date && date.getFullYear() === currentYear;
+      });
+
+      const { leadsVenda, leadsLocacao, visitsVenda, visitsLocacao } = channelLeads.reduce((acc, l) => {
+        const entries = Object.entries(l);
+        const isLocacaoLead = entries.some(([key, val]) => {
+            const nk = normalize(key);
+            const nv = normalize(String(val || ""));
+            return (nk.includes("natureza") || nk.includes("negociacao") || nk === "tipo") && 
+                   (nv.includes("loca") || nv.includes("alug"));
+        });
+        
+        if (isLocacaoLead) acc.leadsLocacao++; else acc.leadsVenda++;
+
+        const hasVisit = entries.some(([key, val]) => {
+          const nk = normalize(key);
+          const nv = normalize(String(val || ""));
+          return (nk.includes("status da atividade atual") || nk.includes("visit")) && (nv.includes("realizada") || nv.includes("sim"));
+        });
+
+        if (hasVisit) {
+          if (isLocacaoLead) acc.visitsLocacao++; else acc.visitsVenda++;
+        }
+        return acc;
+      }, { leadsVenda: 0, leadsLocacao: 0, visitsVenda: 0, visitsLocacao: 0 });
+
+      const channelSales = sales.filter(s => {
+        const saleChannel = normalize(s.origem || '');
+        const date = parseDate(s.saleDate);
+        return saleChannel === normalize(channel) && date && date.getFullYear() === currentYear;
+      });
+
+      const numSales = channelSales.filter(s => !normalize(s.tipo || '').includes('loca') && !normalize(s.tipo || '').includes('aluguel')).length;
+      const numRentals = channelSales.filter(s => normalize(s.tipo || '').includes('loca') || normalize(s.tipo || '').includes('aluguel')).length;
+
+      return {
+        channel,
+        mediaLeadsVenda: leadsVenda / 12,
+        mediaVisitasVenda: visitsVenda / 12,
+        convVisitaVenda: visitsVenda > 0 ? (numSales / visitsVenda) * 100 : 0,
+        mediaLeadsLocacao: leadsLocacao / 12,
+        mediaVisitasLocacao: visitsLocacao / 12,
+        convVisitaLocacao: visitsLocacao > 0 ? (numRentals / visitsLocacao) * 100 : 0,
+      };
+    });
+
+    return data.sort((a,b) => a.channel.localeCompare(b.channel));
+  }, [leads, sales]);
+
+
   const { rows, monthlyTotals, grandTotalVenda, grandTotalLocacao } = matrixData;
 
   return (
     <Card className="shadow-sm border-none bg-white overflow-hidden">
-      <CardHeader className="bg-muted/5 border-b py-3">
-        <CardTitle className="text-base font-bold text-primary">Matriz de Leads por Canal ({new Date().getFullYear()})</CardTitle>
-      </CardHeader>
-      <CardContent className="p-0">
-        {rows.length > 0 ? (
-          <ScrollArea className="w-full">
-            <Table className="table-fixed w-full">
-              <TableHeader className="bg-muted/10">
-                <TableRow>
-                  <TableHead className="w-[140px] font-bold text-[9px] uppercase sticky left-0 bg-muted/10 z-20 px-2">Canal</TableHead>
-                  {months.map(m => (
-                    <TableHead key={m} className="text-center text-[9px] px-1 font-bold w-[45px]">{m}</TableHead>
-                  ))}
-                  <TableHead className="text-right font-bold bg-muted/20 text-[9px] sticky right-0 z-20 w-[60px] px-2">TOTAL</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((row) => (
-                  <TableRow key={row.channel} className="hover:bg-muted/5 transition-colors">
-                    <TableCell className="py-2 px-2 sticky left-0 bg-white z-10 border-r">
-                      <span className="font-semibold text-[10px] truncate leading-tight block">{row.channel}</span>
-                    </TableCell>
-                    {months.map((_, i) => (
-                      <TableCell key={i} className="text-center text-[10px] py-1 px-1 border-r">
-                        <div className="flex flex-col items-center leading-[1.1]">
-                          <span className={`${row.venda[i] > 0 ? 'text-emerald-600 font-bold' : 'text-muted-foreground/20'}`}>
-                            {row.venda[i]}
-                          </span>
-                          <div className="h-[1px] w-4 bg-muted/20 my-0.5" />
-                          <span className={`${row.locacao[i] > 0 ? 'text-blue-600 font-bold' : 'text-muted-foreground/20'}`}>
-                            {row.locacao[i]}
-                          </span>
+      <Tabs value={view} onValueChange={(v) => setView(v as 'anual' | 'media')}>
+        <CardHeader className="bg-muted/5 border-b py-3">
+          <div className="flex justify-between items-center">
+            <CardTitle className="text-base font-bold text-primary">Leads por Canal ({new Date().getFullYear()})</CardTitle>
+            <TabsList className="grid w-[200px] grid-cols-2 h-9 p-1">
+                <TabsTrigger value="anual" className="text-xs h-full">Anual</TabsTrigger>
+                <TabsTrigger value="media" className="text-xs h-full">Métricas</TabsTrigger>
+            </TabsList>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <TabsContent value="anual" className="m-0">
+            {rows.length > 0 ? (
+              <ScrollArea className="w-full">
+                <Table className="table-fixed w-full">
+                  <TableHeader className="bg-muted/10">
+                    <TableRow>
+                      <TableHead className="w-[140px] font-bold text-[9px] uppercase sticky left-0 bg-muted/10 z-20 px-2">Canal</TableHead>
+                      {months.map(m => (
+                        <TableHead key={m} className="text-center text-[9px] px-1 font-bold w-[45px]">{m}</TableHead>
+                      ))}
+                      <TableHead className="text-right font-bold bg-muted/20 text-[9px] sticky right-0 z-20 w-[60px] px-2">TOTAL</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((row) => (
+                      <TableRow key={row.channel} className="hover:bg-muted/5 transition-colors">
+                        <TableCell className="py-2 px-2 sticky left-0 bg-white z-10 border-r">
+                          <span className="font-semibold text-[10px] truncate leading-tight block">{row.channel}</span>
+                        </TableCell>
+                        {months.map((_, i) => (
+                          <TableCell key={i} className="text-center text-[10px] py-1 px-1 border-r">
+                            <div className="flex flex-col items-center leading-[1.1]">
+                              <span className={`${row.venda[i] > 0 ? 'text-emerald-600 font-bold' : 'text-muted-foreground/20'}`}>
+                                {row.venda[i]}
+                              </span>
+                              <div className="h-[1px] w-4 bg-muted/20 my-0.5" />
+                              <span className={`${row.locacao[i] > 0 ? 'text-blue-600 font-bold' : 'text-muted-foreground/20'}`}>
+                                {row.locacao[i]}
+                              </span>
+                            </div>
+                          </TableCell>
+                        ))}
+                        <TableCell className="text-right py-1 px-2 bg-muted/5 sticky right-0 z-10 border-l">
+                          <div className="flex flex-col items-end leading-[1.1]">
+                            <span className="text-emerald-600 font-bold text-[10px]">{row.totalVenda}</span>
+                            <div className="h-[1px] w-4 bg-muted/20 my-0.5" />
+                            <span className="text-blue-600 font-bold text-[10px]">{row.totalLocacao}</span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                  <TableFooter className="bg-primary/5 border-t-2 border-primary/20">
+                    <TableRow className="border-b border-primary/10">
+                      <TableCell className="font-bold text-[10px] py-2 px-2 sticky left-0 bg-primary/5 z-10 border-r text-muted-foreground">
+                        POR NATUREZA
+                      </TableCell>
+                      {months.map((_, i) => (
+                        <TableCell key={i} className="text-center py-1 px-1 border-r">
+                          <div className="flex flex-col items-center leading-[1.1]">
+                            <span className="text-emerald-600 font-extrabold text-[10px]">{monthlyTotals.venda[i]}</span>
+                            <div className="h-[1px] w-4 bg-primary/10 my-0.5" />
+                            <span className="text-blue-600 font-extrabold text-[10px]">{monthlyTotals.locacao[i]}</span>
+                          </div>
+                        </TableCell>
+                      ))}
+                      <TableCell className="text-right py-1 px-2 bg-primary/10 sticky right-0 z-10">
+                        <div className="flex flex-col items-end leading-[1.1]">
+                          <span className="text-emerald-600 font-extrabold text-[10px]">{grandTotalVenda}</span>
+                          <div className="h-[1px] w-4 bg-primary/10 my-0.5" />
+                          <span className="text-blue-600 font-extrabold text-[10px]">{grandTotalLocacao}</span>
                         </div>
                       </TableCell>
-                    ))}
-                    <TableCell className="text-right py-1 px-2 bg-muted/5 sticky right-0 z-10 border-l">
-                      <div className="flex flex-col items-end leading-[1.1]">
-                        <span className="text-emerald-600 font-bold text-[10px]">{row.totalVenda}</span>
-                        <div className="h-[1px] w-4 bg-muted/20 my-0.5" />
-                        <span className="text-blue-600 font-bold text-[10px]">{row.totalLocacao}</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-              <TableFooter className="bg-primary/5 border-t-2 border-primary/20">
-                <TableRow className="border-b border-primary/10">
-                  <TableCell className="font-bold text-[10px] py-2 px-2 sticky left-0 bg-primary/5 z-10 border-r text-muted-foreground">
-                    POR NATUREZA
-                  </TableCell>
-                  {months.map((_, i) => (
-                    <TableCell key={i} className="text-center py-1 px-1 border-r">
-                      <div className="flex flex-col items-center leading-[1.1]">
-                        <span className="text-emerald-600 font-extrabold text-[10px]">{monthlyTotals.venda[i]}</span>
-                        <div className="h-[1px] w-4 bg-primary/10 my-0.5" />
-                        <span className="text-blue-600 font-extrabold text-[10px]">{monthlyTotals.locacao[i]}</span>
-                      </div>
-                    </TableCell>
-                  ))}
-                  <TableCell className="text-right py-1 px-2 bg-primary/10 sticky right-0 z-10">
-                    <div className="flex flex-col items-end leading-[1.1]">
-                      <span className="text-emerald-600 font-extrabold text-[10px]">{grandTotalVenda}</span>
-                      <div className="h-[1px] w-4 bg-primary/10 my-0.5" />
-                      <span className="text-blue-600 font-extrabold text-[10px]">{grandTotalLocacao}</span>
-                    </div>
-                  </TableCell>
-                </TableRow>
-                <TableRow className="bg-primary/10">
-                  <TableCell className="font-bold text-[10px] py-2 px-2 sticky left-0 bg-primary/10 z-10 border-r text-primary">
-                    SOMA TOTAL
-                  </TableCell>
-                  {months.map((_, i) => (
-                    <TableCell key={i} className="text-center py-2 px-1 border-r font-extrabold text-primary text-[11px]">
-                      {monthlyTotals.venda[i] + monthlyTotals.locacao[i]}
-                    </TableCell>
-                  ))}
-                  <TableCell className="text-right py-2 px-2 bg-primary/20 sticky right-0 z-10 font-black text-primary text-[11px]">
-                    {grandTotalVenda + grandTotalLocacao}
-                  </TableCell>
-                </TableRow>
-              </TableFooter>
-            </Table>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
-        ) : (
-          <div className="py-12 flex flex-col items-center justify-center text-center space-y-2">
-            <p className="text-sm text-muted-foreground font-medium">Nenhum dado de lead sincronizado para {new Date().getFullYear()}.</p>
-            <p className="text-[10px] text-muted-foreground/60 max-w-xs mx-auto">Verifique as colunas "Fonte", "Natureza da Negociação" e "Data" na sua planilha.</p>
-          </div>
-        )}
-      </CardContent>
+                    </TableRow>
+                    <TableRow className="bg-primary/10">
+                      <TableCell className="font-bold text-[10px] py-2 px-2 sticky left-0 bg-primary/10 z-10 border-r text-primary">
+                        SOMA TOTAL
+                      </TableCell>
+                      {months.map((_, i) => (
+                        <TableCell key={i} className="text-center py-2 px-1 border-r font-extrabold text-primary text-[11px]">
+                          {monthlyTotals.venda[i] + monthlyTotals.locacao[i]}
+                        </TableCell>
+                      ))}
+                      <TableCell className="text-right py-2 px-2 bg-primary/20 sticky right-0 z-10 font-black text-primary text-[11px]">
+                        {grandTotalVenda + grandTotalLocacao}
+                      </TableCell>
+                    </TableRow>
+                  </TableFooter>
+                </Table>
+                <ScrollBar orientation="horizontal" />
+              </ScrollArea>
+            ) : (
+              <div className="py-12 flex flex-col items-center justify-center text-center space-y-2">
+                <p className="text-sm text-muted-foreground font-medium">Nenhum dado de lead sincronizado para {new Date().getFullYear()}.</p>
+                <p className="text-[10px] text-muted-foreground/60 max-w-xs mx-auto">Verifique as colunas "Fonte", "Natureza da Negociação" e "Data" na sua planilha.</p>
+              </div>
+            )}
+          </TabsContent>
+          <TabsContent value="media" className="m-0">
+             {averageData.length > 0 ? (
+                <ScrollArea className="w-full">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead rowSpan={2} className="text-xs uppercase sticky left-0 bg-background z-10 border-r font-bold">Canal</TableHead>
+                                <TableHead colSpan={3} className="text-center bg-emerald-50 text-emerald-800 font-bold text-xs uppercase">Venda</TableHead>
+                                <TableHead colSpan={3} className="text-center bg-blue-50 text-blue-800 font-bold text-xs uppercase">Locação</TableHead>
+                            </TableRow>
+                            <TableRow>
+                                <TableHead className="text-center text-xs uppercase bg-emerald-50/50">Leads/mês</TableHead>
+                                <TableHead className="text-center text-xs uppercase bg-emerald-50/50">Visitas/mês</TableHead>
+                                <TableHead className="text-center text-xs uppercase bg-emerald-50/50">Conv. Visita (%)</TableHead>
+                                <TableHead className="text-center text-xs uppercase bg-blue-50/50">Leads/mês</TableHead>
+                                <TableHead className="text-center text-xs uppercase bg-blue-50/50">Visitas/mês</TableHead>
+                                <TableHead className="text-center text-xs uppercase bg-blue-50/50">Conv. Visita (%)</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                        {averageData.map(row => (
+                            <TableRow key={row.channel} className="hover:bg-muted/20">
+                                <TableCell className="font-semibold text-xs sticky left-0 bg-background z-10 border-r">{row.channel}</TableCell>
+                                <TableCell className="text-center font-medium text-sm">{row.mediaLeadsVenda.toFixed(1)}</TableCell>
+                                <TableCell className="text-center font-medium text-sm">{row.mediaVisitasVenda.toFixed(1)}</TableCell>
+                                <TableCell className="text-center font-bold text-sm bg-emerald-50/30 text-emerald-700">{row.convVisitaVenda.toFixed(1)}%</TableCell>
+                                <TableCell className="text-center font-medium text-sm">{row.mediaLeadsLocacao.toFixed(1)}</TableCell>
+                                <TableCell className="text-center font-medium text-sm">{row.mediaVisitasLocacao.toFixed(1)}</TableCell>
+                                <TableCell className="text-center font-bold text-sm bg-blue-50/30 text-blue-700">{row.convVisitaLocacao.toFixed(1)}%</TableCell>
+                            </TableRow>
+                        ))}
+                        </TableBody>
+                    </Table>
+                    <ScrollBar orientation="horizontal" />
+                </ScrollArea>
+             ) : (
+                <div className="py-12 flex flex-col items-center justify-center text-center space-y-2">
+                    <p className="text-sm text-muted-foreground font-medium">Nenhum dado para calcular as métricas.</p>
+                    <p className="text-[10px] text-muted-foreground/60 max-w-xs mx-auto">Verifique os dados nas suas planilhas de Leads e Vendas/Locações.</p>
+                </div>
+             )}
+          </TabsContent>
+        </CardContent>
+      </Tabs>
     </Card>
   );
 }

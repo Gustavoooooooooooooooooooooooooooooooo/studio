@@ -297,6 +297,7 @@ export default function AppContainer() {
               commission: parseCurrency(getVal(row, ["comissao", "comissão"])),
               saleDate: formatDateDisplay(getVal(row, ["negocio fechado", "data do venda", "data venda", "fechamento", "venda"], ["vendedor", "corretor"])),
               propertyCaptureDate: formatDateDisplay(getVal(row, ["entrada do imovel", "data entrada", "entrada", "cadastro", "carimbo"])),
+              origem: String(getVal(row, ["origem", "canal", "fonte", "source"]) || "N/A"),
               tipo: finalDealType,
               status: finalDealType === 'Locação' ? 'Alugado' : 'Vendido',
             };
@@ -377,27 +378,27 @@ export default function AppContainer() {
     const filteredSales = filterByDate(processedSales, 'saleDateObj');
     const filteredProperties = filterByDate(processedInventory, 'captureDateObj');
     
-    let salesFrequency = 0;
-    const salesForFrequency = processedSales.filter(s => {
+    const salesForFrequencyCalc = processedSales.filter(s => {
       const d = s.saleDateObj;
       if (!d) return false;
       const isSaleType = normalizeTipo(s.tipo) === 'venda';
       const yearMatch = selectedYears.length === 0 || selectedYears.includes(String(d.getUTCFullYear()));
-      const isPastOrPresent = d.getTime() <= now.getTime();
-      return isSaleType && yearMatch && isPastOrPresent;
+      return isSaleType && yearMatch;
     });
 
-    if (salesForFrequency.length > 0) {
-      const years = selectedYears.length > 0 ? selectedYears.map(y => parseInt(y, 10)) : [now.getFullYear()];
-      const minYear = Math.min(...years);
-      const startOfPeriod = new Date(Date.UTC(minYear, 0, 1));
-      const endOfPeriod = now;
-      const diffTime = endOfPeriod.getTime() - startOfPeriod.getTime();
-      const totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      if (totalDays > 0) {
-        salesFrequency = totalDays / salesForFrequency.length;
-      }
+    let salesFrequency = 0;
+    if (salesForFrequencyCalc.length > 0) {
+        const yearsToConsider = selectedYears.length > 0 ? selectedYears.map(y => parseInt(y)) : [now.getFullYear()];
+        const minYear = Math.min(...yearsToConsider);
+        
+        const startOfPeriod = new Date(Date.UTC(minYear, 0, 1));
+        const endOfPeriod = now;
+        
+        const totalDays = Math.ceil((endOfPeriod.getTime() - startOfPeriod.getTime()) / (1000 * 60 * 60 * 24));
+        
+        if (totalDays > 0) {
+            salesFrequency = totalDays / salesForFrequencyCalc.length;
+        }
     }
     
     const validCycles = processedSales.map(s => {
@@ -638,7 +639,7 @@ export default function AppContainer() {
               brokers={allBrokers}
             />
             <div className="space-y-6">
-              <MonthlyTrends sales={sales} leads={leads} properties={inventory} />
+              <MonthlyTrends sales={sales} properties={inventory} />
               <BrokerPerformanceGrid 
                 sales={sales} 
                 leads={leads} 
@@ -647,7 +648,7 @@ export default function AppContainer() {
                 selectedYears={selectedYears}
                 brokers={allBrokers}
               />
-              <ChannelPerformance leads={leads} />
+              <ChannelPerformance leads={leads} sales={sales} />
             </div>
           </div>
       </main>
