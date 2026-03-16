@@ -7,34 +7,24 @@ import { Line, LineChart, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Lege
 
 interface MonthlyTrendsProps {
   sales: any[];
-  leads: any[];
   properties: any[];
 }
 
-export function MonthlyTrends({ sales, leads, properties }: MonthlyTrendsProps) {
-  const data = useMemo(() => {
-    const currentYear = new Date().getFullYear();
-    const monthsNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-    const monthlyData: Record<string, any> = {};
-    
-    // Inicializar 12 meses do ano atual
-    monthsNames.forEach((name, i) => {
-      const key = `${currentYear}-${String(i+1).padStart(2, '0')}`;
-      monthlyData[key] = { month: name, vendas: 0, locacoes: 0, angariados: 0 };
-    });
+// This robust date parser is now defined outside the component to be reusable
+// and to avoid being redeclared on every render.
+const parseDate = (d: any): Date | null => {
+    if (!d) return null;
+    if (d instanceof Date) {
+        if (isNaN(d.getTime())) return null;
+        return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    }
 
-    const parseDate = (d: any): Date | null => {
-        if (!d) return null;
-        if (d instanceof Date) {
-            if (isNaN(d.getTime())) return null;
-            return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-        }
+    const strVal = String(d).trim();
+    if (!strVal || ["n/a", "undefined", "null", ""].includes(strVal.toLowerCase())) return null;
 
-        const strVal = String(d).trim();
-        if (!strVal || ["n/a", "undefined", "null", ""].includes(strVal.toLowerCase())) return null;
-
-        const dmyMatch = strVal.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})/);
-        if (dmyMatch) {
+    // Matches DD/MM/YYYY, DD.MM.YYYY, DD-MM-YYYY
+    const dmyMatch = strVal.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})/);
+    if (dmyMatch) {
         const day = parseInt(dmyMatch[1], 10);
         const month = parseInt(dmyMatch[2], 10) - 1;
         let year = parseInt(dmyMatch[3], 10);
@@ -43,36 +33,50 @@ export function MonthlyTrends({ sales, leads, properties }: MonthlyTrendsProps) 
             const date = new Date(Date.UTC(year, month, day));
             if (!isNaN(date.getTime())) return date;
         }
-        }
+    }
 
-        const isoMatch = strVal.match(/^(\d{4})[.\/-](\d{2})[.\/-](\d{2})/);
-        if (isoMatch) {
-            const year = parseInt(isoMatch[1], 10);
-            const month = parseInt(isoMatch[2], 10) - 1;
-            const day = parseInt(isoMatch[3], 10);
-            if (day > 0 && day <= 31 && month >= 0 && month < 12) {
-                const date = new Date(Date.UTC(year, month, day));
-                if (!isNaN(date.getTime())) return date;
-            }
+    // Matches YYYY-MM-DD, YYYY/MM/DD, YYYY.MM.DD
+    const isoMatch = strVal.match(/^(\d{4})[.\/-](\d{2})[.\/-](\d{2})/);
+    if (isoMatch) {
+        const year = parseInt(isoMatch[1], 10);
+        const month = parseInt(isoMatch[2], 10) - 1;
+        const day = parseInt(isoMatch[3], 10);
+        if (day > 0 && day <= 31 && month >= 0 && month < 12) {
+            const date = new Date(Date.UTC(year, month, day));
+            if (!isNaN(date.getTime())) return date;
         }
-        
-        if (/^\d{5}$/.test(strVal)) {
-            const num = Number(strVal);
-            if (!isNaN(num) && num > 30000 && num < 70000) {
-                const excelEpoch = Date.UTC(1899, 11, 30);
-                const date = new Date(excelEpoch + num * 86400000);
-                if (!isNaN(date.getTime())) return date;
-            }
+    }
+    
+    // Handles Excel's integer date format
+    if (/^\d{5}$/.test(strVal)) {
+        const num = Number(strVal);
+        if (!isNaN(num) && num > 30000 && num < 70000) {
+            const excelEpoch = Date.UTC(1899, 11, 30);
+            const date = new Date(excelEpoch + num * 86400000);
+            if (!isNaN(date.getTime())) return date;
         }
+    }
 
-        const nativeDate = new Date(strVal);
-        if (!isNaN(nativeDate.getTime())) {
-            const utcDate = new Date(Date.UTC(nativeDate.getFullYear(), nativeDate.getMonth(), nativeDate.getDate()));
-            if (!isNaN(utcDate.getTime())) return utcDate;
-        }
+    // Fallback for other valid date strings that new Date() can parse
+    const nativeDate = new Date(strVal);
+    if (!isNaN(nativeDate.getTime())) {
+        const utcDate = new Date(Date.UTC(nativeDate.getFullYear(), nativeDate.getMonth(), nativeDate.getDate()));
+        if (!isNaN(utcDate.getTime())) return utcDate;
+    }
 
-        return null;
-    };
+    return null;
+};
+
+export function MonthlyTrends({ sales, properties }: MonthlyTrendsProps) {
+  const data = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const monthsNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const monthlyData: Record<string, any> = {};
+    
+    monthsNames.forEach((name, i) => {
+      const key = `${currentYear}-${String(i+1).padStart(2, '0')}`;
+      monthlyData[key] = { month: name, vendas: 0, locacoes: 0, angariados: 0 };
+    });
 
     const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
