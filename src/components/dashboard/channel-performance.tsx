@@ -295,20 +295,20 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
           <TabsContent value="media" className="m-0">
              {averageData.length > 0 ? (
                 <ScrollArea className="w-full">
-                    <Table>
+                    <Table className="table-fixed w-full">
                         <TableHeader>
                             <TableRow>
-                                <TableHead rowSpan={2} className="text-xs uppercase sticky left-0 bg-background z-10 border-r font-bold">Canal</TableHead>
+                                <TableHead rowSpan={2} className="w-[140px] text-xs uppercase sticky left-0 bg-background z-10 border-r font-bold">Canal</TableHead>
                                 <TableHead colSpan={3} className="text-center bg-emerald-50 text-emerald-800 font-bold text-xs uppercase">Venda</TableHead>
                                 <TableHead colSpan={3} className="text-center bg-blue-50 text-blue-800 font-bold text-xs uppercase">Locação</TableHead>
                             </TableRow>
                             <TableRow>
-                                <TableHead className="text-center text-xs uppercase bg-emerald-50/50">Leads/mês</TableHead>
-                                <TableHead className="text-center text-xs uppercase bg-emerald-50/50">Visitas/mês</TableHead>
-                                <TableHead className="text-center text-xs uppercase bg-emerald-50/50">Conv. Visita (%)</TableHead>
-                                <TableHead className="text-center text-xs uppercase bg-blue-50/50">Leads/mês</TableHead>
-                                <TableHead className="text-center text-xs uppercase bg-blue-50/50">Visitas/mês</TableHead>
-                                <TableHead className="text-center text-xs uppercase bg-blue-50/50">Conv. Visita (%)</TableHead>
+                                <TableHead className="w-[120px] text-center text-xs uppercase bg-emerald-50/50">Leads/mês</TableHead>
+                                <TableHead className="w-[120px] text-center text-xs uppercase bg-emerald-50/50">Visitas/mês</TableHead>
+                                <TableHead className="w-[120px] text-center text-xs uppercase bg-emerald-50/50">Conv. Visita (%)</TableHead>
+                                <TableHead className="w-[120px] text-center text-xs uppercase bg-blue-50/50">Leads/mês</TableHead>
+                                <TableHead className="w-[120px] text-center text-xs uppercase bg-blue-50/50">Visitas/mês</TableHead>
+                                <TableHead className="w-[120px] text-center text-xs uppercase bg-blue-50/50">Conv. Visita (%)</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
