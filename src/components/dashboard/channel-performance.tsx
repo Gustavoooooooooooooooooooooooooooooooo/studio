@@ -5,8 +5,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
 
 interface ChannelPerformanceProps {
   leads: any[];
@@ -14,10 +15,29 @@ interface ChannelPerformanceProps {
 }
 
 export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
-  const [view, setView] = useState<'anual' | 'media'>('anual');
+  const [view, setView] = useState<'anual' | 'media' | 'custos'>('anual');
+  const [channelCosts, setChannelCosts] = useState<Record<string, number>>({});
   const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
   
   const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+  useEffect(() => {
+    const savedCosts = localStorage.getItem('channel_costs');
+    if (savedCosts) {
+      try {
+        setChannelCosts(JSON.parse(savedCosts));
+      } catch (e) {
+        console.error("Failed to parse channel costs from localStorage", e);
+      }
+    }
+  }, []);
+
+  const handleCostChange = (channel: string, cost: string) => {
+    const numericCost = Number(cost) || 0;
+    const newCosts = { ...channelCosts, [channel]: numericCost };
+    setChannelCosts(newCosts);
+    localStorage.setItem('channel_costs', JSON.stringify(newCosts));
+  };
 
   const parseDate = (d: any) => {
     if (!d) return null;
@@ -188,18 +208,37 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
     return data.sort((a,b) => a.channel.localeCompare(b.channel));
   }, [leads, sales]);
 
+  const costData = useMemo(() => {
+    return matrixData.rows.map(row => {
+      const cost = channelCosts[row.channel] || 0;
+      const cplVenda = row.totalVenda > 0 ? cost / row.totalVenda : 0;
+      const cplLocacao = row.totalLocacao > 0 ? cost / row.totalLocacao : 0;
+      return {
+        ...row,
+        cost,
+        cplVenda,
+        cplLocacao
+      };
+    }).sort((a,b) => a.channel.localeCompare(b.channel));
+  }, [matrixData.rows, channelCosts]);
 
   const { rows, monthlyTotals, grandTotalVenda, grandTotalLocacao } = matrixData;
 
+  const formatCurrency = (value: number) => {
+    if (isNaN(value)) return "R$ 0,00";
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  }
+
   return (
     <Card className="shadow-sm border-none bg-white overflow-hidden">
-      <Tabs value={view} onValueChange={(v) => setView(v as 'anual' | 'media')}>
+      <Tabs value={view} onValueChange={(v) => setView(v as 'anual' | 'media' | 'custos')}>
         <CardHeader className="bg-muted/5 border-b py-3">
           <div className="flex justify-between items-center">
             <CardTitle className="text-base font-bold text-primary">Leads por Canal ({new Date().getFullYear()})</CardTitle>
-            <TabsList className="grid w-[200px] grid-cols-2 h-9 p-1">
+            <TabsList className="grid w-[280px] grid-cols-3 h-9 p-1">
                 <TabsTrigger value="anual" className="text-xs h-full">Anual</TabsTrigger>
                 <TabsTrigger value="media" className="text-xs h-full">Métricas</TabsTrigger>
+                <TabsTrigger value="custos" className="text-xs h-full">Custos</TabsTrigger>
             </TabsList>
           </div>
         </CardHeader>
@@ -335,6 +374,52 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
                 <div className="py-12 flex flex-col items-center justify-center text-center space-y-2">
                     <p className="text-sm text-muted-foreground font-medium">Nenhum dado para calcular as métricas.</p>
                     <p className="text-[10px] text-muted-foreground/60 max-w-xs mx-auto">Verifique os dados nas suas planilhas de Leads e Vendas/Locações.</p>
+                </div>
+             )}
+          </TabsContent>
+          <TabsContent value="custos" className="m-0">
+             {costData.length > 0 ? (
+                <ScrollArea className="w-full">
+                  <div className="min-w-[1040px]">
+                    <Table className="w-full">
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead className="w-[200px] text-xs uppercase sticky left-0 bg-background z-10 border-r font-bold">Canal</TableHead>
+                                <TableHead className="w-[250px] text-xs uppercase">Investimento Mensal (R$)</TableHead>
+                                <TableHead className="text-center text-xs uppercase bg-emerald-50 text-emerald-800">CPL Venda (R$)</TableHead>
+                                <TableHead className="text-center text-xs uppercase bg-blue-50 text-blue-800">CPL Locação (R$)</TableHead>
+                                <TableHead className="text-center text-xs uppercase">Leads Venda</TableHead>
+                                <TableHead className="text-center text-xs uppercase">Leads Locação</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                        {costData.map(row => (
+                            <TableRow key={row.channel} className="hover:bg-muted/20">
+                                <TableCell className="font-semibold text-xs sticky left-0 bg-background z-10 border-r">{row.channel}</TableCell>
+                                <TableCell>
+                                    <Input
+                                      type="number"
+                                      placeholder="0.00"
+                                      value={row.cost || ''}
+                                      onChange={(e) => handleCostChange(row.channel, e.target.value)}
+                                      className="h-8 w-48"
+                                    />
+                                </TableCell>
+                                <TableCell className="text-center font-bold text-sm bg-emerald-50/30 text-emerald-700">{formatCurrency(row.cplVenda)}</TableCell>
+                                <TableCell className="text-center font-bold text-sm bg-blue-50/30 text-blue-700">{formatCurrency(row.cplLocacao)}</TableCell>
+                                <TableCell className="text-center font-medium text-sm">{row.totalVenda}</TableCell>
+                                <TableCell className="text-center font-medium text-sm">{row.totalLocacao}</TableCell>
+                            </TableRow>
+                        ))}
+                        </TableBody>
+                    </Table>
+                  </div>
+                  <ScrollBar orientation="horizontal" />
+                </ScrollArea>
+             ) : (
+                <div className="py-12 flex flex-col items-center justify-center text-center space-y-2">
+                    <p className="text-sm text-muted-foreground font-medium">Nenhum dado para calcular os custos.</p>
+                    <p className="text-[10px] text-muted-foreground/60 max-w-xs mx-auto">Aguardando dados das planilhas de Leads.</p>
                 </div>
              )}
           </TabsContent>
