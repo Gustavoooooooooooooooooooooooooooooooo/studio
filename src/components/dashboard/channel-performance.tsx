@@ -207,82 +207,84 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
           <TabsContent value="anual" className="m-0">
             {rows.length > 0 ? (
               <ScrollArea className="w-full">
-                <Table className="table-fixed w-full">
-                  <TableHeader className="bg-muted/10">
-                    <TableRow>
-                      <TableHead className="w-[140px] font-bold text-[9px] uppercase sticky left-0 bg-muted/10 z-20 px-2">Canal</TableHead>
-                      {months.map(m => (
-                        <TableHead key={m} className="text-center text-[9px] px-1 font-bold w-[45px]">{m}</TableHead>
+                <div className="min-w-[860px]">
+                  <Table className="table-fixed w-full">
+                    <TableHeader className="bg-muted/10">
+                      <TableRow>
+                        <TableHead className="w-[140px] font-bold text-[9px] uppercase sticky left-0 bg-muted/10 z-20 px-2">Canal</TableHead>
+                        {months.map(m => (
+                          <TableHead key={m} className="text-center text-[9px] px-1 font-bold w-[45px]">{m}</TableHead>
+                        ))}
+                        <TableHead className="text-right font-bold bg-muted/20 text-[9px] sticky right-0 z-20 w-[60px] px-2">TOTAL</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rows.map((row) => (
+                        <TableRow key={row.channel} className="hover:bg-muted/5 transition-colors">
+                          <TableCell className="py-2 px-2 sticky left-0 bg-white z-10 border-r">
+                            <span className="font-semibold text-[10px] truncate leading-tight block">{row.channel}</span>
+                          </TableCell>
+                          {months.map((_, i) => (
+                            <TableCell key={i} className="text-center text-[10px] py-1 px-1 border-r">
+                              <div className="flex flex-col items-center leading-[1.1]">
+                                <span className={`${row.venda[i] > 0 ? 'text-emerald-600 font-bold' : 'text-muted-foreground/20'}`}>
+                                  {row.venda[i]}
+                                </span>
+                                <div className="h-[1px] w-4 bg-muted/20 my-0.5" />
+                                <span className={`${row.locacao[i] > 0 ? 'text-blue-600 font-bold' : 'text-muted-foreground/20'}`}>
+                                  {row.locacao[i]}
+                                </span>
+                              </div>
+                            </TableCell>
+                          ))}
+                          <TableCell className="text-right py-1 px-2 bg-muted/5 sticky right-0 z-10 border-l">
+                            <div className="flex flex-col items-end leading-[1.1]">
+                              <span className="text-emerald-600 font-bold text-[10px]">{row.totalVenda}</span>
+                              <div className="h-[1px] w-4 bg-muted/20 my-0.5" />
+                              <span className="text-blue-600 font-bold text-[10px]">{row.totalLocacao}</span>
+                            </div>
+                          </TableCell>
+                        </TableRow>
                       ))}
-                      <TableHead className="text-right font-bold bg-muted/20 text-[9px] sticky right-0 z-20 w-[60px] px-2">TOTAL</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {rows.map((row) => (
-                      <TableRow key={row.channel} className="hover:bg-muted/5 transition-colors">
-                        <TableCell className="py-2 px-2 sticky left-0 bg-white z-10 border-r">
-                          <span className="font-semibold text-[10px] truncate leading-tight block">{row.channel}</span>
+                    </TableBody>
+                    <TableFooter className="bg-primary/5 border-t-2 border-primary/20">
+                      <TableRow className="border-b border-primary/10">
+                        <TableCell className="font-bold text-[10px] py-2 px-2 sticky left-0 bg-primary/5 z-10 border-r text-muted-foreground">
+                          POR NATUREZA
                         </TableCell>
                         {months.map((_, i) => (
-                          <TableCell key={i} className="text-center text-[10px] py-1 px-1 border-r">
+                          <TableCell key={i} className="text-center py-1 px-1 border-r">
                             <div className="flex flex-col items-center leading-[1.1]">
-                              <span className={`${row.venda[i] > 0 ? 'text-emerald-600 font-bold' : 'text-muted-foreground/20'}`}>
-                                {row.venda[i]}
-                              </span>
-                              <div className="h-[1px] w-4 bg-muted/20 my-0.5" />
-                              <span className={`${row.locacao[i] > 0 ? 'text-blue-600 font-bold' : 'text-muted-foreground/20'}`}>
-                                {row.locacao[i]}
-                              </span>
+                              <span className="text-emerald-600 font-extrabold text-[10px]">{monthlyTotals.venda[i]}</span>
+                              <div className="h-[1px] w-4 bg-primary/10 my-0.5" />
+                              <span className="text-blue-600 font-extrabold text-[10px]">{monthlyTotals.locacao[i]}</span>
                             </div>
                           </TableCell>
                         ))}
-                        <TableCell className="text-right py-1 px-2 bg-muted/5 sticky right-0 z-10 border-l">
+                        <TableCell className="text-right py-1 px-2 bg-primary/10 sticky right-0 z-10">
                           <div className="flex flex-col items-end leading-[1.1]">
-                            <span className="text-emerald-600 font-bold text-[10px]">{row.totalVenda}</span>
-                            <div className="h-[1px] w-4 bg-muted/20 my-0.5" />
-                            <span className="text-blue-600 font-bold text-[10px]">{row.totalLocacao}</span>
+                            <span className="text-emerald-600 font-extrabold text-[10px]">{grandTotalVenda}</span>
+                            <div className="h-[1px] w-4 bg-primary/10 my-0.5" />
+                            <span className="text-blue-600 font-extrabold text-[10px]">{grandTotalLocacao}</span>
                           </div>
                         </TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                  <TableFooter className="bg-primary/5 border-t-2 border-primary/20">
-                    <TableRow className="border-b border-primary/10">
-                      <TableCell className="font-bold text-[10px] py-2 px-2 sticky left-0 bg-primary/5 z-10 border-r text-muted-foreground">
-                        POR NATUREZA
-                      </TableCell>
-                      {months.map((_, i) => (
-                        <TableCell key={i} className="text-center py-1 px-1 border-r">
-                          <div className="flex flex-col items-center leading-[1.1]">
-                            <span className="text-emerald-600 font-extrabold text-[10px]">{monthlyTotals.venda[i]}</span>
-                            <div className="h-[1px] w-4 bg-primary/10 my-0.5" />
-                            <span className="text-blue-600 font-extrabold text-[10px]">{monthlyTotals.locacao[i]}</span>
-                          </div>
+                      <TableRow className="bg-primary/10">
+                        <TableCell className="font-bold text-[10px] py-2 px-2 sticky left-0 bg-primary/10 z-10 border-r text-primary">
+                          SOMA TOTAL
                         </TableCell>
-                      ))}
-                      <TableCell className="text-right py-1 px-2 bg-primary/10 sticky right-0 z-10">
-                        <div className="flex flex-col items-end leading-[1.1]">
-                          <span className="text-emerald-600 font-extrabold text-[10px]">{grandTotalVenda}</span>
-                          <div className="h-[1px] w-4 bg-primary/10 my-0.5" />
-                          <span className="text-blue-600 font-extrabold text-[10px]">{grandTotalLocacao}</span>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                    <TableRow className="bg-primary/10">
-                      <TableCell className="font-bold text-[10px] py-2 px-2 sticky left-0 bg-primary/10 z-10 border-r text-primary">
-                        SOMA TOTAL
-                      </TableCell>
-                      {months.map((_, i) => (
-                        <TableCell key={i} className="text-center py-2 px-1 border-r font-extrabold text-primary text-[11px]">
-                          {monthlyTotals.venda[i] + monthlyTotals.locacao[i]}
+                        {months.map((_, i) => (
+                          <TableCell key={i} className="text-center py-2 px-1 border-r font-extrabold text-primary text-[11px]">
+                            {monthlyTotals.venda[i] + monthlyTotals.locacao[i]}
+                          </TableCell>
+                        ))}
+                        <TableCell className="text-right py-2 px-2 bg-primary/20 sticky right-0 z-10 font-black text-primary text-[11px]">
+                          {grandTotalVenda + grandTotalLocacao}
                         </TableCell>
-                      ))}
-                      <TableCell className="text-right py-2 px-2 bg-primary/20 sticky right-0 z-10 font-black text-primary text-[11px]">
-                        {grandTotalVenda + grandTotalLocacao}
-                      </TableCell>
-                    </TableRow>
-                  </TableFooter>
-                </Table>
+                      </TableRow>
+                    </TableFooter>
+                  </Table>
+                </div>
                 <ScrollBar orientation="horizontal" />
               </ScrollArea>
             ) : (
@@ -295,6 +297,7 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
           <TabsContent value="media" className="m-0">
              {averageData.length > 0 ? (
                 <ScrollArea className="w-full">
+                  <div className="min-w-[860px]">
                     <Table className="table-fixed w-full">
                         <TableHeader>
                             <TableRow>
@@ -325,7 +328,8 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
                         ))}
                         </TableBody>
                     </Table>
-                    <ScrollBar orientation="horizontal" />
+                  </div>
+                  <ScrollBar orientation="horizontal" />
                 </ScrollArea>
              ) : (
                 <div className="py-12 flex flex-col items-center justify-center text-center space-y-2">
