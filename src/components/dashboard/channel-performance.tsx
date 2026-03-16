@@ -65,12 +65,14 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
     if (!tempCost) return;
 
     if (isFixed) {
-      // De mensal para fixo: soma os valores mensais
-      const annualValue = Array.isArray(tempCost.value) ? tempCost.value.reduce((a, b) => a + b, 0) : tempCost.value;
+      // From monthly to fixed: sum the monthly values
+      const annualValue = Array.isArray(tempCost.value)
+        ? tempCost.value.reduce((a, b) => a + (Number(b) || 0), 0)
+        : (Number(tempCost.value) || 0);
       setTempCost({ type: 'fixed', value: annualValue });
     } else {
-      // De fixo para mensal: divide o valor anual por 12
-      const monthlyValue = typeof tempCost.value === 'number' ? tempCost.value / 12 : 0;
+      // From fixed to monthly: divide the annual value by 12
+      const monthlyValue = (typeof tempCost.value === 'number' ? tempCost.value : 0) / 12;
       setTempCost({ type: 'monthly', value: Array(12).fill(monthlyValue) });
     }
   };
@@ -248,8 +250,13 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
   const costData = useMemo(() => {
     return matrixData.rows.map(row => {
       const costConfig = channelCosts[row.channel];
-      const totalAnnualCost = costConfig 
-        ? (costConfig.type === 'fixed' ? costConfig.value : (Array.isArray(costConfig.value) ? costConfig.value.reduce((a, b) => a + (b || 0), 0) : 0))
+      const totalAnnualCost = costConfig
+        ? (costConfig.type === 'fixed'
+            ? (Number(costConfig.value) || 0)
+            : (Array.isArray(costConfig.value)
+                ? costConfig.value.reduce((a, b) => a + (Number(b) || 0), 0)
+                : 0)
+          )
         : 0;
       
       const totalLeads = row.totalVenda + row.totalLocacao;
@@ -492,7 +499,7 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
                   <Input 
                       type="number"
                       placeholder="0.00"
-                      value={tempCost.value}
+                      value={tempCost.value || ''}
                       onChange={(e) => setTempCost({ type: 'fixed', value: Number(e.target.value) })}
                   />
                 </div>
@@ -508,11 +515,11 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
                                         id={`month-${i}`}
                                         type="number"
                                         placeholder="0.00"
-                                        value={Array.isArray(tempCost.value) ? tempCost.value[i] : 0}
+                                        value={(Array.isArray(tempCost.value) ? tempCost.value[i] : 0) || ''}
                                         onChange={(e) => {
                                             if (Array.isArray(tempCost.value)) {
                                                 const newMonthlyValues = [...tempCost.value];
-                                                newMonthlyValues[i] = Number(e.target.value);
+                                                newMonthlyValues[i] = Number(e.target.value) || 0;
                                                 setTempCost({ type: 'monthly', value: newMonthlyValues });
                                             }
                                         }}
