@@ -122,6 +122,7 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
 
   const averageData = useMemo(() => {
     const currentYear = new Date().getFullYear();
+    const monthsElapsed = new Date().getMonth() + 1;
 
     const allChannels = Array.from(new Set(leads.map(lead => {
         const keys = Object.keys(lead);
@@ -175,11 +176,11 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
 
       return {
         channel,
-        mediaLeadsVenda: leadsVenda / 12,
-        mediaVisitasVenda: visitsVenda / 12,
+        mediaLeadsVenda: leadsVenda > 0 ? leadsVenda / monthsElapsed : 0,
+        mediaVisitasVenda: visitsVenda > 0 ? visitsVenda / monthsElapsed : 0,
         convVisitaVenda: visitsVenda > 0 ? (numSales / visitsVenda) * 100 : 0,
-        mediaLeadsLocacao: leadsLocacao / 12,
-        mediaVisitasLocacao: visitsLocacao / 12,
+        mediaLeadsLocacao: leadsLocacao > 0 ? leadsLocacao / monthsElapsed : 0,
+        mediaVisitasLocacao: visitsLocacao > 0 ? visitsLocacao / monthsElapsed : 0,
         convVisitaLocacao: visitsLocacao > 0 ? (numRentals / visitsLocacao) * 100 : 0,
       };
     });
