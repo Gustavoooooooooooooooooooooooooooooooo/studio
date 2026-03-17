@@ -126,19 +126,18 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
   const matrixData = useMemo(() => {
     const data: Record<string, { venda: number[], locacao: number[] }> = {};
 
+    const leadChannels = leads.map(lead => {
+      const keys = Object.keys(lead);
+      const sourceKey = keys.find(k => normalize(k) === "fonte" || normalize(k).includes("fonte") || normalize(k) === "origem" || normalize(k).includes("origem") || normalize(k) === "canal");
+      const rawChannel = sourceKey && lead[sourceKey] ? String(lead[sourceKey]).trim() : "Direto/Indicação";
+      return getMappedChannel(rawChannel);
+    });
+
+    const saleChannels = sales.map(sale => getMappedChannel(sale.origem || ''));
+
     const allChannels = Array.from(
-      new Set(
-        leads
-          .map(lead => {
-            const keys = Object.keys(lead);
-            const sourceKey = keys.find(k => normalize(k) === "fonte" || normalize(k).includes("fonte") || normalize(k) === "origem" || normalize(k).includes("origem") || normalize(k) === "canal");
-            const rawChannel = sourceKey && lead[sourceKey] ? String(lead[sourceKey]).trim() : "Direto/Indicação";
-            
-            return getMappedChannel(rawChannel);
-          })
-          .filter((c): c is string => c !== null)
-      )
-    ).filter(c => c && c !== "undefined" && c !== "null" && c !== "");
+      new Set([...leadChannels, ...saleChannels])
+    ).filter((c): c is string => c && c !== "undefined" && c !== "null" && c !== "" && c.toLowerCase() !== 'n/a');
 
     allChannels.forEach(channel => {
       if (!data[channel]) {
@@ -210,24 +209,23 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
     const grandTotalLocacao = rows.reduce((acc, r) => acc + r.totalLocacao, 0);
 
     return { rows, monthlyTotals, grandTotalVenda, grandTotalLocacao };
-  }, [leads, currentYear, getMappedChannel, normalize]);
+  }, [leads, sales, currentYear, getMappedChannel, normalize]);
 
   const averageData = useMemo(() => {
     const monthsElapsed = new Date().getMonth() + 1;
 
+    const leadChannels = leads.map(lead => {
+      const keys = Object.keys(lead);
+      const sourceKey = keys.find(k => normalize(k) === "fonte" || normalize(k).includes("fonte") || normalize(k) === "origem" || normalize(k).includes("origem") || normalize(k) === "canal");
+      const rawChannel = sourceKey && lead[sourceKey] ? String(lead[sourceKey]).trim() : "Direto/Indicação";
+      return getMappedChannel(rawChannel);
+    });
+
+    const saleChannels = sales.map(sale => getMappedChannel(sale.origem || ''));
+    
     const allChannels = Array.from(
-      new Set(
-        leads
-          .map(lead => {
-            const keys = Object.keys(lead);
-            const sourceKey = keys.find(k => normalize(k) === "fonte" || normalize(k).includes("fonte") || normalize(k) === "origem" || normalize(k).includes("origem") || normalize(k) === "canal");
-            const rawChannel = sourceKey && lead[sourceKey] ? String(lead[sourceKey]).trim() : "Direto/Indicação";
-            
-            return getMappedChannel(rawChannel);
-          })
-          .filter((c): c is string => c !== null)
-      )
-    ).filter(c => c && c !== "undefined" && c !== "null" && c !== "");
+        new Set([...leadChannels, ...saleChannels])
+    ).filter((c): c is string => c && c !== "undefined" && c !== "null" && c !== "" && c.toLowerCase() !== 'n/a');
 
     const data = allChannels.map(channel => {
       const channelLeads = leads.filter(lead => {
