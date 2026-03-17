@@ -41,12 +41,6 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
     return String(rawChannel).trim();
   };
 
-  const isIgnoredChannel = (rawChannel: any): boolean => {
-    if (!rawChannel) return false;
-    const normalized = normalize(String(rawChannel));
-    return normalized.includes('c2sbot');
-  };
-
   useEffect(() => {
     const savedCosts = localStorage.getItem('channel_costs');
     if (savedCosts) {
@@ -132,7 +126,6 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
       });
       const rawChannel = sourceKey && lead[sourceKey] ? String(lead[sourceKey]).trim() : "Direto/Indicação";
 
-      if (isIgnoredChannel(rawChannel)) return;
       const channel = getMappedChannel(rawChannel);
 
       const natureKey = keys.find(k => {
@@ -207,7 +200,6 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
             const sourceKey = keys.find(k => normalize(k) === "fonte" || normalize(k).includes("fonte") || normalize(k) === "origem" || normalize(k).includes("origem") || normalize(k) === "canal");
             const rawChannel = sourceKey && lead[sourceKey] ? String(lead[sourceKey]).trim() : "Direto/Indicação";
             
-            if (isIgnoredChannel(rawChannel)) return null;
             return getMappedChannel(rawChannel);
           })
           .filter((c): c is string => c !== null)
@@ -220,7 +212,6 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
         const sourceKey = keys.find(k => normalize(k) === "fonte" || normalize(k).includes("fonte") || normalize(k) === "origem" || normalize(k).includes("origem") || normalize(k) === "canal");
         const rawChannel = sourceKey && lead[sourceKey] ? String(lead[sourceKey]).trim() : "Direto/Indicação";
         
-        if (isIgnoredChannel(rawChannel)) return false;
         const leadChannel = getMappedChannel(rawChannel);
         
         const dateKey = keys.find(k => normalize(k).includes("data") || normalize(k).includes("carimbo") || normalize(k).includes("criado"));
@@ -254,7 +245,6 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
 
       const channelSales = sales.filter(s => {
         const rawSaleChannel = s.origem || '';
-        if (isIgnoredChannel(rawSaleChannel)) return false;
 
         const saleChannel = getMappedChannel(rawSaleChannel);
         const date = parseDate(s.saleDate);
