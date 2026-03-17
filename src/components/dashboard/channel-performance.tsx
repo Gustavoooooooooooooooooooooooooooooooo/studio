@@ -32,6 +32,21 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
   
   const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
+  const getMappedChannel = (rawChannel: any): string => {
+    if (!rawChannel) return "Direto/Indicação";
+    const normalized = normalize(String(rawChannel));
+    if (normalized.includes('facebook') || normalized.includes('instagram') || normalized.includes('meta')) {
+        return 'Meta';
+    }
+    return String(rawChannel).trim();
+  };
+
+  const isIgnoredChannel = (rawChannel: any): boolean => {
+    if (!rawChannel) return false;
+    const normalized = normalize(String(rawChannel));
+    return normalized.includes('c2sbot');
+  };
+
   useEffect(() => {
     const savedCosts = localStorage.getItem('channel_costs');
     if (savedCosts) {
@@ -63,15 +78,13 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
 
   const handleCostTypeChange = (isFixed: boolean) => {
     if (!tempCost) return;
-
+  
     if (isFixed) {
-      // From monthly to fixed: sum the monthly values
       const annualValue = Array.isArray(tempCost.value)
         ? tempCost.value.reduce((a, b) => a + (Number(b) || 0), 0)
-        : (Number(tempCost.value) || 0);
+        : (Number(tempCost.value) || 0); 
       setTempCost({ type: 'fixed', value: annualValue });
     } else {
-      // From fixed to monthly: divide the annual value by 12
       const monthlyValue = (typeof tempCost.value === 'number' ? tempCost.value : 0) / 12;
       setTempCost({ type: 'monthly', value: Array(12).fill(monthlyValue) });
     }
@@ -117,7 +130,10 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
         const nk = normalize(k);
         return nk === "fonte" || nk.includes("fonte") || nk === "origem" || nk.includes("origem") || nk === "canal";
       });
-      const channel = sourceKey && lead[sourceKey] ? String(lead[sourceKey]).trim() : "Direto/Indicação";
+      const rawChannel = sourceKey && lead[sourceKey] ? String(lead[sourceKey]).trim() : "Direto/Indicação";
+
+      if (isIgnoredChannel(rawChannel)) return;
+      const channel = getMappedChannel(rawChannel);
 
       const natureKey = keys.find(k => {
         const nk = normalize(k);
@@ -183,17 +199,29 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
     const currentYear = new Date().getFullYear();
     const monthsElapsed = new Date().getMonth() + 1;
 
-    const allChannels = Array.from(new Set(leads.map(lead => {
-        const keys = Object.keys(lead);
-        const sourceKey = keys.find(k => normalize(k) === "fonte" || normalize(k).includes("fonte") || normalize(k) === "origem" || normalize(k).includes("origem") || normalize(k) === "canal");
-        return sourceKey && lead[sourceKey] ? String(lead[sourceKey]).trim() : "Direto/Indicação";
-    }))).filter(c => c && c !== "undefined" && c !== "null" && c !== "");
+    const allChannels = Array.from(
+      new Set(
+        leads
+          .map(lead => {
+            const keys = Object.keys(lead);
+            const sourceKey = keys.find(k => normalize(k) === "fonte" || normalize(k).includes("fonte") || normalize(k) === "origem" || normalize(k).includes("origem") || normalize(k) === "canal");
+            const rawChannel = sourceKey && lead[sourceKey] ? String(lead[sourceKey]).trim() : "Direto/Indicação";
+            
+            if (isIgnoredChannel(rawChannel)) return null;
+            return getMappedChannel(rawChannel);
+          })
+          .filter((c): c is string => c !== null)
+      )
+    ).filter(c => c && c !== "undefined" && c !== "null" && c !== "");
 
     const data = allChannels.map(channel => {
       const channelLeads = leads.filter(lead => {
         const keys = Object.keys(lead);
         const sourceKey = keys.find(k => normalize(k) === "fonte" || normalize(k).includes("fonte") || normalize(k) === "origem" || normalize(k).includes("origem") || normalize(k) === "canal");
-        const leadChannel = sourceKey && lead[sourceKey] ? String(lead[sourceKey]).trim() : "Direto/Indicação";
+        const rawChannel = sourceKey && lead[sourceKey] ? String(lead[sourceKey]).trim() : "Direto/Indicação";
+        
+        if (isIgnoredChannel(rawChannel)) return false;
+        const leadChannel = getMappedChannel(rawChannel);
         
         const dateKey = keys.find(k => normalize(k).includes("data") || normalize(k).includes("carimbo") || normalize(k).includes("criado"));
         const date = dateKey ? parseDate(lead[dateKey]) : null;
@@ -225,9 +253,13 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
       }, { leadsVenda: 0, leadsLocacao: 0, visitsVenda: 0, visitsLocacao: 0 });
 
       const channelSales = sales.filter(s => {
-        const saleChannel = normalize(s.origem || '');
+        const rawSaleChannel = s.origem || '';
+        if (isIgnoredChannel(rawSaleChannel)) return false;
+
+        const saleChannel = getMappedChannel(rawSaleChannel);
         const date = parseDate(s.saleDate);
-        return saleChannel === normalize(channel) && date && date.getFullYear() === currentYear;
+        
+        return saleChannel === channel && date && date.getFullYear() === currentYear;
       });
 
       const numSales = channelSales.filter(s => !normalize(s.tipo || '').includes('loca') && !normalize(s.tipo || '').includes('aluguel')).length;
@@ -500,7 +532,7 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
                       type="number"
                       placeholder="0.00"
                       value={tempCost.value || ''}
-                      onChange={(e) => setTempCost({ type: 'fixed', value: Number(e.target.value) })}
+                      onChange={(e) => setTempCost({ type: 'fixed', value: Number(e.target.value) || 0 })}
                   />
                 </div>
               ) : (
@@ -515,7 +547,7 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
                                         id={`month-${i}`}
                                         type="number"
                                         placeholder="0.00"
-                                        value={(Array.isArray(tempCost.value) ? tempCost.value[i] : 0) || ''}
+                                        value={(Array.isArray(tempCost.value) ? tempCost.value[i] : '') || ''}
                                         onChange={(e) => {
                                             if (Array.isArray(tempCost.value)) {
                                                 const newMonthlyValues = [...tempCost.value];
