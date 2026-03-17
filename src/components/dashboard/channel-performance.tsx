@@ -18,7 +18,7 @@ interface ChannelPerformanceProps {
   sales: any[];
 }
 
-type ChannelCost = { type: 'fixed'; value: number } | { type: 'monthly'; value: number[] };
+type ChannelCost = { type: 'fixed'; value: number } | { type: 'monthly'; value: (number | string)[] };
 
 
 export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
@@ -32,12 +32,14 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
   
   const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-  const getMappedChannel = (rawChannel: any): string => {
+  const getMappedChannel = (rawChannel: any): string | null => {
     if (!rawChannel) return "Direto/Indicação";
     const normalized = normalize(String(rawChannel));
+    
     if (normalized.includes('facebook') || normalized.includes('instagram') || normalized.includes('meta')) {
         return 'Meta';
     }
+    
     return String(rawChannel).trim();
   };
 
@@ -74,16 +76,17 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
     if (!tempCost) return;
   
     if (isFixed) {
+      // From monthly to fixed: sum up the monthly values
       const annualValue = Array.isArray(tempCost.value)
         ? tempCost.value.reduce((a, b) => a + (Number(b) || 0), 0)
-        : (Number(tempCost.value) || 0); 
+        : (Number(tempCost.value) || 0);
       setTempCost({ type: 'fixed', value: annualValue });
     } else {
+      // From fixed to monthly: distribute the annual value
       const monthlyValue = (typeof tempCost.value === 'number' ? tempCost.value : 0) / 12;
       setTempCost({ type: 'monthly', value: Array(12).fill(monthlyValue) });
     }
   };
-
 
   const parseDate = (d: any) => {
     if (!d) return null;
@@ -127,6 +130,7 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
       const rawChannel = sourceKey && lead[sourceKey] ? String(lead[sourceKey]).trim() : "Direto/Indicação";
 
       const channel = getMappedChannel(rawChannel);
+      if (!channel) return;
 
       const natureKey = keys.find(k => {
         const nk = normalize(k);
@@ -459,8 +463,8 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
                     <Table className="w-full">
                         <TableHeader>
                             <TableRow>
-                                <TableHead className="w-[200px] text-xs uppercase sticky left-0 bg-background z-10 border-r font-bold">Canal</TableHead>
-                                <TableHead className="w-[250px] text-center text-xs uppercase">Investimento Anual (R$)</TableHead>
+                                <TableHead className="w-[250px] text-xs uppercase sticky left-0 bg-background z-10 border-r font-bold">Canal</TableHead>
+                                <TableHead className="w-[200px] text-center text-xs uppercase">Investimento Anual (R$)</TableHead>
                                 <TableHead className="text-center text-xs uppercase">Total Leads</TableHead>
                                 <TableHead className="text-center text-xs uppercase bg-emerald-50 text-emerald-800">CPL Venda (R$)</TableHead>
                                 <TableHead className="text-center text-xs uppercase bg-blue-50 text-blue-800">CPL Locação (R$)</TableHead>
@@ -470,14 +474,16 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
                         <TableBody>
                         {costData.map(row => (
                             <TableRow key={row.channel} className="hover:bg-muted/20">
-                                <TableCell className="font-semibold text-xs sticky left-0 bg-background z-10 border-r">{row.channel}</TableCell>
-                                <TableCell className="text-center">
-                                    <div className="flex items-center justify-center gap-2">
-                                        <span className="font-medium text-sm">{formatCurrency(row.cost)}</span>
-                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenCostDialog(row.channel)}>
-                                            <Edit className="h-3 w-3" />
-                                        </Button>
-                                    </div>
+                                <TableCell className="font-semibold text-xs sticky left-0 bg-background z-10 border-r">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span>{row.channel}</span>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleOpenCostDialog(row.channel)}>
+                                        <Edit className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-center font-medium text-sm">
+                                  {formatCurrency(row.cost)}
                                 </TableCell>
                                 <TableCell className="text-center font-medium text-sm">{row.totalLeads}</TableCell>
                                 <TableCell className="text-center font-bold text-sm bg-emerald-50/60 text-emerald-700">{formatCurrency(row.cplVenda)}</TableCell>
@@ -541,7 +547,7 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
                                         onChange={(e) => {
                                             if (Array.isArray(tempCost.value)) {
                                                 const newMonthlyValues = [...tempCost.value];
-                                                newMonthlyValues[i] = Number(e.target.value) || 0;
+                                                newMonthlyValues[i] = e.target.value === '' ? '' : (Number(e.target.value) || 0);
                                                 setTempCost({ type: 'monthly', value: newMonthlyValues });
                                             }
                                         }}
