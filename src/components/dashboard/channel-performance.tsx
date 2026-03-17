@@ -30,6 +30,12 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
 
   const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
   
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth(); // 0-11
+  const lastDayOfCurrentMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const isLastDay = now.getDate() === lastDayOfCurrentMonth;
+
   const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
   const getMappedChannel = (rawChannel: any): string | null => {
@@ -76,13 +82,11 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
     if (!tempCost) return;
   
     if (isFixed) {
-      // From monthly to fixed: sum up the monthly values
       const annualValue = Array.isArray(tempCost.value)
         ? tempCost.value.reduce((a, b) => a + (Number(b) || 0), 0)
         : (Number(tempCost.value) || 0);
       setTempCost({ type: 'fixed', value: annualValue });
     } else {
-      // From fixed to monthly: distribute the annual value
       const monthlyValue = (typeof tempCost.value === 'number' ? tempCost.value : 0) / 12;
       setTempCost({ type: 'monthly', value: Array(12).fill(monthlyValue) });
     }
@@ -118,7 +122,29 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
 
   const matrixData = useMemo(() => {
     const data: Record<string, { venda: number[], locacao: number[] }> = {};
-    const currentYear = new Date().getFullYear();
+
+    const allChannels = Array.from(
+      new Set(
+        leads
+          .map(lead => {
+            const keys = Object.keys(lead);
+            const sourceKey = keys.find(k => normalize(k) === "fonte" || normalize(k).includes("fonte") || normalize(k) === "origem" || normalize(k).includes("origem") || normalize(k) === "canal");
+            const rawChannel = sourceKey && lead[sourceKey] ? String(lead[sourceKey]).trim() : "Direto/Indicação";
+            
+            return getMappedChannel(rawChannel);
+          })
+          .filter((c): c is string => c !== null)
+      )
+    ).filter(c => c && c !== "undefined" && c !== "null" && c !== "");
+
+    allChannels.forEach(channel => {
+      if (!data[channel]) {
+        data[channel] = {
+          venda: new Array(12).fill(0),
+          locacao: new Array(12).fill(0)
+        };
+      }
+    });
 
     leads.forEach(lead => {
       const keys = Object.keys(lead);
@@ -130,7 +156,7 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
       const rawChannel = sourceKey && lead[sourceKey] ? String(lead[sourceKey]).trim() : "Direto/Indicação";
 
       const channel = getMappedChannel(rawChannel);
-      if (!channel) return;
+      if (!channel || !data[channel]) return;
 
       const natureKey = keys.find(k => {
         const nk = normalize(k);
@@ -142,27 +168,18 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
         const nVal = normalize(lead[natureKey]);
         if (nVal.includes("loca") || nVal.includes("alug")) isLocacao = true;
       }
-
-      if (channel && channel !== "undefined" && channel !== "null" && channel !== "") {
-        if (!data[channel]) {
-          data[channel] = {
-            venda: new Array(12).fill(0),
-            locacao: new Array(12).fill(0)
-          };
-        }
         
-        const dateKey = keys.find(k => {
-          const nk = normalize(k);
-          return nk.includes("data") || nk.includes("carimbo") || nk.includes("criado");
-        });
-        
-        const date = dateKey ? parseDate(lead[dateKey]) : null;
+      const dateKey = keys.find(k => {
+        const nk = normalize(k);
+        return nk.includes("data") || nk.includes("carimbo") || nk.includes("criado");
+      });
+      
+      const date = dateKey ? parseDate(lead[dateKey]) : null;
 
-        if (date && date.getFullYear() === currentYear) {
-          const m = date.getMonth();
-          if (isLocacao) data[channel].locacao[m]++;
-          else data[channel].venda[m]++;
-        }
+      if (date && date.getFullYear() === currentYear) {
+        const m = date.getMonth();
+        if (isLocacao) data[channel].locacao[m]++;
+        else data[channel].venda[m]++;
       }
     });
 
@@ -190,10 +207,9 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
     const grandTotalLocacao = rows.reduce((acc, r) => acc + r.totalLocacao, 0);
 
     return { rows, monthlyTotals, grandTotalVenda, grandTotalLocacao };
-  }, [leads]);
+  }, [leads, currentYear]);
 
   const averageData = useMemo(() => {
-    const currentYear = new Date().getFullYear();
     const monthsElapsed = new Date().getMonth() + 1;
 
     const allChannels = Array.from(
@@ -271,35 +287,51 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
     });
 
     return data.sort((a,b) => a.channel.localeCompare(b.channel));
-  }, [leads, sales]);
+  }, [leads, sales, currentYear]);
 
   const costData = useMemo(() => {
     return matrixData.rows.map(row => {
       const costConfig = channelCosts[row.channel];
-      const totalAnnualCost = costConfig
-        ? (costConfig.type === 'fixed'
-            ? (Number(costConfig.value) || 0)
-            : (Array.isArray(costConfig.value)
-                ? costConfig.value.reduce((a, b) => a + (Number(b) || 0), 0)
-                : 0)
-          )
-        : 0;
+      
+      let investmentToDate = 0;
+      if (costConfig) {
+        if (costConfig.type === 'fixed') {
+          const annualValue = Number(costConfig.value) || 0;
+          const monthlyValue = annualValue / 12;
+          let monthsToCount = currentMonth; // Past full months
+          if (isLastDay) {
+            monthsToCount += 1; // Add current month if it's the last day
+          }
+          investmentToDate = monthlyValue * monthsToCount;
+        } else if (costConfig.type === 'monthly' && Array.isArray(costConfig.value)) {
+          investmentToDate = costConfig.value.reduce((acc, monthlyCost, index) => {
+            const cost = Number(monthlyCost) || 0;
+            if (index < currentMonth) {
+              return acc + cost;
+            }
+            if (index === currentMonth && isLastDay) {
+              return acc + cost;
+            }
+            return acc;
+          }, 0);
+        }
+      }
       
       const totalLeads = row.totalVenda + row.totalLocacao;
-      const cplTotal = totalLeads > 0 ? totalAnnualCost / totalLeads : 0;
-      const cplVenda = row.totalVenda > 0 ? totalAnnualCost / row.totalVenda : 0;
-      const cplLocacao = row.totalLocacao > 0 ? totalAnnualCost / row.totalLocacao : 0;
+      const cplTotal = totalLeads > 0 ? investmentToDate / totalLeads : 0;
+      const cplVenda = row.totalVenda > 0 ? investmentToDate / row.totalVenda : 0;
+      const cplLocacao = row.totalLocacao > 0 ? investmentToDate / row.totalLocacao : 0;
 
       return {
         ...row,
-        cost: totalAnnualCost,
+        cost: investmentToDate,
         cplTotal,
         cplVenda,
         cplLocacao,
         totalLeads: totalLeads
       };
     }).sort((a,b) => a.channel.localeCompare(b.channel));
-  }, [matrixData.rows, channelCosts]);
+  }, [matrixData.rows, channelCosts, currentMonth, isLastDay]);
 
   const { rows, monthlyTotals, grandTotalVenda, grandTotalLocacao } = matrixData;
 
@@ -464,7 +496,7 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
                         <TableHeader>
                             <TableRow>
                                 <TableHead className="w-[250px] text-xs uppercase sticky left-0 bg-background z-10 border-r font-bold">Canal</TableHead>
-                                <TableHead className="w-[200px] text-center text-xs uppercase">Investimento Anual (R$)</TableHead>
+                                <TableHead className="w-[200px] text-center text-xs uppercase">Investimento Acumulado (R$)</TableHead>
                                 <TableHead className="text-center text-xs uppercase">Total Leads</TableHead>
                                 <TableHead className="text-center text-xs uppercase bg-emerald-50 text-emerald-800">CPL Venda (R$)</TableHead>
                                 <TableHead className="text-center text-xs uppercase bg-blue-50 text-blue-800">CPL Locação (R$)</TableHead>
