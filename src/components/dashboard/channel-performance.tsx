@@ -42,7 +42,7 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
     if (!rawChannel) return "Direto/Indicação";
     const normalized = normalize(String(rawChannel));
     
-    if (normalized.includes('facebook') || normalized.includes('instagram') || normalized.includes('meta')) {
+    if (['facebook', 'instagram', 'meta'].some(term => normalized.includes(term))) {
         return 'Meta';
     }
     
@@ -82,13 +82,16 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
     if (!tempCost) return;
   
     if (isFixed) {
-      const annualValue = Array.isArray(tempCost.value)
-        ? tempCost.value.reduce((a, b) => a + (Number(b) || 0), 0)
-        : (Number(tempCost.value) || 0);
-      setTempCost({ type: 'fixed', value: annualValue });
+      // When switching to fixed, calculate the average of monthly values as the new fixed monthly cost
+      const monthlyValues = Array.isArray(tempCost.value) ? tempCost.value.map(v => Number(v) || 0) : [];
+      const total = monthlyValues.reduce((a, b) => a + b, 0);
+      const positiveMonths = monthlyValues.filter(v => v > 0).length;
+      const average = positiveMonths > 0 ? total / positiveMonths : 0;
+      setTempCost({ type: 'fixed', value: average });
     } else {
-      const monthlyValue = (typeof tempCost.value === 'number' ? tempCost.value : 0) / 12;
-      setTempCost({ type: 'monthly', value: Array(12).fill(monthlyValue) });
+      // When switching to variable, populate all months with the current fixed monthly value
+      const fixedValue = typeof tempCost.value === 'number' ? tempCost.value : 0;
+      setTempCost({ type: 'monthly', value: Array(12).fill(fixedValue) });
     }
   };
 
@@ -296,8 +299,7 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
       let investmentToDate = 0;
       if (costConfig) {
         if (costConfig.type === 'fixed') {
-          const annualValue = Number(costConfig.value) || 0;
-          const monthlyValue = annualValue / 12;
+          const monthlyValue = Number(costConfig.value) || 0;
           let monthsToCount = currentMonth; // Past full months
           if (isLastDay) {
             monthsToCount += 1; // Add current month if it's the last day
@@ -550,12 +552,12 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
                   checked={tempCost.type === 'fixed'}
                   onCheckedChange={handleCostTypeChange}
                 />
-                <Label htmlFor="cost-type-switch">Custo Fixo Anual</Label>
+                <Label htmlFor="cost-type-switch">Custo Fixo Mensal</Label>
               </div>
 
               {tempCost.type === 'fixed' ? (
                 <div className="space-y-2">
-                  <Label>Valor Total Anual (R$)</Label>
+                  <Label>Valor Fixo Mensal (R$)</Label>
                   <Input 
                       type="number"
                       placeholder="0.00"
