@@ -1,3 +1,4 @@
+
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -273,7 +274,7 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
         return saleChannel === channel && date && date.getFullYear() === currentYear;
       });
 
-      const numSales = channelSales.filter(s => !normalize(s.tipo || '').includes('loca') && !normalize(s.tipo || '').includes('aluguel')).length;
+      const numSales = channelSales.filter(s => normalize(s.tipo || '') === 'venda').length;
       const numRentals = channelSales.filter(s => normalize(s.tipo || '').includes('loca') || normalize(s.tipo || '').includes('aluguel')).length;
 
       return {
@@ -291,6 +292,8 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
   }, [leads, sales, currentYear, getMappedChannel, normalize]);
 
   const costData = useMemo(() => {
+    const allChannels = Array.from(new Set([...leads.map(l => getMappedChannel(l.Fonte)), ...sales.map(s => getMappedChannel(s.origem))])).filter(Boolean) as string[];
+
     return matrixData.rows.map(row => {
       const costConfig = channelCosts[row.channel];
       
@@ -298,9 +301,9 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
       if (costConfig) {
         if (costConfig.type === 'fixed') {
           const monthlyValue = Number(costConfig.value) || 0;
-          let monthsToCount = currentMonth; // Past full months
+          let monthsToCount = currentMonth;
           if (isLastDay) {
-            monthsToCount += 1; // Add current month if it's the last day
+            monthsToCount += 1;
           }
           investmentToDate = monthlyValue * monthsToCount;
         } else if (costConfig.type === 'monthly' && Array.isArray(costConfig.value)) {
@@ -317,7 +320,6 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
         }
       }
 
-      // Calculate total deals (sales and rentals) for the channel
       const channelDeals = sales.filter(s => {
         const rawSaleChannel = s.origem || '';
         const saleChannel = getMappedChannel(rawSaleChannel);
@@ -325,7 +327,7 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
         return saleChannel === row.channel && date && date.getFullYear() === currentYear;
       });
 
-      const numSales = channelDeals.filter(s => !normalize(s.tipo || '').includes('loca') && !normalize(s.tipo || '').includes('aluguel')).length;
+      const numSales = channelDeals.filter(s => normalize(s.tipo || '') === 'venda').length;
       const numRentals = channelDeals.filter(s => normalize(s.tipo || '').includes('loca') || normalize(s.tipo || '').includes('aluguel')).length;
 
       const costPerSale = numSales > 0 ? investmentToDate / numSales : 0;
@@ -343,7 +345,7 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
         totalLeads: totalLeads
       };
     }).sort((a,b) => a.channel.localeCompare(b.channel));
-  }, [matrixData.rows, channelCosts, currentMonth, isLastDay, sales, currentYear, normalize, getMappedChannel]);
+  }, [matrixData.rows, channelCosts, currentMonth, isLastDay, sales, currentYear, getMappedChannel, normalize, leads]);
 
   const { rows, monthlyTotals, grandTotalVenda, grandTotalLocacao } = matrixData;
 
@@ -572,7 +574,10 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
                       type="number"
                       placeholder="0.00"
                       value={tempCost.value || ''}
-                      onChange={(e) => setTempCost({ type: 'fixed', value: Number(e.target.value) || 0 })}
+                      onChange={(e) => {
+                          const value = e.target.value;
+                          setTempCost({ type: 'fixed', value: value === '' ? 0 : Number(value) });
+                      }}
                   />
                 </div>
               ) : (
@@ -587,11 +592,11 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
                                         id={`month-${i}`}
                                         type="number"
                                         placeholder="0.00"
-                                        value={(Array.isArray(tempCost.value) ? tempCost.value[i] : '') || ''}
+                                        value={(Array.isArray(tempCost.value) ? tempCost.value[i] : '')}
                                         onChange={(e) => {
                                             if (Array.isArray(tempCost.value)) {
                                                 const newMonthlyValues = [...tempCost.value];
-                                                newMonthlyValues[i] = e.target.value === '' ? '' : (Number(e.target.value) || 0);
+                                                newMonthlyValues[i] = e.target.value;
                                                 setTempCost({ type: 'monthly', value: newMonthlyValues });
                                             }
                                         }}
