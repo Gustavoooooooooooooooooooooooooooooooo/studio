@@ -297,7 +297,7 @@ export default function AppContainer() {
               commission: parseCurrency(getVal(row, ["comissao", "comissão"])),
               saleDate: formatDateDisplay(getVal(row, ["negocio fechado", "data do venda", "data venda", "fechamento", "venda"], ["vendedor", "corretor"])),
               propertyCaptureDate: formatDateDisplay(getVal(row, ["entrada do imovel", "data entrada", "entrada", "cadastro", "carimbo"])),
-              origem: String(getVal(row, ["origem do lead", "origem", "canal", "fonte", "source"]) || "N/A"),
+              origem: String(getVal(row, ["origem do lead?", "origem do lead", "origem", "canal", "fonte", "source"]) || "N/A"),
               tipo: finalDealType,
               status: finalDealType === 'Locação' ? 'Alugado' : 'Vendido',
             };
