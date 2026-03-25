@@ -734,7 +734,12 @@ export default function AppContainer() {
                 selectedYears={selectedYears}
                 brokers={allBrokers}
               />
-              <ChannelPerformance leads={leads} sales={sales} />
+              <ChannelPerformance 
+                leads={leads} 
+                sales={sales} 
+                selectedMonths={selectedMonths}
+                selectedYears={selectedYears}
+              />
             </div>
           </div>
       </main>

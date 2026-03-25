@@ -1,3 +1,4 @@
+
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,12 +17,14 @@ import { Switch } from "@/components/ui/switch";
 interface ChannelPerformanceProps {
   leads: any[];
   sales: any[];
+  selectedMonths: string[];
+  selectedYears: string[];
 }
 
 type ChannelCost = { type: 'fixed'; value: number } | { type: 'monthly'; value: (number | string)[] };
 
 
-export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
+export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears }: ChannelPerformanceProps) {
   const [view, setView] = useState<'anual' | 'media' | 'custos'>('anual');
   const [channelCosts, setChannelCosts] = useState<Record<string, ChannelCost>>({});
   const [isCostDialogOpen, setIsCostDialogOpen] = useState(false);
@@ -31,10 +34,6 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
   const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
   
   const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth(); // 0-11
-  const lastDayOfCurrentMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-  const isLastDay = now.getDate() === lastDayOfCurrentMonth;
 
   const normalize = useCallback((s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim(), []);
 
@@ -136,228 +135,217 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
     }
     return null;
   };
+  
+  const filterByPeriod = useCallback((date: Date | null) => {
+      if (!date) return false;
+      const monthMatch = selectedMonths.length === 0 || selectedMonths.includes(String(date.getUTCMonth()));
+      const yearMatch = selectedYears.length === 0 || selectedYears.includes(String(date.getUTCFullYear()));
+      return monthMatch && yearMatch;
+  }, [selectedMonths, selectedYears]);
 
-  const matrixData = useMemo(() => {
-    const data: Record<string, { venda: number[], locacao: number[] }> = {};
+  const yearToDisplay = selectedYears.length > 0 ? parseInt(selectedYears[0], 10) : now.getFullYear();
 
-    const leadChannels = leads.map(lead => {
-      const keys = Object.keys(lead);
-      const sourceKey = keys.find(k => normalize(k) === "fonte" || normalize(k).includes("fonte") || normalize(k) === "origem" || normalize(k).includes("origem") || normalize(k) === "canal");
-      const rawChannel = sourceKey && lead[sourceKey] ? String(lead[sourceKey]).trim() : "Direto/Indicação";
-      return getMappedChannel(rawChannel);
-    });
+  const allChannels = useMemo(() => {
+      const leadChannels = leads.map(lead => {
+        const keys = Object.keys(lead);
+        const sourceKey = keys.find(k => normalize(k) === "fonte" || normalize(k).includes("fonte") || normalize(k) === "origem" || normalize(k).includes("origem") || normalize(k) === "canal");
+        return getMappedChannel(sourceKey && lead[sourceKey] ? String(lead[sourceKey]).trim() : "Direto/Indicação");
+      });
+      const saleChannels = sales.map(sale => getMappedChannel(sale.origem || ''));
+      const costChannels = Object.keys(channelCosts);
 
-    const saleChannels = sales.map(sale => getMappedChannel(sale.origem || ''));
-
-    const allChannels = Array.from(
-      new Set([...leadChannels, ...saleChannels])
-    ).filter((c): c is string => c && c !== "undefined" && c !== "null" && c !== "" && c.toLowerCase() !== 'n/a');
+      return Array.from(new Set([...leadChannels, ...saleChannels, ...costChannels]))
+          .filter(c => c && c.toLowerCase() !== 'n/a' && c !== "undefined" && c !== "null" && c !== "")
+          .sort();
+  }, [leads, sales, channelCosts, getMappedChannel, normalize]);
+  
+  const processedData = useMemo(() => {
+    const data: Record<string, { 
+        monthlyLeadsVenda: number[], 
+        monthlyLeadsLocacao: number[],
+        totalLeadsVenda: number,
+        totalLeadsLocacao: number,
+        totalVisitsVenda: number,
+        totalVisitsLocacao: number,
+        totalSales: number,
+        totalRentals: number
+    }> = {};
 
     allChannels.forEach(channel => {
-      if (!data[channel]) {
-        data[channel] = {
-          venda: new Array(12).fill(0),
-          locacao: new Array(12).fill(0)
-        };
-      }
+      data[channel] = {
+        monthlyLeadsVenda: Array(12).fill(0),
+        monthlyLeadsLocacao: Array(12).fill(0),
+        totalLeadsVenda: 0,
+        totalLeadsLocacao: 0,
+        totalVisitsVenda: 0,
+        totalVisitsLocacao: 0,
+        totalSales: 0,
+        totalRentals: 0,
+      };
     });
 
     leads.forEach(lead => {
       const keys = Object.keys(lead);
-      
-      const sourceKey = keys.find(k => {
-        const nk = normalize(k);
-        return nk === "fonte" || nk.includes("fonte") || nk === "origem" || nk.includes("origem") || nk === "canal";
-      });
-      const rawChannel = sourceKey && lead[sourceKey] ? String(lead[sourceKey]).trim() : "Direto/Indicação";
-
-      const channel = getMappedChannel(rawChannel);
-      if (!channel || !data[channel]) return;
-
-      const natureKey = keys.find(k => {
-        const nk = normalize(k);
-        return nk.includes("natureza") || nk.includes("negociacao");
-      });
-      
-      let isLocacao = false;
-      if (natureKey && lead[natureKey]) {
-        const nVal = normalize(lead[natureKey]);
-        if (nVal.includes("loca") || nVal.includes("alug")) isLocacao = true;
-      }
-        
-      const dateKey = keys.find(k => {
-        const nk = normalize(k);
-        return nk.includes("data") || nk.includes("carimbo") || nk.includes("criado");
-      });
-      
-      const date = dateKey ? parseDate(lead[dateKey]) : null;
-
-      if (date && date.getFullYear() === currentYear) {
-        const m = date.getMonth();
-        if (isLocacao) data[channel].locacao[m]++;
-        else data[channel].venda[m]++;
-      }
-    });
-
-    const rows = Object.entries(data).map(([channel, counts]) => ({
-      channel,
-      venda: counts.venda,
-      locacao: counts.locacao,
-      totalVenda: counts.venda.reduce((a, b) => a + b, 0),
-      totalLocacao: counts.locacao.reduce((a, b) => a + b, 0)
-    })).filter(r => (r.totalVenda + r.totalLocacao) > 0);
-
-    rows.sort((a, b) => a.channel.localeCompare(b.channel));
-
-    const monthlyTotals = {
-      venda: new Array(12).fill(0),
-      locacao: new Array(12).fill(0)
-    };
-    
-    rows.forEach(row => {
-      row.venda.forEach((v, i) => monthlyTotals.venda[i] += v);
-      row.locacao.forEach((l, i) => monthlyTotals.locacao[i] += l);
-    });
-
-    const grandTotalVenda = rows.reduce((acc, r) => acc + r.totalVenda, 0);
-    const grandTotalLocacao = rows.reduce((acc, r) => acc + r.totalLocacao, 0);
-
-    return { rows, monthlyTotals, grandTotalVenda, grandTotalLocacao };
-  }, [leads, sales, currentYear, getMappedChannel, normalize]);
-
-  const averageData = useMemo(() => {
-    const monthsElapsed = new Date().getMonth() + 1;
-
-    const leadChannels = leads.map(lead => {
-      const keys = Object.keys(lead);
       const sourceKey = keys.find(k => normalize(k) === "fonte" || normalize(k).includes("fonte") || normalize(k) === "origem" || normalize(k).includes("origem") || normalize(k) === "canal");
-      const rawChannel = sourceKey && lead[sourceKey] ? String(lead[sourceKey]).trim() : "Direto/Indicação";
-      return getMappedChannel(rawChannel);
-    });
-
-    const saleChannels = sales.map(sale => getMappedChannel(sale.origem || ''));
-    
-    const allChannels = Array.from(
-        new Set([...leadChannels, ...saleChannels])
-    ).filter((c): c is string => c && c !== "undefined" && c !== "null" && c !== "" && c.toLowerCase() !== 'n/a');
-
-    const data = allChannels.map(channel => {
-      const channelLeads = leads.filter(lead => {
-        const keys = Object.keys(lead);
-        const sourceKey = keys.find(k => normalize(k) === "fonte" || normalize(k).includes("fonte") || normalize(k) === "origem" || normalize(k).includes("origem") || normalize(k) === "canal");
-        const rawChannel = sourceKey && lead[sourceKey] ? String(lead[sourceKey]).trim() : "Direto/Indicação";
-        
-        const leadChannel = getMappedChannel(rawChannel);
-        
-        const dateKey = keys.find(k => normalize(k).includes("data") || normalize(k).includes("carimbo") || normalize(k).includes("criado"));
-        const date = dateKey ? parseDate(lead[dateKey]) : null;
-        
-        return leadChannel === channel && date && date.getFullYear() === currentYear;
-      });
-
-      const { leadsVenda, leadsLocacao, visitsVenda, visitsLocacao } = channelLeads.reduce((acc, l) => {
-        const entries = Object.entries(l);
-        const isLocacaoLead = entries.some(([key, val]) => {
-            const nk = normalize(key);
-            const nv = normalize(String(val || ""));
-            return (nk.includes("natureza") || nk.includes("negociacao") || nk === "tipo") && 
-                   (nv.includes("loca") || nv.includes("alug"));
-        });
-        
-        if (isLocacaoLead) acc.leadsLocacao++; else acc.leadsVenda++;
-
-        const hasVisit = entries.some(([key, val]) => {
+      const channel = getMappedChannel(sourceKey && lead[sourceKey] ? String(lead[sourceKey]).trim() : "Direto/Indicação");
+      
+      if (!data[channel]) return;
+      
+      const dateKey = keys.find(k => normalize(k).includes("data") || normalize(k).includes("carimbo") || normalize(k).includes("criado"));
+      const date = dateKey ? parseDate(lead[dateKey]) : null;
+      
+      const natureKey = keys.find(k => normalize(k).includes("natureza") || normalize(k).includes("negociacao"));
+      const isLocacao = natureKey && lead[natureKey] ? (normalize(lead[natureKey]).includes("loca") || normalize(lead[natureKey]).includes("alug")) : false;
+      
+      const hasVisit = Object.entries(lead).some(([key, val]) => {
           const nk = normalize(key);
           const nv = normalize(String(val || ""));
           return (nk.includes("status da atividade atual") || nk.includes("visit")) && (nv.includes("realizada") || nv.includes("sim"));
-        });
-
-        if (hasVisit) {
-          if (isLocacaoLead) acc.visitsLocacao++; else acc.visitsVenda++;
-        }
-        return acc;
-      }, { leadsVenda: 0, leadsLocacao: 0, visitsVenda: 0, visitsLocacao: 0 });
-
-      const channelSales = sales.filter(s => {
-        const rawSaleChannel = s.origem || '';
-
-        const saleChannel = getMappedChannel(rawSaleChannel);
-        const date = parseDate(s.saleDate);
-        
-        return saleChannel === channel && date && date.getFullYear() === currentYear;
       });
-
-      const numSales = channelSales.filter(s => normalize(s.tipo || '') === 'venda').length;
-      const numRentals = channelSales.filter(s => normalize(s.tipo || '').includes('loca') || normalize(s.tipo || '').includes('aluguel')).length;
-
-      return {
-        channel,
-        mediaLeadsVenda: leadsVenda > 0 ? leadsVenda / monthsElapsed : 0,
-        mediaVisitasVenda: visitsVenda > 0 ? visitsVenda / monthsElapsed : 0,
-        convVisitaVenda: visitsVenda > 0 ? (numSales / visitsVenda) * 100 : 0,
-        mediaLeadsLocacao: leadsLocacao > 0 ? leadsLocacao / monthsElapsed : 0,
-        mediaVisitasLocacao: visitsLocacao > 0 ? visitsLocacao / monthsElapsed : 0,
-        convVisitaLocacao: visitsLocacao > 0 ? (numRentals / visitsLocacao) * 100 : 0,
-      };
-    });
-
-    return data.sort((a,b) => a.channel.localeCompare(b.channel));
-  }, [leads, sales, currentYear, getMappedChannel, normalize]);
-
-  const costData = useMemo(() => {
-    const allChannels = Array.from(new Set([...leads.map(l => getMappedChannel(l.Fonte)), ...sales.map(s => getMappedChannel(s.origem))])).filter(Boolean) as string[];
-
-    return matrixData.rows.map(row => {
-      const costConfig = channelCosts[row.channel];
       
-      let investmentToDate = 0;
-      if (costConfig) {
-        if (costConfig.type === 'fixed') {
-          const monthlyValue = Number(costConfig.value) || 0;
-          let monthsToCount = currentMonth;
-          if (isLastDay) {
-            monthsToCount += 1;
-          }
-          investmentToDate = monthlyValue * monthsToCount;
-        } else if (costConfig.type === 'monthly' && Array.isArray(costConfig.value)) {
-          investmentToDate = costConfig.value.reduce((acc, monthlyCost, index) => {
-            const cost = Number(monthlyCost) || 0;
-            if (index < currentMonth) {
-              return acc + cost;
-            }
-            if (index === currentMonth && isLastDay) {
-              return acc + cost;
-            }
-            return acc;
-          }, 0);
+      if (filterByPeriod(date)) {
+        if (isLocacao) {
+          data[channel].totalLeadsLocacao++;
+          if (hasVisit) data[channel].totalVisitsLocacao++;
+        } else {
+          data[channel].totalLeadsVenda++;
+          if (hasVisit) data[channel].totalVisitsVenda++;
         }
       }
 
-      const channelDeals = sales.filter(s => {
-        const rawSaleChannel = s.origem || '';
-        const saleChannel = getMappedChannel(rawSaleChannel);
-        const date = parseDate(s.saleDate);
-        return saleChannel === row.channel && date && date.getFullYear() === currentYear;
+      if (date && date.getFullYear() === yearToDisplay) {
+        const month = date.getMonth();
+        if (isLocacao) {
+          data[channel].monthlyLeadsLocacao[month]++;
+        } else {
+          data[channel].monthlyLeadsVenda[month]++;
+        }
+      }
+    });
+
+    sales.forEach(sale => {
+      const channel = getMappedChannel(sale.origem || '');
+      if (!data[channel]) return;
+
+      const date = parseDate(sale.saleDate);
+      if (filterByPeriod(date)) {
+        const tipo = normalize(sale.tipo || '');
+        if (tipo === 'venda') {
+          data[channel].totalSales++;
+        } else if (tipo.includes('loca') || tipo.includes('aluguel')) {
+          data[channel].totalRentals++;
+        }
+      }
+    });
+
+    return data;
+  }, [allChannels, leads, sales, yearToDisplay, filterByPeriod, getMappedChannel, normalize]);
+  
+  const matrixData = useMemo(() => {
+      const rows = allChannels.map(channel => ({
+        channel,
+        venda: processedData[channel]?.monthlyLeadsVenda || Array(12).fill(0),
+        locacao: processedData[channel]?.monthlyLeadsLocacao || Array(12).fill(0),
+        totalVenda: processedData[channel]?.monthlyLeadsVenda.reduce((a,b) => a+b, 0) || 0,
+        totalLocacao: processedData[channel]?.monthlyLeadsLocacao.reduce((a,b) => a+b, 0) || 0
+      })).filter(r => (r.totalVenda + r.totalLocacao) > 0);
+
+      const monthlyTotals = {
+        venda: Array(12).fill(0),
+        locacao: Array(12).fill(0),
+      };
+      rows.forEach(row => {
+        row.venda.forEach((v, i) => monthlyTotals.venda[i] += v);
+        row.locacao.forEach((l, i) => monthlyTotals.locacao[i] += l);
       });
 
-      const numSales = channelDeals.filter(s => normalize(s.tipo || '') === 'venda').length;
-      const numRentals = channelDeals.filter(s => normalize(s.tipo || '').includes('loca') || normalize(s.tipo || '').includes('aluguel')).length;
-      const totalDeals = numSales + numRentals;
-      
-      const costPerDeal = totalDeals > 0 ? investmentToDate / totalDeals : 0;
-      
-      const totalLeads = row.totalVenda + row.totalLocacao;
-      const cplTotal = totalLeads > 0 ? investmentToDate / totalLeads : 0;
-      
+      const grandTotalVenda = monthlyTotals.venda.reduce((a,b) => a+b, 0);
+      const grandTotalLocacao = monthlyTotals.locacao.reduce((a,b) => a+b, 0);
+
+      return { rows, monthlyTotals, grandTotalVenda, grandTotalLocacao };
+  }, [allChannels, processedData]);
+
+
+  const monthsElapsed = useMemo(() => {
+    let monthsToAverage = 1;
+    const currentYear = now.getUTCFullYear();
+    const currentMonthIndex = now.getUTCMonth();
+
+    if (selectedYears.length > 0) {
+        if (selectedMonths.length > 0) {
+            monthsToAverage = selectedYears.length * selectedMonths.length;
+        } else {
+            monthsToAverage = selectedYears.reduce((acc, yearStr) => {
+                const year = parseInt(yearStr);
+                if (year < currentYear) return acc + 12;
+                if (year === currentYear) return acc + currentMonthIndex; // Only past full months
+                return acc;
+            }, 0);
+        }
+    } else { // No year selected, assume current year
+        if (selectedMonths.length > 0) {
+            monthsToAverage = selectedMonths.filter(m => parseInt(m) < currentMonthIndex).length;
+        } else {
+            monthsToAverage = currentMonthIndex;
+        }
+    }
+    return Math.max(1, monthsToAverage);
+  }, [selectedYears, selectedMonths, now]);
+  
+  const averageData = useMemo(() => {
+    return allChannels.map(channel => {
+      const data = processedData[channel];
       return {
-        ...row,
-        cost: investmentToDate,
-        costPerDeal,
-        cplTotal,
-        totalLeads: totalLeads
+        channel,
+        mediaLeadsVenda: data.totalLeadsVenda / monthsElapsed,
+        mediaVisitasVenda: data.totalVisitsVenda / monthsElapsed,
+        convVisitaVenda: data.totalVisitsVenda > 0 ? (data.totalSales / data.totalVisitsVenda) * 100 : 0,
+        mediaLeadsLocacao: data.totalLeadsLocacao / monthsElapsed,
+        mediaVisitasLocacao: data.totalVisitsLocacao / monthsElapsed,
+        convVisitaLocacao: data.totalVisitsLocacao > 0 ? (data.totalRentals / data.totalVisitsLocacao) * 100 : 0,
       };
-    }).sort((a,b) => a.channel.localeCompare(b.channel));
-  }, [matrixData.rows, channelCosts, currentMonth, isLastDay, sales, currentYear, getMappedChannel, normalize, leads]);
+    });
+  }, [allChannels, processedData, monthsElapsed]);
+  
+  const costData = useMemo(() => {
+    return allChannels.map(channel => {
+        const data = processedData[channel];
+        const costConfig = channelCosts[channel];
+        
+        let investmentForPeriod = 0;
+        if (costConfig) {
+            const years = selectedYears.length > 0 ? selectedYears.map(y => parseInt(y)) : [now.getFullYear()];
+            const months = selectedMonths.length > 0 ? selectedMonths.map(m => parseInt(m)) : Array.from(Array(12).keys());
+            
+            years.forEach(year => {
+                months.forEach(month => {
+                    if (year < now.getFullYear() || (year === now.getFullYear() && month <= now.getMonth())) {
+                        if (costConfig.type === 'fixed') {
+                            investmentForPeriod += Number(costConfig.value) || 0;
+                        } else if (costConfig.type === 'monthly' && Array.isArray(costConfig.value)) {
+                            investmentForPeriod += Number(costConfig.value[month]) || 0;
+                        }
+                    }
+                });
+            });
+        }
+
+        const totalDeals = data.totalSales + data.totalRentals;
+        const costPerDeal = totalDeals > 0 ? investmentForPeriod / totalDeals : 0;
+        
+        const totalLeads = data.totalLeadsVenda + data.totalLeadsLocacao;
+        const cplTotal = totalLeads > 0 ? investmentForPeriod / totalLeads : 0;
+
+        return {
+            channel,
+            cost: investmentForPeriod,
+            totalLeads,
+            costPerDeal,
+            cplTotal,
+        };
+    });
+  }, [allChannels, processedData, channelCosts, selectedYears, selectedMonths, now]);
+
 
   const { rows, monthlyTotals, grandTotalVenda, grandTotalLocacao } = matrixData;
 
@@ -371,7 +359,7 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
       <Tabs value={view} onValueChange={(v) => setView(v as 'anual' | 'media' | 'custos')}>
         <CardHeader className="bg-muted/5 border-b py-3">
           <div className="flex justify-between items-center">
-            <CardTitle className="text-base font-bold text-primary">Leads por Canal ({new Date().getFullYear()})</CardTitle>
+            <CardTitle className="text-base font-bold text-primary">Leads por Canal ({yearToDisplay})</CardTitle>
             <TabsList className="grid w-[280px] grid-cols-3 h-9 p-1">
                 <TabsTrigger value="anual" className="text-xs h-full">Anual</TabsTrigger>
                 <TabsTrigger value="media" className="text-xs h-full">Métricas</TabsTrigger>
@@ -465,7 +453,7 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
               </ScrollArea>
             ) : (
               <div className="py-12 flex flex-col items-center justify-center text-center space-y-2">
-                <p className="text-sm text-muted-foreground font-medium">Nenhum dado de lead sincronizado para {new Date().getFullYear()}.</p>
+                <p className="text-sm text-muted-foreground font-medium">Nenhum dado de lead sincronizado para {yearToDisplay}.</p>
                 <p className="text-[10px] text-muted-foreground/60 max-w-xs mx-auto">Verifique as colunas "Fonte", "Natureza da Negociação" e "Data" na sua planilha.</p>
               </div>
             )}
