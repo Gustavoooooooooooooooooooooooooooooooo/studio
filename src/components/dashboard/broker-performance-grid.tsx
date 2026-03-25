@@ -109,8 +109,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       const bPropsFiltered = properties.filter(p => {
         const brokerField = p.brokerId || p.angariador || p.captador;
         if (!isMatch(brokerField)) return false;
-        const dateKey = Object.keys(p).find(k => normalize(k).includes("data entrada") || normalize(k).includes("carimbo"));
-        return dateKey ? filterByPeriod(p, dateKey) : true;
+        return filterByPeriod(p, 'captureDate');
       });
       
       const capturesSale = bPropsFiltered.filter(p => p.saleValue && Number(p.saleValue) > 0).length;
