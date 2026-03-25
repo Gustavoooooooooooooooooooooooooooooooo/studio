@@ -735,7 +735,7 @@ export default function AppContainer() {
                 selectedYears={selectedYears}
                 brokers={allBrokers}
               />
-              <AnnualChannelPerformance sales={sales} />
+              <AnnualChannelPerformance sales={sales} selectedYears={selectedYears} />
               <ChannelPerformance 
                 leads={leads} 
                 sales={sales} 

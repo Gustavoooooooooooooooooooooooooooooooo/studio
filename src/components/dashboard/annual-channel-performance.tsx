@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import { useMemo, useCallback } from "react";
@@ -9,11 +10,13 @@ import { TrendingUp } from "lucide-react";
 
 interface AnnualChannelPerformanceProps {
   sales: any[];
+  selectedYears: string[];
 }
 
-export function AnnualChannelPerformance({ sales }: AnnualChannelPerformanceProps) {
+export function AnnualChannelPerformance({ sales, selectedYears }: AnnualChannelPerformanceProps) {
   const normalize = useCallback((s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim(), []);
-
+  const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  
   const getMappedChannel = useCallback((rawChannel: any): string => {
     const original = String(rawChannel || "").trim();
     if (!original) return "Direto/Indicação";
@@ -70,68 +73,71 @@ export function AnnualChannelPerformance({ sales }: AnnualChannelPerformanceProp
     return null;
   };
 
-  const annualData = useMemo(() => {
-    const dataByChannelYear: Record<string, Record<string, number>> = {};
-    const years = new Set<string>();
-    const channels = new Set<string>();
+  const yearToDisplay = useMemo(() => selectedYears.length > 0 ? parseInt(selectedYears[0], 10) : new Date().getFullYear(), [selectedYears]);
+
+  const monthlyData = useMemo(() => {
+    const allChannels = Array.from(new Set(sales.map(sale => getMappedChannel(sale.origem || ''))))
+          .filter(c => c && c.toLowerCase() !== 'n/a' && c !== "undefined" && c !== "null" && c !== "")
+          .sort();
+    
+    const data: Record<string, { 
+        vendas: number[], 
+        locacoes: number[],
+    }> = {};
+
+    allChannels.forEach(channel => {
+      data[channel] = {
+        vendas: Array(12).fill(0),
+        locacoes: Array(12).fill(0),
+      };
+    });
 
     sales.forEach(sale => {
       const date = parseDate(sale.saleDate);
-      if (!date) return;
+      if (!date || date.getFullYear() !== yearToDisplay) return;
 
-      const year = String(date.getFullYear());
       const channel = getMappedChannel(sale.origem || '');
-      if (!channel || channel.toLowerCase() === 'n/a' || channel === "undefined" || channel === "null" || channel === "") return;
+      if (!data[channel]) return;
 
-      years.add(year);
-      channels.add(channel);
-
-      if (!dataByChannelYear[channel]) {
-        dataByChannelYear[channel] = {};
+      const month = date.getMonth();
+      const tipo = normalize(sale.tipo || '');
+      
+      if (tipo === 'venda') {
+        data[channel].vendas[month]++;
+      } else if (tipo.includes('loca') || tipo.includes('aluguel')) {
+        data[channel].locacoes[month]++;
       }
-      if (!dataByChannelYear[channel][year]) {
-        dataByChannelYear[channel][year] = 0;
-      }
-
-      dataByChannelYear[channel][year]++;
     });
 
-    const sortedYears = Array.from(years).sort((a, b) => parseInt(b) - parseInt(a));
-    const sortedChannels = Array.from(channels).sort();
-    
-    const tableRows = sortedChannels.map(channel => {
-      const rowData: Record<string, number | string> = { channel };
-      let total = 0;
-      sortedYears.forEach(year => {
-        const count = dataByChannelYear[channel][year] || 0;
-        rowData[year] = count;
-        total += count;
-      });
-      rowData['total'] = total;
-      return rowData;
-    });
+    const rows = allChannels.map(channel => ({
+      channel,
+      vendas: data[channel].vendas,
+      locacoes: data[channel].locacoes,
+      totalVendas: data[channel].vendas.reduce((a, b) => a + b, 0),
+      totalLocacoes: data[channel].locacoes.reduce((a, b) => a + b, 0),
+    })).filter(r => (r.totalVendas + r.totalLocacoes) > 0);
 
-    const yearlyTotals: Record<string, number> = {};
-    let grandTotal = 0;
-    sortedYears.forEach(year => {
-        const yearTotal = sortedChannels.reduce((sum, channel) => sum + (dataByChannelYear[channel]?.[year] || 0), 0);
-        yearlyTotals[year] = yearTotal;
-        grandTotal += yearTotal;
-    });
-
-
-    return {
-      years: sortedYears,
-      rows: tableRows,
-      totals: yearlyTotals,
-      grandTotal: grandTotal,
+    const monthlyTotals = {
+        vendas: Array(12).fill(0),
+        locacoes: Array(12).fill(0),
     };
-  }, [sales, getMappedChannel]);
+    rows.forEach(row => {
+        row.vendas.forEach((v, i) => monthlyTotals.vendas[i] += v);
+        row.locacoes.forEach((l, i) => monthlyTotals.locacoes[i] += l);
+    });
+
+    const grandTotalVendas = monthlyTotals.vendas.reduce((a, b) => a + b, 0);
+    const grandTotalLocacoes = monthlyTotals.locacoes.reduce((a, b) => a + b, 0);
+
+    return { rows, monthlyTotals, grandTotalVendas, grandTotalLocacoes };
+  }, [sales, yearToDisplay, getMappedChannel, normalize]);
 
 
-  if (annualData.rows.length === 0) {
+  if (monthlyData.rows.length === 0) {
     return null; // Or a placeholder
   }
+  
+  const { rows, monthlyTotals, grandTotalVendas, grandTotalLocacoes } = monthlyData;
 
   return (
     <Card className="shadow-sm border-none bg-white overflow-hidden">
@@ -139,46 +145,85 @@ export function AnnualChannelPerformance({ sales }: AnnualChannelPerformanceProp
           <div className="flex justify-between items-center">
             <CardTitle className="text-base font-bold text-primary flex items-center gap-2">
               <TrendingUp className="h-4 w-4" />
-              Negócios Fechados por Canal (Anual)
+              Negócios Fechados por Canal ({yearToDisplay})
             </CardTitle>
           </div>
         </CardHeader>
         <CardContent className="p-0">
             <ScrollArea className="w-full">
-                <div className="min-w-[800px]">
-                    <Table>
-                        <TableHeader>
+                <div className="min-w-[1040px]">
+                    <Table className="table-fixed w-full">
+                        <TableHeader className="bg-muted/10">
                             <TableRow>
-                                <TableHead className="w-[200px] font-bold sticky left-0 bg-muted/10 z-10">Canal</TableHead>
-                                {annualData.years.map(year => (
-                                    <TableHead key={year} className="text-center font-bold">{year}</TableHead>
+                                <TableHead className="w-[140px] font-bold text-[9px] uppercase sticky left-0 bg-muted/10 z-20 px-2">Canal</TableHead>
+                                {months.map(m => (
+                                <TableHead key={m} className="text-center text-[9px] px-1 font-bold w-[45px]">{m}</TableHead>
                                 ))}
-                                <TableHead className="text-center font-bold bg-muted/20">Total</TableHead>
+                                <TableHead className="text-right font-bold bg-muted/20 text-[9px] sticky right-0 z-20 w-[60px] px-2">TOTAL</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {annualData.rows.map(row => (
-                                <TableRow key={row.channel as string}>
-                                    <TableCell className="font-semibold sticky left-0 bg-white z-10 border-r">{row.channel}</TableCell>
-                                    {annualData.years.map(year => (
-                                        <TableCell key={year} className={`text-center font-medium ${row[year] === 0 ? 'text-muted-foreground/30' : ''}`}>
-                                            {row[year]}
+                            {rows.map(row => (
+                                <TableRow key={row.channel} className="hover:bg-muted/5 transition-colors">
+                                    <TableCell className="py-2 px-2 sticky left-0 bg-white z-10 border-r">
+                                        <span className="font-semibold text-[10px] truncate leading-tight block">{row.channel}</span>
+                                    </TableCell>
+                                    {months.map((_, i) => (
+                                        <TableCell key={i} className="text-center text-[10px] py-1 px-1 border-r">
+                                            <div className="flex flex-col items-center leading-[1.1]">
+                                                <span className={`${row.vendas[i] > 0 ? 'text-emerald-600 font-bold' : 'text-muted-foreground/20'}`}>
+                                                    {row.vendas[i]}
+                                                </span>
+                                                <div className="h-[1px] w-4 bg-muted/20 my-0.5" />
+                                                <span className={`${row.locacoes[i] > 0 ? 'text-blue-600 font-bold' : 'text-muted-foreground/20'}`}>
+                                                    {row.locacoes[i]}
+                                                </span>
+                                            </div>
                                         </TableCell>
                                     ))}
-                                    <TableCell className="text-center font-bold bg-muted/10">{row.total}</TableCell>
+                                    <TableCell className="text-right py-1 px-2 bg-muted/5 sticky right-0 z-10 border-l">
+                                        <div className="flex flex-col items-end leading-[1.1]">
+                                            <span className="text-emerald-600 font-bold text-[10px]">{row.totalVendas}</span>
+                                            <div className="h-[1px] w-4 bg-muted/20 my-0.5" />
+                                            <span className="text-blue-600 font-bold text-[10px]">{row.totalLocacoes}</span>
+                                        </div>
+                                    </TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
-                        <TableFooter>
-                            <TableRow className="bg-primary/5">
-                                <TableCell className="font-bold sticky left-0 bg-primary/5 z-10 border-r">Total Anual</TableCell>
-                                {annualData.years.map(year => (
-                                    <TableCell key={year} className="text-center font-black text-primary">
-                                        {annualData.totals[year]}
-                                    </TableCell>
+                        <TableFooter className="bg-primary/5 border-t-2 border-primary/20">
+                            <TableRow className="border-b border-primary/10">
+                                <TableCell className="font-bold text-[10px] py-2 px-2 sticky left-0 bg-primary/5 z-10 border-r text-muted-foreground">
+                                    POR NATUREZA
+                                </TableCell>
+                                {months.map((_, i) => (
+                                <TableCell key={i} className="text-center py-1 px-1 border-r">
+                                    <div className="flex flex-col items-center leading-[1.1]">
+                                    <span className="text-emerald-600 font-extrabold text-[10px]">{monthlyTotals.vendas[i]}</span>
+                                    <div className="h-[1px] w-4 bg-primary/10 my-0.5" />
+                                    <span className="text-blue-600 font-extrabold text-[10px]">{monthlyTotals.locacoes[i]}</span>
+                                    </div>
+                                </TableCell>
                                 ))}
-                                <TableCell className="text-center font-black text-primary bg-primary/10">
-                                    {annualData.grandTotal}
+                                <TableCell className="text-right py-1 px-2 bg-primary/10 sticky right-0 z-10">
+                                <div className="flex flex-col items-end leading-[1.1]">
+                                    <span className="text-emerald-600 font-extrabold text-[10px]">{grandTotalVendas}</span>
+                                    <div className="h-[1px] w-4 bg-primary/10 my-0.5" />
+                                    <span className="text-blue-600 font-extrabold text-[10px]">{grandTotalLocacoes}</span>
+                                </div>
+                                </TableCell>
+                            </TableRow>
+                            <TableRow className="bg-primary/10">
+                                <TableCell className="font-bold text-[10px] py-2 px-2 sticky left-0 bg-primary/10 z-10 border-r text-primary">
+                                SOMA TOTAL
+                                </TableCell>
+                                {months.map((_, i) => (
+                                <TableCell key={i} className="text-center py-2 px-1 border-r font-extrabold text-primary text-[11px]">
+                                    {monthlyTotals.vendas[i] + monthlyTotals.locacoes[i]}
+                                </TableCell>
+                                ))}
+                                <TableCell className="text-right py-2 px-2 bg-primary/20 sticky right-0 z-10 font-black text-primary text-[11px]">
+                                {grandTotalVendas + grandTotalLocacoes}
                                 </TableCell>
                             </TableRow>
                         </TableFooter>
