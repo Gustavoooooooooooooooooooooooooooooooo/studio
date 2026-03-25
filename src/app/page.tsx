@@ -361,9 +361,25 @@ export default function AppContainer() {
     captureDateObj: toDate(p.captureDate),
   })), [inventory]);
 
+  const processedLeads = useMemo(() => leads.map(l => {
+      const getLeadDate = (lead: any) => {
+          const keys = Object.keys(lead);
+          const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+          const dateKey = keys.find(k => {
+              const nk = normalize(k);
+              return nk.includes("data") || nk.includes("carimbo") || nk.includes("criado");
+          });
+          return dateKey ? toDate(lead[dateKey]) : null;
+      }
+      return {
+          ...l,
+          dateObj: getLeadDate(l)
+      };
+  }), [leads]);
+
 
   const metrics = useMemo(() => {
-    const normalizeTipo = (tipo: any) => String(tipo || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const normalize = (s: any) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
     const filterByDate = (items: any[], dateField: keyof (typeof items)[0]) => {
         return items.filter(item => {
@@ -377,11 +393,12 @@ export default function AppContainer() {
 
     const filteredSales = filterByDate(processedSales, 'saleDateObj');
     const filteredProperties = filterByDate(processedInventory, 'captureDateObj');
+    const filteredLeads = filterByDate(processedLeads, 'dateObj');
     
     const salesForFrequencyCalc = processedSales.filter(s => {
       const d = s.saleDateObj;
       if (!d) return false;
-      const isSaleType = normalizeTipo(s.tipo) === 'venda';
+      const isSaleType = normalize(s.tipo) === 'venda';
       const yearMatch = selectedYears.length === 0 || selectedYears.includes(String(d.getUTCFullYear()));
       return isSaleType && yearMatch;
     });
@@ -417,7 +434,7 @@ export default function AppContainer() {
     const avgTicketRent = rentPropsInventory.length > 0 ? rentPropsInventory.reduce((acc, p) => acc + (Number(p.rentalValue) || 0), 0) / rentPropsInventory.length : 0;
 
     const allSaleDates = processedSales
-      .filter(s => normalizeTipo(s.tipo) === 'venda')
+      .filter(s => normalize(s.tipo) === 'venda')
       .map(s => s.saleDateObj)
       .filter((d): d is Date => d !== null)
       .sort((a, b) => b.getTime() - a.getTime());
@@ -426,8 +443,8 @@ export default function AppContainer() {
     const daysSinceLastSale = lastSaleDate ? Math.floor((now.getTime() - lastSaleDate.getTime()) / (1000 * 60 * 60 * 24)) : null;
 
     const salesForDiscount = filteredSales.filter(s => 
-      !normalizeTipo(s.tipo).includes('loca') && 
-      !normalizeTipo(s.tipo).includes('aluguel') && 
+      !normalize(s.tipo).includes('loca') && 
+      !normalize(s.tipo).includes('aluguel') && 
       s.advertisedValue > 0 && 
       s.closedValue > 0 && 
       s.advertisedValue >= s.closedValue
@@ -438,7 +455,7 @@ export default function AppContainer() {
     const avgDiscountValueSale = salesForDiscount.length > 0 ? totalSaleDiscountValue / salesForDiscount.length : 0;
 
     const rentalsForDiscount = filteredSales.filter(s => 
-      (normalizeTipo(s.tipo).includes('loca') || normalizeTipo(s.tipo).includes('aluguel')) && 
+      (normalize(s.tipo).includes('loca') || normalize(s.tipo).includes('aluguel')) && 
       s.advertisedValue > 0 && 
       s.closedValue > 0 && 
       s.advertisedValue >= s.closedValue
@@ -449,19 +466,75 @@ export default function AppContainer() {
     const avgDiscountValueRent = rentalsForDiscount.length > 0 ? totalRentDiscountValue / rentalsForDiscount.length : 0;
 
     const salesForCommission = filteredSales.filter(s => 
-      !normalizeTipo(s.tipo).includes('loca') && 
-      !normalizeTipo(s.tipo).includes('aluguel') && 
+      !normalize(s.tipo).includes('loca') && 
+      !normalize(s.tipo).includes('aluguel') && 
       s.commission > 0
     );
     const totalSaleCommission = salesForCommission.reduce((acc, s) => acc + s.commission, 0);
     const avgCommissionSale = salesForCommission.length > 0 ? totalSaleCommission / salesForCommission.length : 0;
 
     const rentalsForCommission = filteredSales.filter(s => 
-      (normalizeTipo(s.tipo).includes('loca') || normalizeTipo(s.tipo).includes('aluguel')) && 
+      (normalize(s.tipo).includes('loca') || normalize(s.tipo).includes('aluguel')) && 
       s.commission > 0
     );
     const totalRentCommission = rentalsForCommission.reduce((acc, s) => acc + s.commission, 0);
     const avgCommissionRent = rentalsForCommission.length > 0 ? totalRentCommission / rentalsForCommission.length : 0;
+
+    const getLeadDetails = (lead: any) => {
+        const entries = Object.entries(lead);
+        const isLocacaoLead = entries.some(([key, val]) => {
+            const nk = normalize(key);
+            const nv = normalize(val);
+            return (nk.includes("natureza") || nk.includes("negociacao") || nk === "tipo") && 
+                   (nv.includes("loca") || nv.includes("alug"));
+        });
+        const hasVisit = entries.some(([key, val]) => {
+          const nk = normalize(key);
+          const nv = normalize(val);
+          return (nk.includes("status da atividade atual") || nk.includes("visit")) && (nv.includes("realizada") || nv.includes("sim"));
+        });
+        return { isLocacao: isLocacaoLead, isVisit: hasVisit };
+    };
+    
+    let leadsVenda = 0;
+    let leadsLocacao = 0;
+    let visitsVenda = 0;
+    let visitsLocacao = 0;
+
+    filteredLeads.forEach(l => {
+        const { isLocacao, isVisit } = getLeadDetails(l);
+        if (isLocacao) {
+            leadsLocacao++;
+            if (isVisit) visitsLocacao++;
+        } else {
+            leadsVenda++;
+            if (isVisit) visitsVenda++;
+        }
+    });
+
+    let monthsToAverage = 1;
+    const currentYear = now.getUTCFullYear();
+    const currentMonthIndex = now.getUTCMonth();
+
+    if (selectedYears.length > 0) {
+        if (selectedMonths.length > 0) {
+            monthsToAverage = selectedYears.length * selectedMonths.length;
+        } else {
+            monthsToAverage = selectedYears.reduce((acc, yearStr) => {
+                const year = parseInt(yearStr);
+                if (year < currentYear) return acc + 12;
+                if (year === currentYear) return acc + currentMonthIndex + 1;
+                return acc;
+            }, 0);
+        }
+    } else {
+        if (selectedMonths.length > 0) {
+            monthsToAverage = selectedMonths.filter(m => parseInt(m) <= currentMonthIndex).length;
+        } else {
+            monthsToAverage = currentMonthIndex + 1;
+        }
+    }
+    monthsToAverage = Math.max(1, monthsToAverage);
 
     return {
       avgDaysToSell,
@@ -479,9 +552,14 @@ export default function AppContainer() {
       avgDiscountValueSale,
       avgDiscountValueRent,
       avgCommissionSale,
-      avgCommissionRent
+      avgCommissionRent,
+      totalDeals: filteredSales.length,
+      avgLeadsVenda: leadsVenda / monthsToAverage,
+      avgLeadsLocacao: leadsLocacao / monthsToAverage,
+      avgVisitsVenda: visitsVenda / monthsToAverage,
+      avgVisitsLocacao: visitsLocacao / monthsToAverage,
     };
-  }, [processedSales, leads, processedInventory, inventory, now, selectedMonths, selectedYears]);
+  }, [processedSales, leads, processedInventory, inventory, now, selectedMonths, selectedYears, processedLeads]);
 
   const monthOptions = [
     { value: '0', label: 'Janeiro' }, { value: '1', label: 'Fevereiro' }, { value: '2', label: 'Março' },

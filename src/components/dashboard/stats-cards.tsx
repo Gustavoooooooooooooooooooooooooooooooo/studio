@@ -11,7 +11,10 @@ import {
   Zap,
   Key,
   Percent,
-  BadgeDollarSign
+  BadgeDollarSign,
+  Handshake,
+  Users,
+  CalendarCheck
 } from "lucide-react";
 
 interface StatsCardsProps {
@@ -32,6 +35,11 @@ interface StatsCardsProps {
     avgDiscountValueRent: number;
     avgCommissionSale: number;
     avgCommissionRent: number;
+    totalDeals: number;
+    avgLeadsVenda: number;
+    avgLeadsLocacao: number;
+    avgVisitsVenda: number;
+    avgVisitsLocacao: number;
   }
 }
 
@@ -107,6 +115,34 @@ export function StatsCards({ metrics }: StatsCardsProps) {
       values: [
         { label: "Venda", value: formatCurrency(metrics.avgCommissionSale) },
         { label: "Locação", value: formatCurrency(metrics.avgCommissionRent) },
+      ]
+    },
+    {
+      title: "Negócios Fechados",
+      value: String(metrics.totalDeals),
+      description: "Vendas e locações no período",
+      icon: Handshake,
+      color: "text-purple-600",
+      group: "Performance"
+    },
+    {
+      title: "Média de Leads / Mês",
+      icon: Users,
+      color: "text-sky-600",
+      group: "Aquisição",
+      values: [
+        { label: "Venda", value: metrics.avgLeadsVenda.toFixed(1) },
+        { label: "Locação", value: metrics.avgLeadsLocacao.toFixed(1) },
+      ]
+    },
+    {
+      title: "Média de Visitas / Mês",
+      icon: CalendarCheck,
+      color: "text-teal-600",
+      group: "Performance",
+      values: [
+        { label: "Venda", value: metrics.avgVisitsVenda.toFixed(1) },
+        { label: "Locação", value: metrics.avgVisitsLocacao.toFixed(1) },
       ]
     }
   ];
