@@ -1,4 +1,3 @@
-
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,15 +38,29 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
 
   const normalize = useCallback((s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim(), []);
 
-  const getMappedChannel = useCallback((rawChannel: any): string | null => {
-    if (!rawChannel) return "Direto/Indicação";
-    const normalized = normalize(String(rawChannel));
-    
-    if (['facebook', 'instagram', 'meta'].some(term => normalized.includes(term))) {
-        return 'Meta';
-    }
-    
-    return String(rawChannel).trim();
+  const getMappedChannel = useCallback((rawChannel: any): string => {
+    const original = String(rawChannel || "").trim();
+    if (!original) return "Direto/Indicação";
+
+    const normalized = normalize(original);
+
+    // Mappings
+    if (['facebook', 'instagram', 'meta'].some(term => normalized.includes(term))) return 'Meta';
+    if (normalized.includes('zap')) return 'Grupo Zap';
+    if (normalized.includes('imovel web') || normalized.includes('imovelweb')) return 'Imóvel Web';
+    if (normalized.includes('chaves na mao') || normalized.includes('chave na mao')) return 'Chaves na Mão';
+    if (normalized.includes('google')) return 'Google';
+    if (normalized.includes('site')) return 'Site';
+    if (normalized.includes('pdv')) return 'PDV';
+    if (normalized.includes('indicacao') || normalized.includes('relacionamento')) return 'Indicação/Relacionamento';
+    if (normalized.includes('direto')) return 'Direto/Indicação';
+
+    // Capitalize for consistency if no mapping found
+    return original
+      .toLowerCase()
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   }, [normalize]);
 
   useEffect(() => {
