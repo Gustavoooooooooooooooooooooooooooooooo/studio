@@ -342,9 +342,9 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
 
       const numSales = channelDeals.filter(s => normalize(s.tipo || '') === 'venda').length;
       const numRentals = channelDeals.filter(s => normalize(s.tipo || '').includes('loca') || normalize(s.tipo || '').includes('aluguel')).length;
-
-      const costPerSale = numSales > 0 ? investmentToDate / numSales : 0;
-      const costPerRental = numRentals > 0 ? investmentToDate / numRentals : 0;
+      const totalDeals = numSales + numRentals;
+      
+      const costPerDeal = totalDeals > 0 ? investmentToDate / totalDeals : 0;
       
       const totalLeads = row.totalVenda + row.totalLocacao;
       const cplTotal = totalLeads > 0 ? investmentToDate / totalLeads : 0;
@@ -352,8 +352,7 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
       return {
         ...row,
         cost: investmentToDate,
-        costPerSale,
-        costPerRental,
+        costPerDeal,
         cplTotal,
         totalLeads: totalLeads
       };
@@ -525,8 +524,7 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
                                 <TableHead className="w-[250px] text-xs uppercase sticky left-0 bg-background z-10 border-r font-bold">Canal</TableHead>
                                 <TableHead className="w-[200px] text-center text-xs uppercase">Investimento Acumulado (R$)</TableHead>
                                 <TableHead className="text-center text-xs uppercase">Total Leads</TableHead>
-                                <TableHead className="text-center text-xs uppercase bg-emerald-50 text-emerald-800">Custo por Venda (R$)</TableHead>
-                                <TableHead className="text-center text-xs uppercase bg-blue-50 text-blue-800">Custo por Locação (R$)</TableHead>
+                                <TableHead className="text-center text-xs uppercase bg-emerald-50 text-emerald-800">Custo de Negócio Fechado (R$)</TableHead>
                                 <TableHead className="text-center text-xs uppercase bg-gray-100">CPL Total (R$)</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -545,8 +543,7 @@ export function ChannelPerformance({ leads, sales }: ChannelPerformanceProps) {
                                   {formatCurrency(row.cost)}
                                 </TableCell>
                                 <TableCell className="text-center font-medium text-sm">{row.totalLeads}</TableCell>
-                                <TableCell className="text-center font-bold text-sm bg-emerald-50/60 text-emerald-700">{formatCurrency(row.costPerSale)}</TableCell>
-                                <TableCell className="text-center font-bold text-sm bg-blue-50/60 text-blue-700">{formatCurrency(row.costPerRental)}</TableCell>
+                                <TableCell className="text-center font-bold text-sm bg-emerald-50/60 text-emerald-700">{formatCurrency(row.costPerDeal)}</TableCell>
                                 <TableCell className="text-center font-bold text-sm bg-gray-50">{formatCurrency(row.cplTotal)}</TableCell>
                             </TableRow>
                         ))}
