@@ -7,7 +7,7 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Edit } from "lucide-react";
+import { Edit, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -25,7 +25,7 @@ type ChannelCost = { type: 'fixed'; value: number } | { type: 'monthly'; value: 
 
 
 export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears }: ChannelPerformanceProps) {
-  const [view, setView] = useState<'anual' | 'media' | 'custos'>('anual');
+  const [view, setView] = useState<'anual' | 'media' | 'custos' | 'negocios'>('anual');
   const [channelCosts, setChannelCosts] = useState<Record<string, ChannelCost>>({});
   const [isCostDialogOpen, setIsCostDialogOpen] = useState(false);
   const [editingChannel, setEditingChannel] = useState<string | null>(null);
@@ -349,6 +349,59 @@ export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears
 
   const { rows, monthlyTotals, grandTotalVenda, grandTotalLocacao } = matrixData;
 
+  const dealsByChannelData = useMemo(() => {
+    const data: Record<string, { 
+        vendas: number[], 
+        locacoes: number[],
+    }> = {};
+
+    allChannels.forEach(channel => {
+      data[channel] = {
+        vendas: Array(12).fill(0),
+        locacoes: Array(12).fill(0),
+      };
+    });
+
+    sales.forEach(sale => {
+      const date = parseDate(sale.saleDate);
+      if (!date || date.getFullYear() !== yearToDisplay) return;
+
+      const channel = getMappedChannel(sale.origem || '');
+      if (!data[channel]) return;
+
+      const month = date.getMonth();
+      const tipo = normalize(sale.tipo || '');
+      
+      if (tipo === 'venda') {
+        data[channel].vendas[month]++;
+      } else if (tipo.includes('loca') || tipo.includes('aluguel')) {
+        data[channel].locacoes[month]++;
+      }
+    });
+
+    const rows = allChannels.map(channel => ({
+      channel,
+      vendas: data[channel].vendas,
+      locacoes: data[channel].locacoes,
+      totalVendas: data[channel].vendas.reduce((a, b) => a + b, 0),
+      totalLocacoes: data[channel].locacoes.reduce((a, b) => a + b, 0),
+    })).filter(r => (r.totalVendas + r.totalLocacoes) > 0);
+
+    const monthlyTotals = {
+        vendas: Array(12).fill(0),
+        locacoes: Array(12).fill(0),
+    };
+    rows.forEach(row => {
+        row.vendas.forEach((v, i) => monthlyTotals.vendas[i] += v);
+        row.locacoes.forEach((l, i) => monthlyTotals.locacoes[i] += l);
+    });
+
+    const grandTotalVendas = monthlyTotals.vendas.reduce((a, b) => a + b, 0);
+    const grandTotalLocacoes = monthlyTotals.locacoes.reduce((a, b) => a + b, 0);
+
+    return { rows, monthlyTotals, grandTotalVendas, grandTotalLocacoes };
+  }, [sales, yearToDisplay, getMappedChannel, normalize, allChannels]);
+
   const formatCurrency = (value: number) => {
     if (isNaN(value)) return "R$ 0,00";
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -356,12 +409,13 @@ export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears
 
   return (
     <Card className="shadow-sm border-none bg-white overflow-hidden">
-      <Tabs value={view} onValueChange={(v) => setView(v as 'anual' | 'media' | 'custos')}>
+      <Tabs value={view} onValueChange={(v) => setView(v as 'anual' | 'media' | 'custos' | 'negocios')}>
         <CardHeader className="bg-muted/5 border-b py-3">
           <div className="flex justify-between items-center">
-            <CardTitle className="text-base font-bold text-primary">Leads por Canal ({yearToDisplay})</CardTitle>
-            <TabsList className="grid w-[280px] grid-cols-3 h-9 p-1">
-                <TabsTrigger value="anual" className="text-xs h-full">Anual</TabsTrigger>
+            <CardTitle className="text-base font-bold text-primary">Análise por Canal ({yearToDisplay})</CardTitle>
+            <TabsList className="grid w-[380px] grid-cols-4 h-9 p-1">
+                <TabsTrigger value="anual" className="text-xs h-full">Leads</TabsTrigger>
+                <TabsTrigger value="negocios" className="text-xs h-full">Negócios</TabsTrigger>
                 <TabsTrigger value="media" className="text-xs h-full">Métricas</TabsTrigger>
                 <TabsTrigger value="custos" className="text-xs h-full">Custos</TabsTrigger>
             </TabsList>
@@ -457,6 +511,95 @@ export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears
                 <p className="text-[10px] text-muted-foreground/60 max-w-xs mx-auto">Verifique as colunas "Fonte", "Natureza da Negociação" e "Data" na sua planilha.</p>
               </div>
             )}
+          </TabsContent>
+          <TabsContent value="negocios" className="m-0">
+             {dealsByChannelData.rows.length > 0 ? (
+                <ScrollArea className="w-full">
+                <div className="min-w-[1040px]">
+                    <Table className="table-fixed w-full">
+                        <TableHeader className="bg-muted/10">
+                            <TableRow>
+                                <TableHead className="w-[140px] font-bold text-[9px] uppercase sticky left-0 bg-muted/10 z-20 px-2">Canal</TableHead>
+                                {months.map(m => (
+                                <TableHead key={m} className="text-center text-[9px] px-1 font-bold w-[45px]">{m}</TableHead>
+                                ))}
+                                <TableHead className="text-right font-bold bg-muted/20 text-[9px] sticky right-0 z-20 w-[60px] px-2">TOTAL</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {dealsByChannelData.rows.map(row => (
+                                <TableRow key={row.channel} className="hover:bg-muted/5 transition-colors">
+                                    <TableCell className="py-2 px-2 sticky left-0 bg-white z-10 border-r">
+                                        <span className="font-semibold text-[10px] truncate leading-tight block">{row.channel}</span>
+                                    </TableCell>
+                                    {months.map((_, i) => (
+                                        <TableCell key={i} className="text-center text-[10px] py-1 px-1 border-r">
+                                            <div className="flex flex-col items-center leading-[1.1]">
+                                                <span className={`${row.vendas[i] > 0 ? 'text-emerald-600 font-bold' : 'text-muted-foreground/20'}`}>
+                                                    {row.vendas[i]}
+                                                </span>
+                                                <div className="h-[1px] w-4 bg-muted/20 my-0.5" />
+                                                <span className={`${row.locacoes[i] > 0 ? 'text-blue-600 font-bold' : 'text-muted-foreground/20'}`}>
+                                                    {row.locacoes[i]}
+                                                </span>
+                                            </div>
+                                        </TableCell>
+                                    ))}
+                                    <TableCell className="text-right py-1 px-2 bg-muted/5 sticky right-0 z-10 border-l">
+                                        <div className="flex flex-col items-end leading-[1.1]">
+                                            <span className="text-emerald-600 font-bold text-[10px]">{row.totalVendas}</span>
+                                            <div className="h-[1px] w-4 bg-muted/20 my-0.5" />
+                                            <span className="text-blue-600 font-bold text-[10px]">{row.totalLocacoes}</span>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                        <TableFooter className="bg-primary/5 border-t-2 border-primary/20">
+                            <TableRow className="border-b border-primary/10">
+                                <TableCell className="font-bold text-[10px] py-2 px-2 sticky left-0 bg-primary/5 z-10 border-r text-muted-foreground">
+                                    POR NATUREZA
+                                </TableCell>
+                                {months.map((_, i) => (
+                                <TableCell key={i} className="text-center py-1 px-1 border-r">
+                                    <div className="flex flex-col items-center leading-[1.1]">
+                                    <span className="text-emerald-600 font-extrabold text-[10px]">{dealsByChannelData.monthlyTotals.vendas[i]}</span>
+                                    <div className="h-[1px] w-4 bg-primary/10 my-0.5" />
+                                    <span className="text-blue-600 font-extrabold text-[10px]">{dealsByChannelData.monthlyTotals.locacoes[i]}</span>
+                                    </div>
+                                </TableCell>
+                                ))}
+                                <TableCell className="text-right py-1 px-2 bg-primary/10 sticky right-0 z-10">
+                                <div className="flex flex-col items-end leading-[1.1]">
+                                    <span className="text-emerald-600 font-extrabold text-[10px]">{dealsByChannelData.grandTotalVendas}</span>
+                                    <div className="h-[1px] w-4 bg-primary/10 my-0.5" />
+                                    <span className="text-blue-600 font-extrabold text-[10px]">{dealsByChannelData.grandTotalLocacoes}</span>
+                                </div>
+                                </TableCell>
+                            </TableRow>
+                            <TableRow className="bg-primary/10">
+                                <TableCell className="font-bold text-[10px] py-2 px-2 sticky left-0 bg-primary/10 z-10 border-r text-primary">
+                                SOMA TOTAL
+                                </TableCell>
+                                {months.map((_, i) => (
+                                <TableCell key={i} className="text-center py-2 px-1 border-r font-extrabold text-primary text-[11px]">
+                                    {dealsByChannelData.monthlyTotals.vendas[i] + dealsByChannelData.monthlyTotals.locacoes[i]}
+                                </TableCell>
+                                ))}
+                                <TableCell className="text-right py-2 px-2 bg-primary/20 sticky right-0 z-10 font-black text-primary text-[11px]">
+                                {dealsByChannelData.grandTotalVendas + dealsByChannelData.grandTotalLocacoes}
+                                </TableCell>
+                            </TableRow>
+                        </TableFooter>
+                    </Table>
+                </div>
+                <ScrollBar orientation="horizontal" />
+              </ScrollArea>
+             ) : (
+                <div className="py-12 flex flex-col items-center justify-center text-center space-y-2">
+                    <p className="text-sm text-muted-foreground font-medium">Nenhum negócio fechado para {yearToDisplay}.</p>
+                </div>
+             )}
           </TabsContent>
           <TabsContent value="media" className="m-0">
              {averageData.length > 0 ? (

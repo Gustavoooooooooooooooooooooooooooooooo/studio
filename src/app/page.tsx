@@ -11,7 +11,6 @@ import { BrokerPerformanceGrid } from "@/components/dashboard/broker-performance
 import { InventoryHealth } from "@/components/dashboard/inventory-health";
 import { BrokerSettings } from "@/components/dashboard/broker-settings";
 import { SheetUrlConfig } from "@/components/dashboard/sheet-url-config";
-import { AnnualChannelPerformance } from "@/components/dashboard/annual-channel-performance";
 import {
   Sheet,
   SheetContent,
@@ -296,7 +295,7 @@ export default function AppContainer() {
                 propertyCode,
                 neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
                 clientName: String(getVal(row, ["locatario", "inquilino", "cliente"]) || "N/A"),
-                advertisedValue: parseCurrency(getVal(row, ["valor do aluguel", "valor locacao", "aluguel", "anuncio", "valor do anuncio"])),
+                advertisedValue: parseCurrency(getVal(row, ["valor do aluguel", "valor locacao", "aluguel", "anuncio", "valor do anuncio", "valor anuncio"])),
                 closedValue: parseCurrency(getVal(row, ["valor aluguel fechado", "valor final locacao", "valor fechado"])),
                 commission: parseCurrency(getVal(row, ["comissao", "comissão"])),
                 saleDate: formatDateDisplay(getVal(row, ["data locacao", "data do contrato", "fechamento", "negocio fechado"], ["vendedor"])),
@@ -314,7 +313,7 @@ export default function AppContainer() {
                 neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
                 clientName: String(getVal(row, ["cliente", "comprador"]) || "N/A"),
                 advertisedValue: parseCurrency(getVal(row, ["valor do anuncio", "valor anuncio", "anuncio", "qual valor anunciado?"])),
-                closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda", "qual valor final de venda?"])),
+                closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda", "qual valor final de venda?", "negocio fechado"])),
                 commission: parseCurrency(getVal(row, ["comissao", "comissão"])),
                 saleDate: formatDateDisplay(getVal(row, ["data do venda", "data venda", "fechamento", "venda"], ["vendedor", "corretor"])),
                 propertyCaptureDate: formatDateDisplay(getVal(row, ["entrada do imovel", "data entrada", "cadastro", "carimbo"])),
@@ -748,7 +747,6 @@ export default function AppContainer() {
                 selectedYears={selectedYears}
                 brokers={allBrokers}
               />
-              <AnnualChannelPerformance sales={sales} selectedYears={selectedYears} />
               <ChannelPerformance 
                 leads={leads} 
                 sales={sales} 
@@ -800,4 +798,3 @@ export default function AppContainer() {
     
 
     
-
