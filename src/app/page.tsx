@@ -83,7 +83,15 @@ const getVal = (row: any, searchKeys: string[], excludeKeys: string[] = []) => {
     const normalizedSearch = searchKeys.map(normalize);
     const normalizedExclude = excludeKeys.map(normalize);
 
-    // Prioritize exact matches
+    // Prioritize exact matches first for critical fields like 'origem do lead?'
+    if (searchKeys.some(k => k === "origem do lead?")) {
+        const exactMatchKey = rowKeys.find(rk => rk.trim() === "origem do lead?");
+        if (exactMatchKey) {
+            return row[exactMatchKey];
+        }
+    }
+
+    // Prioritize general exact matches
     for (const sKey of normalizedSearch) {
       const match = rowKeys.find(rk => normalize(rk) === sKey);
       if (match) {
@@ -297,7 +305,7 @@ export default function AppContainer() {
               commission: parseCurrency(getVal(row, ["comissao", "comissão"])),
               saleDate: formatDateDisplay(getVal(row, ["negocio fechado", "data do venda", "data venda", "fechamento", "venda"], ["vendedor", "corretor"])),
               propertyCaptureDate: formatDateDisplay(getVal(row, ["entrada do imovel", "data entrada", "entrada", "cadastro", "carimbo"])),
-              origem: String(getVal(row, ["origem do lead?", "origem do lead", "origem", "canal", "fonte", "source"]) || "N/A"),
+              origem: String(getVal(row, ["origem do lead?"]) || "N/A"),
               tipo: finalDealType,
               status: finalDealType === 'Locação' ? 'Alugado' : 'Vendido',
             };
@@ -523,7 +531,7 @@ export default function AppContainer() {
             monthsToAverage = selectedYears.reduce((acc, yearStr) => {
                 const year = parseInt(yearStr);
                 if (year < currentYear) return acc + 12;
-                if (year === currentYear) return acc + currentMonthIndex + 1;
+                if (year === currentYear) return acc + currentMonthIndex;
                 return acc;
             }, 0);
         }
@@ -531,7 +539,7 @@ export default function AppContainer() {
         if (selectedMonths.length > 0) {
             monthsToAverage = selectedMonths.filter(m => parseInt(m) <= currentMonthIndex).length;
         } else {
-            monthsToAverage = currentMonthIndex + 1;
+            monthsToAverage = currentMonthIndex;
         }
     }
     monthsToAverage = Math.max(1, monthsToAverage);

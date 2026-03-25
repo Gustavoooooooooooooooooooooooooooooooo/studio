@@ -131,8 +131,8 @@ export function StatsCards({ metrics }: StatsCardsProps) {
       color: "text-sky-600",
       group: "Aquisição",
       values: [
-        { label: "Venda", value: metrics.avgLeadsVenda.toFixed(1) },
-        { label: "Locação", value: metrics.avgLeadsLocacao.toFixed(1) },
+        { label: "Venda", value: String(Math.round(metrics.avgLeadsVenda)) },
+        { label: "Locação", value: String(Math.round(metrics.avgLeadsLocacao)) },
       ]
     },
     {
@@ -141,8 +141,8 @@ export function StatsCards({ metrics }: StatsCardsProps) {
       color: "text-teal-600",
       group: "Performance",
       values: [
-        { label: "Venda", value: metrics.avgVisitsVenda.toFixed(1) },
-        { label: "Locação", value: metrics.avgVisitsLocacao.toFixed(1) },
+        { label: "Venda", value: String(Math.round(metrics.avgVisitsVenda)) },
+        { label: "Locação", value: String(Math.round(metrics.avgVisitsLocacao)) },
       ]
     }
   ];
