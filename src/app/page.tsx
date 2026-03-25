@@ -11,6 +11,7 @@ import { BrokerPerformanceGrid } from "@/components/dashboard/broker-performance
 import { InventoryHealth } from "@/components/dashboard/inventory-health";
 import { BrokerSettings } from "@/components/dashboard/broker-settings";
 import { SheetUrlConfig } from "@/components/dashboard/sheet-url-config";
+import { AnnualChannelPerformance } from "@/components/dashboard/annual-channel-performance";
 import {
   Sheet,
   SheetContent,
@@ -537,7 +538,7 @@ export default function AppContainer() {
         }
     } else {
         if (selectedMonths.length > 0) {
-            monthsToAverage = selectedMonths.filter(m => parseInt(m) <= currentMonthIndex).length;
+            monthsToAverage = selectedMonths.filter(m => parseInt(m) < currentMonthIndex).length;
         } else {
             monthsToAverage = currentMonthIndex;
         }
@@ -734,6 +735,7 @@ export default function AppContainer() {
                 selectedYears={selectedYears}
                 brokers={allBrokers}
               />
+              <AnnualChannelPerformance sales={sales} />
               <ChannelPerformance 
                 leads={leads} 
                 sales={sales} 
