@@ -296,10 +296,10 @@ export default function AppContainer() {
                 propertyCode,
                 neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
                 clientName: String(getVal(row, ["locatario", "inquilino", "cliente"]) || "N/A"),
-                advertisedValue: parseCurrency(getVal(row, ["valor do aluguel", "valor locacao", "aluguel", "anuncio"])),
+                advertisedValue: parseCurrency(getVal(row, ["valor do aluguel", "valor locacao", "aluguel", "anuncio", "valor do anuncio"])),
                 closedValue: parseCurrency(getVal(row, ["valor aluguel fechado", "valor final locacao", "valor fechado"])),
                 commission: parseCurrency(getVal(row, ["comissao", "comissão"])),
-                saleDate: formatDateDisplay(getVal(row, ["data locacao", "data do contrato", "fechamento"], ["vendedor"])),
+                saleDate: formatDateDisplay(getVal(row, ["data locacao", "data do contrato", "fechamento", "negocio fechado"], ["vendedor"])),
                 propertyCaptureDate: formatDateDisplay(getVal(row, ["entrada do imovel", "data entrada", "cadastro", "carimbo"])),
                 origem: String(getVal(row, ["origem", "origem do lead?"]) || "N/A"),
                 tipo: 'Locação',
@@ -800,3 +800,4 @@ export default function AppContainer() {
     
 
     
+
