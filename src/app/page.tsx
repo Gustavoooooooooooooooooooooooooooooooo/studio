@@ -288,28 +288,41 @@ export default function AppContainer() {
           } else if (mode === 'sales') {
             const propertyCode = getVal(row, ["codigo", "unidade", "referencia", "id_imovel"]) || `REF-${idx + 1}`;
             
-            const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-            const sheetType = getVal(row, ["tipo", "natureza", "negocio"]);
-            const isRentalBasedOnSheet = sheetType ? (normalize(sheetType).includes('loca') || normalize(sheetType).includes('aluguel')) : false;
-            
-            const finalDealType = dealType || (isRentalBasedOnSheet ? 'Locação' : 'Venda');
-
-            return {
-              id: `${propertyCode}-${idx}`,
-              vendedor: String(getVal(row, ["vendedor", "corretor", "responsavel"]) || "N/A"),
-              angariador: String(getVal(row, ["angariador", "captador"]) || "N/A"),
-              propertyCode,
-              neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
-              clientName: String(getVal(row, ["cliente", "comprador", "locatario", "inquilino", "quem entrou em"]) || "N/A"),
-              advertisedValue: parseCurrency(getVal(row, ["valor do anuncio", "valor anuncio", "anuncio", "qual valor anunciado?", "valor aluguel"])),
-              closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda", "qual valor final de venda?", "valor final locacao", "valor aluguel fechado"])),
-              commission: parseCurrency(getVal(row, ["comissao", "comissão"])),
-              saleDate: formatDateDisplay(getVal(row, ["data locacao", "data do contrato", "negocio fechado", "data do venda", "data venda", "fechamento", "venda"], ["vendedor", "corretor"])),
-              propertyCaptureDate: formatDateDisplay(getVal(row, ["entrada do imovel", "data entrada", "entrada", "cadastro", "carimbo"])),
-              origem: String(getVal(row, ["origem do lead?"]) || "N/A"),
-              tipo: finalDealType,
-              status: finalDealType === 'Locação' ? 'Alugado' : 'Vendido',
-            };
+            if (dealType === 'Locação') {
+              return { // Mapping specific for RENTALS
+                id: `${propertyCode}-${idx}`,
+                vendedor: String(getVal(row, ["vendedor", "corretor", "responsavel", "atendente"]) || "N/A"),
+                angariador: String(getVal(row, ["angariador", "captador"]) || "N/A"),
+                propertyCode,
+                neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
+                clientName: String(getVal(row, ["locatario", "inquilino", "cliente"]) || "N/A"),
+                advertisedValue: parseCurrency(getVal(row, ["valor do aluguel", "valor locacao", "aluguel", "anuncio"])),
+                closedValue: parseCurrency(getVal(row, ["valor aluguel fechado", "valor final locacao", "valor fechado"])),
+                commission: parseCurrency(getVal(row, ["comissao", "comissão"])),
+                saleDate: formatDateDisplay(getVal(row, ["data locacao", "data do contrato", "fechamento"], ["vendedor"])),
+                propertyCaptureDate: formatDateDisplay(getVal(row, ["entrada do imovel", "data entrada", "cadastro", "carimbo"])),
+                origem: String(getVal(row, ["origem", "origem do lead?"]) || "N/A"),
+                tipo: 'Locação',
+                status: 'Alugado',
+              };
+            } else { // Default to Venda
+              return { // Mapping specific for SALES
+                id: `${propertyCode}-${idx}`,
+                vendedor: String(getVal(row, ["vendedor", "corretor", "responsavel"]) || "N/A"),
+                angariador: String(getVal(row, ["angariador", "captador"]) || "N/A"),
+                propertyCode,
+                neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
+                clientName: String(getVal(row, ["cliente", "comprador"]) || "N/A"),
+                advertisedValue: parseCurrency(getVal(row, ["valor do anuncio", "valor anuncio", "anuncio", "qual valor anunciado?"])),
+                closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda", "qual valor final de venda?"])),
+                commission: parseCurrency(getVal(row, ["comissao", "comissão"])),
+                saleDate: formatDateDisplay(getVal(row, ["data do venda", "data venda", "fechamento", "venda"], ["vendedor", "corretor"])),
+                propertyCaptureDate: formatDateDisplay(getVal(row, ["entrada do imovel", "data entrada", "cadastro", "carimbo"])),
+                origem: String(getVal(row, ["origem do lead?"]) || "N/A"),
+                tipo: 'Venda',
+                status: 'Vendido',
+              };
+            }
           } else { // leads
             const rowValues = Object.values(row).map((v) => String(v || "").trim()).join("|");
             const leadIdSeed = rowValues.substring(0, 100).replace(/[\/\.\#\$\/\[\] ]/g, "-");
