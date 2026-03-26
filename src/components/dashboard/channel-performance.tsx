@@ -1,4 +1,3 @@
-
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,7 +24,7 @@ type ChannelCost = { type: 'fixed'; value: number } | { type: 'monthly'; value: 
 
 
 export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears }: ChannelPerformanceProps) {
-  const [view, setView] = useState<'anual' | 'media' | 'custos' | 'negocios'>('anual');
+  const [view, setView] = useState<'anual' | 'custos' | 'negocios'>('anual');
   const [channelCosts, setChannelCosts] = useState<Record<string, ChannelCost>>({});
   const [isCostDialogOpen, setIsCostDialogOpen] = useState(false);
   const [editingChannel, setEditingChannel] = useState<string | null>(null);
@@ -267,48 +266,6 @@ export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears
       return { rows, monthlyTotals, grandTotalVenda, grandTotalLocacao };
   }, [allChannels, processedData]);
 
-
-  const monthsElapsed = useMemo(() => {
-    let monthsToAverage = 1;
-    const currentYear = now.getUTCFullYear();
-    const currentMonthIndex = now.getUTCMonth();
-
-    if (selectedYears.length > 0) {
-        if (selectedMonths.length > 0) {
-            monthsToAverage = selectedYears.length * selectedMonths.length;
-        } else {
-            monthsToAverage = selectedYears.reduce((acc, yearStr) => {
-                const year = parseInt(yearStr);
-                if (year < currentYear) return acc + 12;
-                if (year === currentYear) return acc + currentMonthIndex; // Only past full months
-                return acc;
-            }, 0);
-        }
-    } else { // No year selected, assume current year
-        if (selectedMonths.length > 0) {
-            monthsToAverage = selectedMonths.filter(m => parseInt(m) < currentMonthIndex).length;
-        } else {
-            monthsToAverage = currentMonthIndex;
-        }
-    }
-    return Math.max(1, monthsToAverage);
-  }, [selectedYears, selectedMonths, now]);
-  
-  const averageData = useMemo(() => {
-    return allChannels.map(channel => {
-      const data = processedData[channel];
-      return {
-        channel,
-        mediaLeadsVenda: data.totalLeadsVenda / monthsElapsed,
-        mediaVisitasVenda: data.totalVisitsVenda / monthsElapsed,
-        convVisitaVenda: data.totalVisitsVenda > 0 ? (data.totalSales / data.totalVisitsVenda) * 100 : 0,
-        mediaLeadsLocacao: data.totalLeadsLocacao / monthsElapsed,
-        mediaVisitasLocacao: data.totalVisitsLocacao / monthsElapsed,
-        convVisitaLocacao: data.totalVisitsLocacao > 0 ? (data.totalRentals / data.totalVisitsLocacao) * 100 : 0,
-      };
-    });
-  }, [allChannels, processedData, monthsElapsed]);
-  
   const costData = useMemo(() => {
     const lastDayOfPreviousMonth = new Date(now.getFullYear(), now.getMonth(), 0);
 
@@ -447,14 +404,13 @@ export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears
 
   return (
     <Card className="shadow-sm border-none bg-white overflow-hidden">
-      <Tabs value={view} onValueChange={(v) => setView(v as 'anual' | 'media' | 'custos' | 'negocios')}>
+      <Tabs value={view} onValueChange={(v) => setView(v as 'anual' | 'custos' | 'negocios')}>
         <CardHeader className="bg-muted/5 border-b py-3">
           <div className="flex justify-between items-center">
             <CardTitle className="text-base font-bold text-primary">Análise por Canal ({yearToDisplay})</CardTitle>
-            <TabsList className="grid w-[380px] grid-cols-4 h-9 p-1">
+            <TabsList className="grid w-[300px] grid-cols-3 h-9 p-1">
                 <TabsTrigger value="anual" className="text-xs h-full">Leads</TabsTrigger>
                 <TabsTrigger value="negocios" className="text-xs h-full">Negócios</TabsTrigger>
-                <TabsTrigger value="media" className="text-xs h-full">Métricas</TabsTrigger>
                 <TabsTrigger value="custos" className="text-xs h-full">Custos</TabsTrigger>
             </TabsList>
           </div>
@@ -636,50 +592,6 @@ export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears
              ) : (
                 <div className="py-12 flex flex-col items-center justify-center text-center space-y-2">
                     <p className="text-sm text-muted-foreground font-medium">Nenhum negócio fechado para {yearToDisplay}.</p>
-                </div>
-             )}
-          </TabsContent>
-          <TabsContent value="media" className="m-0">
-             {averageData.length > 0 ? (
-                <ScrollArea className="w-full">
-                  <div className="min-w-[1040px]">
-                    <Table className="w-full">
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead rowSpan={2} className="w-[140px] text-xs uppercase sticky left-0 bg-background z-10 border-r font-bold">Canal</TableHead>
-                                <TableHead colSpan={3} className="text-center bg-emerald-50 text-emerald-800 font-bold text-xs uppercase">Venda</TableHead>
-                                <TableHead colSpan={3} className="text-center bg-blue-50 text-blue-800 font-bold text-xs uppercase">Locação</TableHead>
-                            </TableRow>
-                            <TableRow>
-                                <TableHead className="w-[150px] text-center text-xs uppercase bg-emerald-50/50">Leads/mês</TableHead>
-                                <TableHead className="w-[150px] text-center text-xs uppercase bg-emerald-50/50">Visitas/mês</TableHead>
-                                <TableHead className="w-[150px] text-center text-xs uppercase bg-emerald-50/50">Conv. Visita (%)</TableHead>
-                                <TableHead className="w-[150px] text-center text-xs uppercase bg-blue-50/50">Leads/mês</TableHead>
-                                <TableHead className="w-[150px] text-center text-xs uppercase bg-blue-50/50">Visitas/mês</TableHead>
-                                <TableHead className="w-[150px] text-center text-xs uppercase bg-blue-50/50">Conv. Visita (%)</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                        {averageData.map(row => (
-                            <TableRow key={row.channel} className="hover:bg-muted/20">
-                                <TableCell className="font-semibold text-xs sticky left-0 bg-background z-10 border-r">{row.channel}</TableCell>
-                                <TableCell className="text-center font-medium text-sm">{row.mediaLeadsVenda.toFixed(1)}</TableCell>
-                                <TableCell className="text-center font-medium text-sm">{row.mediaVisitasVenda.toFixed(1)}</TableCell>
-                                <TableCell className="text-center font-bold text-sm bg-emerald-50/30 text-emerald-700">{row.convVisitaVenda.toFixed(1)}%</TableCell>
-                                <TableCell className="text-center font-medium text-sm">{row.mediaLeadsLocacao.toFixed(1)}</TableCell>
-                                <TableCell className="text-center font-medium text-sm">{row.mediaVisitasLocacao.toFixed(1)}</TableCell>
-                                <TableCell className="text-center font-bold text-sm bg-blue-50/30 text-blue-700">{row.convVisitaLocacao.toFixed(1)}%</TableCell>
-                            </TableRow>
-                        ))}
-                        </TableBody>
-                    </Table>
-                  </div>
-                  <ScrollBar orientation="horizontal" />
-                </ScrollArea>
-             ) : (
-                <div className="py-12 flex flex-col items-center justify-center text-center space-y-2">
-                    <p className="text-sm text-muted-foreground font-medium">Nenhum dado para calcular as métricas.</p>
-                    <p className="text-[10px] text-muted-foreground/60 max-w-xs mx-auto">Verifique os dados nas suas planilhas de Leads e Vendas/Locações.</p>
                 </div>
              )}
           </TabsContent>
