@@ -122,23 +122,32 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
     };
     
     const performance = brokers.map(brokerName => {
-        const normBrokerName = normalize(brokerName).split(' ')[0];
+        const configBrokerName = normalize(brokerName);
+        
+        const isMatch = (sheetName: string | undefined | null) => {
+            if (!sheetName || String(sheetName).trim() === "N/A" || String(sheetName).trim() === "") return false;
+            const normalizedSheetName = normalize(String(sheetName));
+            if (!normalizedSheetName) return false;
+
+            const configWords = configBrokerName.split(' ');
+            const sheetWords = normalizedSheetName.split(' ');
+            
+            return configWords.every(cw => sheetWords.includes(cw));
+        };
         
         const brokerSales = sales.filter(s => {
-            const normVendedor = normalize(s.vendedor || '').split(' ')[0];
             const isSaleType = normalize(s.tipo || '').includes('venda');
-            return normVendedor === normBrokerName && isSaleType && filterByPeriod(s, 'saleDate');
+            return isMatch(s.vendedor) && isSaleType && filterByPeriod(s, 'saleDate');
         });
         
         const brokerRentals = sales.filter(s => {
-            const normVendedor = normalize(s.vendedor || '').split(' ')[0];
             const isRentalType = normalize(s.tipo || '').includes('loca') || normalize(s.tipo || '').includes('aluguel');
-            return normVendedor === normBrokerName && isRentalType && filterByPeriod(s, 'saleDate');
+            return isMatch(s.vendedor) && isRentalType && filterByPeriod(s, 'saleDate');
         });
 
         const brokerCaptures = properties.filter(p => {
-             const normBroker = normalize(p.brokerId || p.angariador || p.captador || '').split(' ')[0];
-             return normBroker === normBrokerName && filterByPeriod(p, 'captureDate');
+             const brokerField = p.brokerId || p.angariador || p.captador;
+             return isMatch(brokerField) && filterByPeriod(p, 'captureDate');
         });
         
         const capturesSaleCount = brokerCaptures.filter(p => p.saleValue && Number(p.saleValue) > 0).length;
