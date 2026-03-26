@@ -633,7 +633,7 @@ export default function AppContainer() {
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             {urls.logo ? (
-              <img src={urls.logo} alt="Logo" className="h-9 w-auto" />
+              <img src={urls.logo} alt="Logo" className="h-10 w-auto ml-2" />
             ) : (
               <>
                 <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
@@ -815,6 +815,8 @@ export default function AppContainer() {
     </div>
   );
 }
+
+    
 
     
 
