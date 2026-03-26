@@ -1,3 +1,4 @@
+
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -309,12 +310,13 @@ export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears
   }, [allChannels, processedData, monthsElapsed]);
   
   const costData = useMemo(() => {
+    const lastDayOfPreviousMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+
     return allChannels.map(channel => {
         const data = processedData[channel];
         
         let investmentForPeriod = 0;
         
-        // Get all original channel names from costs that map to the current normalized channel
         const matchingCostKeys = Object.keys(channelCosts).filter(
           originalKey => getMappedChannel(originalKey) === channel
         );
@@ -328,7 +330,8 @@ export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears
               if (costConfig) {
                 years.forEach(year => {
                     months.forEach(month => {
-                        if (year < now.getFullYear() || (year === now.getFullYear() && month < now.getMonth())) {
+                        const dateOfCost = new Date(year, month, 1);
+                        if (dateOfCost <= lastDayOfPreviousMonth) {
                             if (costConfig.type === 'fixed') {
                                 investmentForPeriod += Number(costConfig.value) || 0;
                             } else if (costConfig.type === 'monthly' && Array.isArray(costConfig.value)) {
