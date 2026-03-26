@@ -41,8 +41,19 @@ export function SheetUrlConfig({ urls, onUrlsChange }: SheetUrlConfigProps) {
     onUrlsChange(newUrls);
     toast({
       title: "Configurações Salvas",
-      description: "Os links das planilhas e a URL da logo foram salvos no navegador.",
+      description: "Os links das planilhas e a logo foram salvos no navegador.",
     });
+  };
+
+  const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogoUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   return (
@@ -53,21 +64,27 @@ export function SheetUrlConfig({ urls, onUrlsChange }: SheetUrlConfigProps) {
           Configuração de Links e Logo
         </CardTitle>
         <CardDescription className="text-xs text-muted-foreground !mt-2">
-          Insira os links para suas planilhas e a URL para a logo da sua imobiliária.
+          Insira os links para suas planilhas e faça o upload da logo da sua imobiliária.
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-6 space-y-6">
         <div className="space-y-2">
-          <Label htmlFor="logo-url" className="flex items-center gap-2">
+          <Label htmlFor="logo-upload" className="flex items-center gap-2">
             <ImageIcon className="h-4 w-4" />
-            URL da Logo
+            Upload da Logo
           </Label>
           <Input 
-            id="logo-url"
-            placeholder="https://suaimobiliaria.com/logo.png" 
-            value={logoUrl} 
-            onChange={(e) => setLogoUrl(e.target.value)}
+            id="logo-upload"
+            type="file"
+            accept="image/*"
+            onChange={handleLogoUpload}
+            className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
           />
+           {logoUrl && (
+            <div className="mt-4 p-2 border rounded-md bg-muted/50 flex items-center justify-center">
+              <img src={logoUrl} alt="Pré-visualização da Logo" className="h-16 w-auto object-contain" />
+            </div>
+          )}
         </div>
         <div className="space-y-2">
           <Label htmlFor="inventory-url">URL da Planilha de Cadastro (Estoque)</Label>
