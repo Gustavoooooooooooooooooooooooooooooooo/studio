@@ -146,13 +146,15 @@ export default function AppContainer() {
   const [manualBrokers, setManualBrokers] = useState<string[]>([]);
   const [targets, setTargets] = useState<{
     [key: string]: {
-      captures: { annual: number; quarterly: number; semiannual: number; };
+      capturesSale: { annual: number; quarterly: number; semiannual: number; };
+      capturesRent: { annual: number; quarterly: number; semiannual: number; };
       sales: { annual: number; quarterly: number; semiannual: number; };
       rentals: { annual: number; quarterly: number; semiannual: number; };
     }
   }>({
     global: {
-      captures: { annual: 400, quarterly: 100, semiannual: 200 },
+      capturesSale: { annual: 250, quarterly: 65, semiannual: 125 },
+      capturesRent: { annual: 150, quarterly: 40, semiannual: 75 },
       sales: { annual: 120, quarterly: 30, semiannual: 60 },
       rentals: { annual: 150, quarterly: 40, semiannual: 75 },
     }
@@ -190,8 +192,31 @@ export default function AppContainer() {
     if (savedTargets) {
       try {
         const parsed = JSON.parse(savedTargets);
-        if (parsed.global && parsed.global.captures) { // Basic validation for new structure
-          setTargets(parsed);
+        if (parsed.global && (parsed.global.capturesSale !== undefined || parsed.global.captures !== undefined)) { // Validates old and new structures
+          // Simple migration from old 'captures' to new 'capturesSale'/'capturesRent'
+          if (parsed.global.captures && parsed.global.capturesSale === undefined) {
+            Object.keys(parsed).forEach(key => {
+              const oldCaptures = parsed[key].captures;
+              if (oldCaptures) {
+                // Heuristic: split 60/40 between sale and rent
+                parsed[key].capturesSale = { 
+                  annual: Math.round(oldCaptures.annual * 0.6), 
+                  quarterly: Math.round(oldCaptures.quarterly * 0.6), 
+                  semiannual: Math.round(oldCaptures.semiannual * 0.6) 
+                };
+                parsed[key].capturesRent = { 
+                  annual: Math.round(oldCaptures.annual * 0.4), 
+                  quarterly: Math.round(oldCaptures.quarterly * 0.4), 
+                  semiannual: Math.round(oldCaptures.semiannual * 0.4)
+                };
+                delete parsed[key].captures;
+              }
+            });
+          }
+          // The new validation for setting state needs to check the new structure.
+          if(parsed.global.capturesSale){
+            setTargets(parsed);
+          }
         }
       } catch (e) {
         console.error("Failed to parse targets from localStorage", e);

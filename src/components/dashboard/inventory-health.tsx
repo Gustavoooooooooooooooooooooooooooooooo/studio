@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,7 +18,8 @@ interface PerformanceGoalsProps {
   sales: any[];
   targets: {
     [key: string]: {
-      captures: { annual: number; quarterly: number; semiannual: number; };
+      capturesSale: { annual: number; quarterly: number; semiannual: number; };
+      capturesRent: { annual: number; quarterly: number; semiannual: number; };
       sales: { annual: number; quarterly: number; semiannual: number; };
       rentals: { annual: number; quarterly: number; semiannual: number; };
     }
@@ -32,7 +34,8 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   
   const emptyTarget = useMemo(() => ({
-    captures: { annual: 0, quarterly: 0, semiannual: 0 },
+    capturesSale: { annual: 0, quarterly: 0, semiannual: 0 },
+    capturesRent: { annual: 0, quarterly: 0, semiannual: 0 },
     sales: { annual: 0, quarterly: 0, semiannual: 0 },
     rentals: { annual: 0, quarterly: 0, semiannual: 0 },
   }), []);
@@ -134,9 +137,12 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
         });
 
         const brokerCaptures = properties.filter(p => {
-             const normBroker = normalize(p.brokerId || '').split(' ')[0];
+             const normBroker = normalize(p.brokerId || p.angariador || p.captador || '').split(' ')[0];
              return normBroker === normBrokerName && filterByPeriod(p, 'captureDate');
         });
+        
+        const capturesSaleCount = brokerCaptures.filter(p => p.saleValue && Number(p.saleValue) > 0).length;
+        const capturesRentCount = brokerCaptures.filter(p => p.rentalValue && Number(p.rentalValue) > 0).length;
 
         const brokerTargets = targets[brokerName] || emptyTarget;
 
@@ -144,20 +150,22 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
             name: brokerName,
             salesCount: brokerSales.length,
             rentalsCount: brokerRentals.length,
-            capturesCount: brokerCaptures.length,
+            capturesSaleCount: capturesSaleCount,
+            capturesRentCount: capturesRentCount,
             salesGoal: brokerTargets.sales.annual,
             rentalsGoal: brokerTargets.rentals.annual,
-            capturesGoal: brokerTargets.captures.annual,
+            capturesSaleGoal: brokerTargets.capturesSale.annual,
+            capturesRentGoal: brokerTargets.capturesRent.annual,
         };
     });
 
     return performance
-      .filter(broker => broker.salesGoal > 0 || broker.rentalsGoal > 0 || broker.capturesGoal > 0)
+      .filter(broker => broker.salesGoal > 0 || broker.rentalsGoal > 0 || broker.capturesSaleGoal > 0 || broker.capturesRentGoal > 0)
       .sort((a,b) => a.name.localeCompare(b.name));
 
   }, [brokers, sales, properties, targets, emptyTarget, normalize, selectedMonths, selectedYears]);
 
-  const handleInputChange = (brokerKey: string, category: 'captures' | 'sales' | 'rentals', period: 'annual' | 'semiannual' | 'quarterly', value: string) => {
+  const handleInputChange = (brokerKey: string, category: 'capturesSale' | 'capturesRent' | 'sales' | 'rentals', period: 'annual' | 'semiannual' | 'quarterly', value: string) => {
     const numericValue = Number(value) || 0;
     setEditableTargets(prev => {
         const newTargets = JSON.parse(JSON.stringify(prev)); 
@@ -206,20 +214,38 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
                                 
                                 <div className="space-y-4">
                                 <div className="p-4 border rounded-lg bg-muted/20">
-                                    <h4 className="text-md font-semibold mb-3 flex items-center gap-2 text-accent"><Building className="h-5 w-5"/> Metas de Angariação</h4>
+                                    <h4 className="text-md font-semibold mb-3 flex items-center gap-2 text-accent"><Building className="h-5 w-5"/> Metas de Angariação (Venda)</h4>
                                     <div className="grid grid-cols-3 gap-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor={`captures-annual-${brokerKey}`}>Anual</Label>
-                                        <Input id={`captures-annual-${brokerKey}`} type="number" value={currentBrokerTargets.captures.annual} onChange={(e) => handleInputChange(brokerKey, 'captures', 'annual', e.target.value)} />
+                                        <div className="space-y-2">
+                                            <Label htmlFor={`capturesSale-annual-${brokerKey}`}>Anual</Label>
+                                            <Input id={`capturesSale-annual-${brokerKey}`} type="number" value={currentBrokerTargets.capturesSale.annual} onChange={(e) => handleInputChange(brokerKey, 'capturesSale', 'annual', e.target.value)} />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor={`capturesSale-semiannual-${brokerKey}`}>Semestral</Label>
+                                            <Input id={`capturesSale-semiannual-${brokerKey}`} type="number" value={currentBrokerTargets.capturesSale.semiannual} onChange={(e) => handleInputChange(brokerKey, 'capturesSale', 'semiannual', e.target.value)} />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor={`capturesSale-quarterly-${brokerKey}`}>Trimestral</Label>
+                                            <Input id={`capturesSale-quarterly-${brokerKey}`} type="number" value={currentBrokerTargets.capturesSale.quarterly} onChange={(e) => handleInputChange(brokerKey, 'capturesSale', 'quarterly', e.target.value)} />
+                                        </div>
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor={`captures-semiannual-${brokerKey}`}>Semestral</Label>
-                                        <Input id={`captures-semiannual-${brokerKey}`} type="number" value={currentBrokerTargets.captures.semiannual} onChange={(e) => handleInputChange(brokerKey, 'captures', 'semiannual', e.target.value)} />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor={`captures-quarterly-${brokerKey}`}>Trimestral</Label>
-                                        <Input id={`captures-quarterly-${brokerKey}`} type="number" value={currentBrokerTargets.captures.quarterly} onChange={(e) => handleInputChange(brokerKey, 'captures', 'quarterly', e.target.value)} />
-                                    </div>
+                                </div>
+
+                                <div className="p-4 border rounded-lg bg-muted/20">
+                                    <h4 className="text-md font-semibold mb-3 flex items-center gap-2 text-cyan-500"><Building className="h-5 w-5"/> Metas de Angariação (Locação)</h4>
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <div className="space-y-2">
+                                            <Label htmlFor={`capturesRent-annual-${brokerKey}`}>Anual</Label>
+                                            <Input id={`capturesRent-annual-${brokerKey}`} type="number" value={currentBrokerTargets.capturesRent.annual} onChange={(e) => handleInputChange(brokerKey, 'capturesRent', 'annual', e.target.value)} />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor={`capturesRent-semiannual-${brokerKey}`}>Semestral</Label>
+                                            <Input id={`capturesRent-semiannual-${brokerKey}`} type="number" value={currentBrokerTargets.capturesRent.semiannual} onChange={(e) => handleInputChange(brokerKey, 'capturesRent', 'semiannual', e.target.value)} />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor={`capturesRent-quarterly-${brokerKey}`}>Trimestral</Label>
+                                            <Input id={`capturesRent-quarterly-${brokerKey}`} type="number" value={currentBrokerTargets.capturesRent.quarterly} onChange={(e) => handleInputChange(brokerKey, 'capturesRent', 'quarterly', e.target.value)} />
+                                        </div>
                                     </div>
                                 </div>
                                 
@@ -277,7 +303,8 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
         {brokerPerformance.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {brokerPerformance.map(broker => {
-                const capturesProgress = broker.capturesGoal > 0 ? Math.min(100, (broker.capturesCount / broker.capturesGoal) * 100) : 0;
+                const capturesSaleProgress = broker.capturesSaleGoal > 0 ? Math.min(100, (broker.capturesSaleCount / broker.capturesSaleGoal) * 100) : 0;
+                const capturesRentProgress = broker.capturesRentGoal > 0 ? Math.min(100, (broker.capturesRentCount / broker.capturesRentGoal) * 100) : 0;
                 const salesProgress = broker.salesGoal > 0 ? Math.min(100, (broker.salesCount / broker.salesGoal) * 100) : 0;
                 const rentalsProgress = broker.rentalsGoal > 0 ? Math.min(100, (broker.rentalsCount / broker.rentalsGoal) * 100) : 0;
                 
@@ -290,13 +317,22 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
                     </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3 text-xs">
-                    {broker.capturesGoal > 0 && (
+                    {broker.capturesSaleGoal > 0 && (
                         <div>
                         <div className="flex justify-between items-center text-muted-foreground">
-                            <span>Angariações</span>
-                            <span className="font-bold text-foreground">{broker.capturesCount}/{broker.capturesGoal}</span>
+                            <span>Angariações (Venda)</span>
+                            <span className="font-bold text-foreground">{broker.capturesSaleCount}/{broker.capturesSaleGoal}</span>
                         </div>
-                        <Progress value={capturesProgress} className="h-1.5 mt-1 [&>div]:bg-accent" />
+                        <Progress value={capturesSaleProgress} className="h-1.5 mt-1 [&>div]:bg-accent" />
+                        </div>
+                    )}
+                     {broker.capturesRentGoal > 0 && (
+                        <div>
+                        <div className="flex justify-between items-center text-muted-foreground">
+                            <span>Angariações (Locação)</span>
+                            <span className="font-bold text-foreground">{broker.capturesRentCount}/{broker.capturesRentGoal}</span>
+                        </div>
+                        <Progress value={capturesRentProgress} className="h-1.5 mt-1 [&>div]:bg-cyan-500" />
                         </div>
                     )}
                     {broker.salesGoal > 0 && (
