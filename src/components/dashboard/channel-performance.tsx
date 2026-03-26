@@ -152,7 +152,7 @@ export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears
         return getMappedChannel(sourceKey && lead[sourceKey] ? String(lead[sourceKey]).trim() : "Direto/Indicação");
       });
       const saleChannels = sales.map(sale => getMappedChannel(sale.origem || ''));
-      const costChannels = Object.keys(channelCosts);
+      const costChannels = Object.keys(channelCosts).map(c => getMappedChannel(c));
 
       return Array.from(new Set([...leadChannels, ...saleChannels, ...costChannels]))
           .filter(c => c && c.toLowerCase() !== 'n/a' && c !== "undefined" && c !== "null" && c !== "")
@@ -310,23 +310,33 @@ export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears
   const costData = useMemo(() => {
     return allChannels.map(channel => {
         const data = processedData[channel];
-        const costConfig = channelCosts[channel];
         
         let investmentForPeriod = 0;
-        if (costConfig) {
+        
+        // Get all original channel names from costs that map to the current normalized channel
+        const matchingCostKeys = Object.keys(channelCosts).filter(
+          originalKey => getMappedChannel(originalKey) === channel
+        );
+
+        if (matchingCostKeys.length > 0) {
             const years = selectedYears.length > 0 ? selectedYears.map(y => parseInt(y)) : [now.getFullYear()];
             const months = selectedMonths.length > 0 ? selectedMonths.map(m => parseInt(m)) : Array.from(Array(12).keys());
             
-            years.forEach(year => {
-                months.forEach(month => {
-                    if (year < now.getFullYear() || (year === now.getFullYear() && month <= now.getMonth())) {
-                        if (costConfig.type === 'fixed') {
-                            investmentForPeriod += Number(costConfig.value) || 0;
-                        } else if (costConfig.type === 'monthly' && Array.isArray(costConfig.value)) {
-                            investmentForPeriod += Number(costConfig.value[month]) || 0;
+            matchingCostKeys.forEach(key => {
+              const costConfig = channelCosts[key];
+              if (costConfig) {
+                years.forEach(year => {
+                    months.forEach(month => {
+                        if (year < now.getFullYear() || (year === now.getFullYear() && month <= now.getMonth())) {
+                            if (costConfig.type === 'fixed') {
+                                investmentForPeriod += Number(costConfig.value) || 0;
+                            } else if (costConfig.type === 'monthly' && Array.isArray(costConfig.value)) {
+                                investmentForPeriod += Number(costConfig.value[month]) || 0;
+                            }
                         }
-                    }
+                    });
                 });
+              }
             });
         }
 
@@ -344,7 +354,7 @@ export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears
             cplTotal,
         };
     });
-  }, [allChannels, processedData, channelCosts, selectedYears, selectedMonths, now]);
+  }, [allChannels, processedData, channelCosts, selectedYears, selectedMonths, now, getMappedChannel]);
 
 
   const { rows, monthlyTotals, grandTotalVenda, grandTotalLocacao } = matrixData;
