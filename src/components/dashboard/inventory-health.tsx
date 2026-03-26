@@ -20,8 +20,6 @@ interface PerformanceGoalsProps {
     [key: string]: {
       capturesSale: { annual: number; quarterly: number; semiannual: number; };
       capturesRent: { annual: number; quarterly: number; semiannual: number; };
-      sales: { annual: number; quarterly: number; semiannual: number; };
-      rentals: { annual: number; quarterly: number; semiannual: number; };
     }
   };
   onTargetsChange: (newTargets: PerformanceGoalsProps['targets']) => void;
@@ -36,8 +34,6 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
   const emptyTarget = useMemo(() => ({
     capturesSale: { annual: 0, quarterly: 0, semiannual: 0 },
     capturesRent: { annual: 0, quarterly: 0, semiannual: 0 },
-    sales: { annual: 0, quarterly: 0, semiannual: 0 },
-    rentals: { annual: 0, quarterly: 0, semiannual: 0 },
   }), []);
   
   const [editableTargets, setEditableTargets] = useState(targets);
@@ -124,7 +120,7 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
     const performance = brokers.map(brokerName => {
         const configBrokerName = normalize(brokerName);
         
-        const isMatch = (sheetName: string | undefined | null) => {
+        const isMatch = (sheetName: string | undefined | null): boolean => {
             if (!sheetName || String(sheetName).trim() === "N/A" || String(sheetName).trim() === "") return false;
             const normalizedSheetName = normalize(String(sheetName));
             if (!normalizedSheetName) return false;
@@ -132,6 +128,7 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
             const configWords = configBrokerName.split(' ');
             const sheetWords = normalizedSheetName.split(' ');
             
+            // Every word in the configured name must be present in the sheet name
             return configWords.every(cw => sheetWords.includes(cw));
         };
         
@@ -161,8 +158,6 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
             rentalsCount: brokerRentals.length,
             capturesSaleCount: capturesSaleCount,
             capturesRentCount: capturesRentCount,
-            salesGoal: brokerTargets.sales.annual,
-            rentalsGoal: brokerTargets.rentals.annual,
             capturesSaleGoal: brokerTargets.capturesSale.annual,
             capturesRentGoal: brokerTargets.capturesRent.annual,
         };
@@ -170,8 +165,6 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
 
     return performance
       .filter(broker => 
-        broker.salesGoal > 0 || 
-        broker.rentalsGoal > 0 || 
         broker.capturesSaleGoal > 0 || 
         broker.capturesRentGoal > 0 ||
         broker.salesCount > 0 ||
@@ -183,7 +176,7 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
 
   }, [brokers, sales, properties, targets, emptyTarget, normalize, selectedMonths, selectedYears]);
 
-  const handleInputChange = (brokerKey: string, category: 'capturesSale' | 'capturesRent' | 'sales' | 'rentals', period: 'annual' | 'semiannual' | 'quarterly', value: string) => {
+  const handleInputChange = (brokerKey: string, category: 'capturesSale' | 'capturesRent', period: 'annual' | 'semiannual' | 'quarterly', value: string) => {
     const numericValue = Number(value) || 0;
     setEditableTargets(prev => {
         const newTargets = JSON.parse(JSON.stringify(prev)); 
@@ -267,41 +260,6 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
                                     </div>
                                 </div>
                                 
-                                <div className="p-4 border rounded-lg bg-muted/20">
-                                    <h4 className="text-md font-semibold mb-3 flex items-center gap-2 text-primary"><BadgeDollarSign className="h-5 w-5"/> Metas de Vendas</h4>
-                                    <div className="grid grid-cols-3 gap-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor={`sales-annual-${brokerKey}`}>Anual</Label>
-                                        <Input id={`sales-annual-${brokerKey}`} type="number" value={currentBrokerTargets.sales.annual} onChange={(e) => handleInputChange(brokerKey, 'sales', 'annual', e.target.value)} />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor={`sales-semiannual-${brokerKey}`}>Semestral</Label>
-                                        <Input id={`sales-semiannual-${brokerKey}`} type="number" value={currentBrokerTargets.sales.semiannual} onChange={(e) => handleInputChange(brokerKey, 'sales', 'semiannual', e.target.value)} />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor={`sales-quarterly-${brokerKey}`}>Trimestral</Label>
-                                        <Input id={`sales-quarterly-${brokerKey}`} type="number" value={currentBrokerTargets.sales.quarterly} onChange={(e) => handleInputChange(brokerKey, 'sales', 'quarterly', e.target.value)} />
-                                    </div>
-                                    </div>
-                                </div>
-
-                                <div className="p-4 border rounded-lg bg-muted/20">
-                                    <h4 className="text-md font-semibold mb-3 flex items-center gap-2 text-emerald-600"><Key className="h-5 w-5"/> Metas de Locação</h4>
-                                    <div className="grid grid-cols-3 gap-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor={`rentals-annual-${brokerKey}`}>Anual</Label>
-                                        <Input id={`rentals-annual-${brokerKey}`} type="number" value={currentBrokerTargets.rentals.annual} onChange={(e) => handleInputChange(brokerKey, 'rentals', 'annual', e.target.value)} />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor={`rentals-semiannual-${brokerKey}`}>Semestral</Label>
-                                        <Input id={`rentals-semiannual-${brokerKey}`} type="number" value={currentBrokerTargets.rentals.semiannual} onChange={(e) => handleInputChange(brokerKey, 'rentals', 'semiannual', e.target.value)} />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor={`rentals-quarterly-${brokerKey}`}>Trimestral</Label>
-                                        <Input id={`rentals-quarterly-${brokerKey}`} type="number" value={currentBrokerTargets.rentals.quarterly} onChange={(e) => handleInputChange(brokerKey, 'rentals', 'quarterly', e.target.value)} />
-                                    </div>
-                                    </div>
-                                </div>
                                 </div>
                             </div>
                             );
@@ -323,8 +281,6 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
             {brokerPerformance.map(broker => {
                 const capturesSaleProgress = broker.capturesSaleGoal > 0 ? Math.min(100, (broker.capturesSaleCount / broker.capturesSaleGoal) * 100) : 0;
                 const capturesRentProgress = broker.capturesRentGoal > 0 ? Math.min(100, (broker.capturesRentCount / broker.capturesRentGoal) * 100) : 0;
-                const salesProgress = broker.salesGoal > 0 ? Math.min(100, (broker.salesCount / broker.salesGoal) * 100) : 0;
-                const rentalsProgress = broker.rentalsGoal > 0 ? Math.min(100, (broker.rentalsCount / broker.rentalsGoal) * 100) : 0;
                 
                 return (
                 <Card key={broker.name} className="border-none shadow-sm bg-white">
@@ -348,20 +304,6 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
                         <span className="font-bold text-foreground">{broker.capturesRentCount}/{broker.capturesRentGoal}</span>
                       </div>
                       <Progress value={capturesRentProgress} className="h-1.5 mt-1 [&>div]:bg-cyan-500" />
-                    </div>
-                    <div>
-                      <div className="flex justify-between items-center text-muted-foreground">
-                        <span>Vendas</span>
-                        <span className="font-bold text-foreground">{broker.salesCount}/{broker.salesGoal}</span>
-                      </div>
-                      <Progress value={salesProgress} className="h-1.5 mt-1 [&>div]:bg-primary" />
-                    </div>
-                    <div>
-                      <div className="flex justify-between items-center text-muted-foreground">
-                        <span>Locações</span>
-                        <span className="font-bold text-foreground">{broker.rentalsCount}/{broker.rentalsGoal}</span>
-                      </div>
-                      <Progress value={rentalsProgress} className="h-1.5 mt-1 [&>div]:bg-emerald-600" />
                     </div>
                     </CardContent>
                 </Card>

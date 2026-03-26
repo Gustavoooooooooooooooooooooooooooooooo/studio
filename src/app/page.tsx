@@ -148,15 +148,11 @@ export default function AppContainer() {
     [key: string]: {
       capturesSale: { annual: number; quarterly: number; semiannual: number; };
       capturesRent: { annual: number; quarterly: number; semiannual: number; };
-      sales: { annual: number; quarterly: number; semiannual: number; };
-      rentals: { annual: number; quarterly: number; semiannual: number; };
     }
   }>({
     global: {
       capturesSale: { annual: 250, quarterly: 65, semiannual: 125 },
       capturesRent: { annual: 150, quarterly: 40, semiannual: 75 },
-      sales: { annual: 120, quarterly: 30, semiannual: 60 },
-      rentals: { annual: 150, quarterly: 40, semiannual: 75 },
     }
   });
 
