@@ -31,6 +31,8 @@ export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears
   const [editingChannel, setEditingChannel] = useState<string | null>(null);
   const [tempCost, setTempCost] = useState<ChannelCost | null>(null);
 
+  const allowedCostChannels = ['C2sbot', 'Chaves na Mão', 'Grupo Zap', 'Imóvel Web', 'Meta', 'Site'];
+
   const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
   
   const now = new Date();
@@ -670,7 +672,7 @@ export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                        {costData.map(row => (
+                        {costData.filter(row => allowedCostChannels.includes(row.channel)).map(row => (
                             <TableRow key={row.channel} className="hover:bg-muted/20">
                                 <TableCell className="font-semibold text-xs sticky left-0 bg-background z-10 border-r">
                                   <div className="flex items-center justify-between gap-2">
