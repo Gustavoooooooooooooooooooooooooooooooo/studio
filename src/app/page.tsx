@@ -809,19 +809,9 @@ export default function AppContainer() {
 
       <footer className="mt-12 py-8 border-t bg-white">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          © {new Date().getFullYear()} ImmoSales Insight. Inteligência Real em Gestão Imobiliária.
+          © {new Date().getFullYear()} Gestão Imobiliária.
         </div>
       </footer>
     </div>
   );
 }
-
-    
-
-    
-
-    
-
-    
-
-    
