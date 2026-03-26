@@ -117,10 +117,7 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
   return (
     <div>
         <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-primary flex items-center gap-2">
-                <Trophy className="h-5 w-5" />
-                Metas de Performance
-            </h2>
+            <div></div>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
                     <Button variant="outline">

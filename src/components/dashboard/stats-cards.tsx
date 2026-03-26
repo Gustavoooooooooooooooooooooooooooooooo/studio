@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,6 +41,8 @@ interface StatsCardsProps {
     avgLeadsLocacao: number;
     avgVisitsVenda: number;
     avgVisitsLocacao: number;
+    totalVGVFechado: number;
+    totalVGLFechado: number;
   }
 }
 
@@ -124,6 +127,16 @@ export function StatsCards({ metrics }: StatsCardsProps) {
       icon: Handshake,
       color: "text-purple-600",
       group: "Performance"
+    },
+    {
+      title: "Valor Fechado (VGV/VGL)",
+      icon: BadgeDollarSign,
+      color: "text-green-600",
+      group: "Financeiro",
+      values: [
+        { label: "Venda", value: formatCurrency(metrics.totalVGVFechado) },
+        { label: "Locação", value: formatCurrency(metrics.totalVGLFechado) },
+      ]
     },
     {
       title: "Média de Leads / Mês",

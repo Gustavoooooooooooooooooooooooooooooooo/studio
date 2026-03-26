@@ -295,10 +295,10 @@ export default function AppContainer() {
                 propertyCode,
                 neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
                 clientName: String(getVal(row, ["locatario", "inquilino", "cliente"]) || "N/A"),
-                advertisedValue: parseCurrency(getVal(row, ["valor do aluguel", "valor locacao", "aluguel", "anuncio", "valor do anuncio", "valor anuncio"])),
-                closedValue: parseCurrency(getVal(row, ["valor aluguel fechado", "valor final locacao", "valor fechado"])),
+                advertisedValue: parseCurrency(getVal(row, ["valor do aluguel", "valor locacao", "aluguel", "anuncio", "valor do anuncio", "valor anuncio", "valor do anúncio"])),
+                closedValue: parseCurrency(getVal(row, ["valor aluguel fechado", "valor final locacao", "valor fechado", "negocio fechado", "negócio fechado"])),
                 commission: parseCurrency(getVal(row, ["comissao", "comissão"])),
-                saleDate: formatDateDisplay(getVal(row, ["data locacao", "data do contrato", "fechamento", "negocio fechado"], ["vendedor"])),
+                saleDate: formatDateDisplay(getVal(row, ["data locacao", "data do contrato", "fechamento", "negocio fechado", "negócio fechado"], ["vendedor"])),
                 propertyCaptureDate: formatDateDisplay(getVal(row, ["entrada do imovel", "data entrada", "cadastro", "carimbo"])),
                 origem: String(getVal(row, ["origem", "origem do lead?"]) || "N/A"),
                 tipo: 'Locação',
@@ -313,7 +313,7 @@ export default function AppContainer() {
                 neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
                 clientName: String(getVal(row, ["cliente", "comprador"]) || "N/A"),
                 advertisedValue: parseCurrency(getVal(row, ["valor do anuncio", "valor anuncio", "anuncio", "qual valor anunciado?"])),
-                closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda", "qual valor final de venda?", "negocio fechado"])),
+                closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda", "qual valor final de venda?", "negocio fechado", "negócio fechado"])),
                 commission: parseCurrency(getVal(row, ["comissao", "comissão"])),
                 saleDate: formatDateDisplay(getVal(row, ["data do venda", "data venda", "fechamento", "venda"], ["vendedor", "corretor"])),
                 propertyCaptureDate: formatDateDisplay(getVal(row, ["entrada do imovel", "data entrada", "cadastro", "carimbo"])),
@@ -423,6 +423,14 @@ export default function AppContainer() {
       const yearMatch = selectedYears.length === 0 || selectedYears.includes(String(d.getUTCFullYear()));
       return isSaleType && yearMatch;
     });
+
+    const totalVGVFechado = filteredSales
+      .filter(s => !normalize(s.tipo).includes('loca') && !normalize(s.tipo).includes('aluguel'))
+      .reduce((acc, s) => acc + (s.closedValue || 0), 0);
+      
+    const totalVGLFechado = filteredSales
+      .filter(s => normalize(s.tipo).includes('loca') || normalize(s.tipo).includes('aluguel'))
+      .reduce((acc, s) => acc + (s.closedValue || 0), 0);
 
     let salesFrequency = 0;
     if (salesForFrequencyCalc.length > 0) {
@@ -579,6 +587,8 @@ export default function AppContainer() {
       avgLeadsLocacao: leadsLocacao / monthsToAverage,
       avgVisitsVenda: visitsVenda / monthsToAverage,
       avgVisitsLocacao: visitsLocacao / monthsToAverage,
+      totalVGVFechado,
+      totalVGLFechado,
     };
   }, [processedSales, leads, processedInventory, inventory, now, selectedMonths, selectedYears, processedLeads]);
 
@@ -730,13 +740,19 @@ export default function AppContainer() {
 
           <div className="space-y-8 animate-in fade-in duration-500">
             <StatsCards metrics={metrics} />
-            <InventoryHealth 
-              properties={inventory} 
-              sales={sales}
-              targets={targets}
-              onTargetsChange={handleTargetsChange}
-              brokers={allBrokers}
-            />
+            <div className="space-y-6">
+                <h2 className="text-xl font-bold text-primary flex items-center gap-2">
+                    <Trophy className="h-5 w-5" />
+                    Metas de Performance
+                </h2>
+                <InventoryHealth 
+                  properties={inventory} 
+                  sales={sales}
+                  targets={targets}
+                  onTargetsChange={handleTargetsChange}
+                  brokers={allBrokers}
+                />
+            </div>
             <div className="space-y-6">
               <MonthlyTrends sales={sales} properties={inventory} />
               <BrokerPerformanceGrid 
@@ -798,3 +814,4 @@ export default function AppContainer() {
     
 
     
+
