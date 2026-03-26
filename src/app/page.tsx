@@ -142,7 +142,7 @@ export default function AppContainer() {
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const { toast } = useToast();
 
-  const [urls, setUrls] = useState({ inventory: "", leads: "", sales: "", rentals: "" });
+  const [urls, setUrls] = useState({ inventory: "", leads: "", sales: "", rentals: "", logo: "" });
   const [manualBrokers, setManualBrokers] = useState<string[]>([]);
   const [targets, setTargets] = useState<{
     [key: string]: {
@@ -174,7 +174,8 @@ export default function AppContainer() {
       inventory: localStorage.getItem('sheet_url_inventory') || "",
       leads: localStorage.getItem('sheet_url_leads') || "",
       sales: localStorage.getItem('sheet_url_sales') || "",
-      rentals: localStorage.getItem('sheet_url_rentals') || ""
+      rentals: localStorage.getItem('sheet_url_rentals') || "",
+      logo: localStorage.getItem('sheet_url_logo') || ""
     };
     setUrls(savedUrls);
     const savedManualBrokers = localStorage.getItem('manual_brokers');
@@ -202,12 +203,13 @@ export default function AppContainer() {
     setMounted(true);
   },[])
 
-  const handleUrlsChange = (newUrls: { inventory: string; leads: string; sales: string; rentals: string; }) => {
+  const handleUrlsChange = (newUrls: { inventory: string; leads: string; sales: string; rentals: string; logo: string; }) => {
     setUrls(newUrls);
     localStorage.setItem('sheet_url_inventory', newUrls.inventory);
     localStorage.setItem('sheet_url_leads', newUrls.leads);
     localStorage.setItem('sheet_url_sales', newUrls.sales);
     localStorage.setItem('sheet_url_rentals', newUrls.rentals);
+    localStorage.setItem('sheet_url_logo', newUrls.logo);
     // Trigger a sync after saving new URLs
     handleSync(false);
   };
@@ -571,7 +573,8 @@ export default function AppContainer() {
       totalValue: inventory.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0),
       lastSaleDisplay: daysSinceLastSale !== null ? `${Math.max(0, daysSinceLastSale)} Dias` : "-",
       totalLeads: leads.length,
-      totalSales: filteredSales.length,
+      totalSales: filteredSales.filter(s => normalize(s.tipo) === 'venda').length,
+      totalRentals: filteredSales.filter(s => normalize(s.tipo) !== 'venda').length,
       totalProperties: filteredProperties.length,
       avgTicket,
       avgTicketRent,
@@ -629,12 +632,18 @@ export default function AppContainer() {
       <header className="sticky top-0 z-40 w-full border-b bg-white/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <TrendingUp className="text-white h-5 w-5" />
-            </div>
-            <h1 className="text-xl font-bold tracking-tight text-primary">
-              ImmoSales <span className="text-accent">Insight</span>
-            </h1>
+            {urls.logo ? (
+              <img src={urls.logo} alt="Logo" className="h-9 w-auto" />
+            ) : (
+              <>
+                <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                  <TrendingUp className="text-white h-5 w-5" />
+                </div>
+                <h1 className="text-xl font-bold tracking-tight text-primary">
+                  ImmoSales <span className="text-accent">Insight</span>
+                </h1>
+              </>
+            )}
           </div>
           
           <div className="flex items-center gap-3">

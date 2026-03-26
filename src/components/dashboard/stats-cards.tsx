@@ -26,6 +26,7 @@ interface StatsCardsProps {
     lastSaleDisplay: string;
     totalLeads: number;
     totalSales: number;
+    totalRentals: number;
     totalProperties: number;
     avgTicket: number;
     avgTicketRent: number;
@@ -122,11 +123,13 @@ export function StatsCards({ metrics }: StatsCardsProps) {
     },
     {
       title: "Negócios Fechados",
-      value: String(metrics.totalDeals),
-      description: "Vendas e locações no período",
       icon: Handshake,
       color: "text-purple-600",
-      group: "Performance"
+      group: "Performance",
+      values: [
+        { label: "Vendas", value: String(metrics.totalSales) },
+        { label: "Locações", value: String(metrics.totalRentals) },
+      ]
     },
     {
       title: "Valor Fechado (VGV/VGL)",
