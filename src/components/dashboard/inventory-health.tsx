@@ -160,7 +160,16 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
     });
 
     return performance
-      .filter(broker => broker.salesGoal > 0 || broker.rentalsGoal > 0 || broker.capturesSaleGoal > 0 || broker.capturesRentGoal > 0)
+      .filter(broker => 
+        broker.salesGoal > 0 || 
+        broker.rentalsGoal > 0 || 
+        broker.capturesSaleGoal > 0 || 
+        broker.capturesRentGoal > 0 ||
+        broker.salesCount > 0 ||
+        broker.rentalsCount > 0 ||
+        broker.capturesSaleCount > 0 ||
+        broker.capturesRentCount > 0
+      )
       .sort((a,b) => a.name.localeCompare(b.name));
 
   }, [brokers, sales, properties, targets, emptyTarget, normalize, selectedMonths, selectedYears]);
@@ -317,42 +326,34 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
                     </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3 text-xs">
-                    {broker.capturesSaleGoal > 0 && (
-                        <div>
-                        <div className="flex justify-between items-center text-muted-foreground">
-                            <span>Angariações (Venda)</span>
-                            <span className="font-bold text-foreground">{broker.capturesSaleCount}/{broker.capturesSaleGoal}</span>
-                        </div>
-                        <Progress value={capturesSaleProgress} className="h-1.5 mt-1 [&>div]:bg-accent" />
-                        </div>
-                    )}
-                     {broker.capturesRentGoal > 0 && (
-                        <div>
-                        <div className="flex justify-between items-center text-muted-foreground">
-                            <span>Angariações (Locação)</span>
-                            <span className="font-bold text-foreground">{broker.capturesRentCount}/{broker.capturesRentGoal}</span>
-                        </div>
-                        <Progress value={capturesRentProgress} className="h-1.5 mt-1 [&>div]:bg-cyan-500" />
-                        </div>
-                    )}
-                    {broker.salesGoal > 0 && (
-                        <div>
-                        <div className="flex justify-between items-center text-muted-foreground">
-                            <span>Vendas</span>
-                            <span className="font-bold text-foreground">{broker.salesCount}/{broker.salesGoal}</span>
-                        </div>
-                        <Progress value={salesProgress} className="h-1.5 mt-1 [&>div]:bg-primary" />
-                        </div>
-                    )}
-                    {broker.rentalsGoal > 0 && (
-                        <div>
-                        <div className="flex justify-between items-center text-muted-foreground">
-                            <span>Locações</span>
-                            <span className="font-bold text-foreground">{broker.rentalsCount}/{broker.rentalsGoal}</span>
-                        </div>
-                        <Progress value={rentalsProgress} className="h-1.5 mt-1 [&>div]:bg-emerald-600" />
-                        </div>
-                    )}
+                    <div>
+                      <div className="flex justify-between items-center text-muted-foreground">
+                        <span>Angariações (Venda)</span>
+                        <span className="font-bold text-foreground">{broker.capturesSaleCount}/{broker.capturesSaleGoal}</span>
+                      </div>
+                      <Progress value={capturesSaleProgress} className="h-1.5 mt-1 [&>div]:bg-accent" />
+                    </div>
+                    <div>
+                      <div className="flex justify-between items-center text-muted-foreground">
+                        <span>Angariações (Locação)</span>
+                        <span className="font-bold text-foreground">{broker.capturesRentCount}/{broker.capturesRentGoal}</span>
+                      </div>
+                      <Progress value={capturesRentProgress} className="h-1.5 mt-1 [&>div]:bg-cyan-500" />
+                    </div>
+                    <div>
+                      <div className="flex justify-between items-center text-muted-foreground">
+                        <span>Vendas</span>
+                        <span className="font-bold text-foreground">{broker.salesCount}/{broker.salesGoal}</span>
+                      </div>
+                      <Progress value={salesProgress} className="h-1.5 mt-1 [&>div]:bg-primary" />
+                    </div>
+                    <div>
+                      <div className="flex justify-between items-center text-muted-foreground">
+                        <span>Locações</span>
+                        <span className="font-bold text-foreground">{broker.rentalsCount}/{broker.rentalsGoal}</span>
+                      </div>
+                      <Progress value={rentalsProgress} className="h-1.5 mt-1 [&>div]:bg-emerald-600" />
+                    </div>
                     </CardContent>
                 </Card>
                 );
@@ -370,3 +371,5 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
     </div>
   );
 }
+
+    
