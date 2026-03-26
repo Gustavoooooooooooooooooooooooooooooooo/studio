@@ -358,6 +358,30 @@ export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears
     });
   }, [allChannels, processedData, channelCosts, selectedYears, selectedMonths, now, getMappedChannel]);
 
+  const costTotals = useMemo(() => {
+    const dataToTotal = costData.filter(row => allowedCostChannels.includes(row.channel));
+
+    const totalInvestment = dataToTotal.reduce((acc, row) => acc + row.cost, 0);
+    const totalLeads = dataToTotal.reduce((acc, row) => acc + row.totalLeads, 0);
+    
+    const totalDeals = dataToTotal.reduce((acc, row) => {
+        const channelData = processedData[row.channel];
+        if (channelData) {
+            return acc + channelData.totalSales + channelData.totalRentals;
+        }
+        return acc;
+    }, 0);
+
+    const avgCostPerDeal = totalDeals > 0 ? totalInvestment / totalDeals : 0;
+    const avgCplTotal = totalLeads > 0 ? totalInvestment / totalLeads : 0;
+
+    return {
+        totalInvestment,
+        totalLeads,
+        avgCostPerDeal,
+        avgCplTotal,
+    };
+  }, [costData, allowedCostChannels, processedData]);
 
   const { rows, monthlyTotals, grandTotalVenda, grandTotalLocacao } = matrixData;
 
@@ -691,6 +715,15 @@ export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears
                             </TableRow>
                         ))}
                         </TableBody>
+                        <TableFooter className="bg-primary/5 border-t-2 border-primary/10">
+                            <TableRow className="font-bold">
+                                <TableCell className="sticky left-0 bg-primary/5 z-10 border-r text-primary">Total</TableCell>
+                                <TableCell className="text-center text-sm text-primary">{formatCurrency(costTotals.totalInvestment)}</TableCell>
+                                <TableCell className="text-center text-sm text-primary">{costTotals.totalLeads}</TableCell>
+                                <TableCell className="text-center text-sm bg-emerald-50/60 text-emerald-800">{formatCurrency(costTotals.avgCostPerDeal)}</TableCell>
+                                <TableCell className="text-center text-sm bg-gray-100">{formatCurrency(costTotals.avgCplTotal)}</TableCell>
+                            </TableRow>
+                        </TableFooter>
                     </Table>
                   </div>
                   <ScrollBar orientation="horizontal" />
