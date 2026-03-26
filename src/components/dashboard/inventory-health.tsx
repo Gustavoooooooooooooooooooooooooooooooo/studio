@@ -1,3 +1,4 @@
+
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,9 +24,11 @@ interface PerformanceGoalsProps {
   };
   onTargetsChange: (newTargets: PerformanceGoalsProps['targets']) => void;
   brokers: string[];
+  selectedMonths: string[];
+  selectedYears: string[];
 }
 
-export function InventoryHealth({ properties, sales, targets, onTargetsChange, brokers }: PerformanceGoalsProps) {
+export function InventoryHealth({ properties, sales, targets, onTargetsChange, brokers, selectedMonths, selectedYears }: PerformanceGoalsProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   
   const emptyTarget = useMemo(() => ({
@@ -53,8 +56,67 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
 
   const normalize = useCallback((s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim(), []);
 
+  const parseDate = (d: any): Date | null => {
+    if (!d) return null;
+    if (d instanceof Date) {
+        if (isNaN(d.getTime())) return null;
+        return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    }
+
+    const strVal = String(d).trim();
+    if (!strVal || ["n/a", "undefined", "null", ""].includes(strVal.toLowerCase())) return null;
+
+    const dmyMatch = strVal.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})/);
+    if (dmyMatch) {
+      const day = parseInt(dmyMatch[1], 10);
+      const month = parseInt(dmyMatch[2], 10) - 1;
+      let year = parseInt(dmyMatch[3], 10);
+      if (year < 100) year += 2000;
+      if (day > 0 && day <= 31 && month >= 0 && month < 12) {
+        const date = new Date(Date.UTC(year, month, day));
+        if (!isNaN(date.getTime())) return date;
+      }
+    }
+
+    const isoMatch = strVal.match(/^(\d{4})[.\/-](\d{2})[.\/-](\d{2})/);
+    if (isoMatch) {
+        const year = parseInt(isoMatch[1], 10);
+        const month = parseInt(isoMatch[2], 10) - 1;
+        const day = parseInt(isoMatch[3], 10);
+        if (day > 0 && day <= 31 && month >= 0 && month < 12) {
+            const date = new Date(Date.UTC(year, month, day));
+            if (!isNaN(date.getTime())) return date;
+        }
+    }
+    
+    if (/^\d{5}$/.test(strVal)) {
+        const num = Number(strVal);
+        if (!isNaN(num) && num > 30000 && num < 70000) {
+            const excelEpoch = Date.UTC(1899, 11, 30);
+            const date = new Date(excelEpoch + num * 86400000);
+            if (!isNaN(date.getTime())) return date;
+        }
+    }
+
+    const nativeDate = new Date(strVal);
+    if (!isNaN(nativeDate.getTime())) {
+        const utcDate = new Date(Date.UTC(nativeDate.getFullYear(), nativeDate.getMonth(), nativeDate.getDate()));
+        if (!isNaN(utcDate.getTime())) return utcDate;
+    }
+
+    return null;
+  };
+
   const brokerPerformance = useMemo(() => {
     if (!brokers || brokers.length === 0) return [];
+
+    const filterByPeriod = (item: any, dateField: string) => {
+        const d = parseDate(item[dateField]);
+        if (!d) return false;
+        const monthMatch = selectedMonths.length === 0 || selectedMonths.includes(String(d.getUTCMonth()));
+        const yearMatch = selectedYears.length === 0 || selectedYears.includes(String(d.getUTCFullYear()));
+        return monthMatch && yearMatch;
+    };
     
     const performance = brokers.map(brokerName => {
         const normBrokerName = normalize(brokerName).split(' ')[0];
@@ -62,18 +124,18 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
         const brokerSales = sales.filter(s => {
             const normVendedor = normalize(s.vendedor || '').split(' ')[0];
             const isSaleType = normalize(s.tipo || '').includes('venda');
-            return normVendedor === normBrokerName && isSaleType;
+            return normVendedor === normBrokerName && isSaleType && filterByPeriod(s, 'saleDate');
         });
         
         const brokerRentals = sales.filter(s => {
             const normVendedor = normalize(s.vendedor || '').split(' ')[0];
             const isRentalType = normalize(s.tipo || '').includes('loca') || normalize(s.tipo || '').includes('aluguel');
-            return normVendedor === normBrokerName && isRentalType;
+            return normVendedor === normBrokerName && isRentalType && filterByPeriod(s, 'saleDate');
         });
 
         const brokerCaptures = properties.filter(p => {
              const normBroker = normalize(p.brokerId || '').split(' ')[0];
-             return normBroker === normBrokerName;
+             return normBroker === normBrokerName && filterByPeriod(p, 'captureDate');
         });
 
         const brokerTargets = targets[brokerName] || emptyTarget;
@@ -93,7 +155,7 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
       .filter(broker => broker.salesGoal > 0 || broker.rentalsGoal > 0 || broker.capturesGoal > 0)
       .sort((a,b) => a.name.localeCompare(b.name));
 
-  }, [brokers, sales, properties, targets, emptyTarget, normalize]);
+  }, [brokers, sales, properties, targets, emptyTarget, normalize, selectedMonths, selectedYears]);
 
   const handleInputChange = (brokerKey: string, category: 'captures' | 'sales' | 'rentals', period: 'annual' | 'semiannual' | 'quarterly', value: string) => {
     const numericValue = Number(value) || 0;

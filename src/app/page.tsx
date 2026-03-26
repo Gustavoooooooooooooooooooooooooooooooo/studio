@@ -760,6 +760,8 @@ export default function AppContainer() {
                   targets={targets}
                   onTargetsChange={handleTargetsChange}
                   brokers={allBrokers}
+                  selectedMonths={selectedMonths}
+                  selectedYears={selectedYears}
                 />
             </div>
             <div className="space-y-6">
