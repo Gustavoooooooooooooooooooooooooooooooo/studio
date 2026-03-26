@@ -1,4 +1,3 @@
-
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -329,7 +328,7 @@ export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears
               if (costConfig) {
                 years.forEach(year => {
                     months.forEach(month => {
-                        if (year < now.getFullYear() || (year === now.getFullYear() && month <= now.getMonth())) {
+                        if (year < now.getFullYear() || (year === now.getFullYear() && month < now.getMonth())) {
                             if (costConfig.type === 'fixed') {
                                 investmentForPeriod += Number(costConfig.value) || 0;
                             } else if (costConfig.type === 'monthly' && Array.isArray(costConfig.value)) {
