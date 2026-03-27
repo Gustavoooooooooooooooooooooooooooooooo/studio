@@ -6,7 +6,6 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { ChannelPerformance } from "@/components/dashboard/channel-performance";
 import { MonthlyTrends } from "@/components/dashboard/monthly-trends";
-import { SalesMatrix } from "@/components/dashboard/sales-matrix";
 import { BrokerPerformanceGrid } from "@/components/dashboard/broker-performance-grid";
 import { InventoryHealth } from "@/components/dashboard/inventory-health";
 import { BrokerSettings } from "@/components/dashboard/broker-settings";
@@ -20,7 +19,7 @@ import {
 } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { LayoutDashboard, TrendingUp, Table2, Settings, Calendar as CalendarIcon, Loader2, AlertTriangle, RefreshCcw, Trophy } from "lucide-react";
+import { TrendingUp, Settings, Calendar as CalendarIcon, Loader2, AlertTriangle, RefreshCcw, Trophy } from "lucide-react";
 import { useFirebase, initiateAnonymousSignIn } from "@/firebase";
 import { syncGoogleSheets } from "@/ai/flows/sync-sheets-flow";
 import { useToast } from "@/hooks/use-toast";
