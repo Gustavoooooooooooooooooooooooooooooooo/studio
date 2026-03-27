@@ -1,4 +1,5 @@
 'use server';
+
 /**
  * @fileOverview This file implements a Genkit flow for generating AI-powered summaries of sales performance.
  *
