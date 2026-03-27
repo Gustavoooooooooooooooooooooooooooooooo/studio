@@ -323,13 +323,11 @@ export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears
     const totalInvestment = dataToTotal.reduce((acc, row) => acc + row.cost, 0);
     const totalLeads = dataToTotal.reduce((acc, row) => acc + row.totalLeads, 0);
     
-    const totalDeals = dataToTotal.reduce((acc, row) => {
-        const channelData = processedData[row.channel];
-        if (channelData) {
-            return acc + channelData.totalSales + channelData.totalRentals;
-        }
-        return acc;
-    }, 0);
+    const totalDeals = sales.filter(s => {
+      const channel = getMappedChannel(s.origem || '');
+      const date = parseDate(s.saleDate);
+      return allowedCostChannels.includes(channel) && filterByPeriod(date);
+    }).length;
 
     const avgCostPerDeal = totalDeals > 0 ? totalInvestment / totalDeals : 0;
     const avgCplTotal = totalLeads > 0 ? totalInvestment / totalLeads : 0;
@@ -340,7 +338,7 @@ export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears
         avgCostPerDeal,
         avgCplTotal,
     };
-  }, [costData, allowedCostChannels, processedData]);
+  }, [costData, allowedCostChannels, sales, getMappedChannel, filterByPeriod]);
 
   const { rows, monthlyTotals, grandTotalVenda, grandTotalLocacao } = matrixData;
 
