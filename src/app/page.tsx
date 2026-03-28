@@ -388,7 +388,7 @@ export default function AppContainer() {
     if (!auth || !user || (!urls.inventory && !urls.leads && !urls.sales && !urls.rentals)) return;
 
     handleSync(true); // Initial sync
-    const intervalId = setInterval(() => handleSync(true), 60000); // Sync every 60 seconds
+    const intervalId = setInterval(() => handleSync(true), 300000); // Sync every 5 minutes
     
     return () => clearInterval(intervalId);
   }, [urls, handleSync, auth, user]);
