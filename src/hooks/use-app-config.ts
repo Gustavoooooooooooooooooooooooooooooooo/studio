@@ -16,7 +16,7 @@ export type AppUrls = {
 };
 
 export function useAppConfig() {
-  const { firestore, areServicesAvailable } = useFirebase();
+  const { firestore, areServicesAvailable, initError } = useFirebase();
 
   const [urls, setUrls] = useState<AppUrls>({
     inventory: '', leads: '', sales: '', rentals: '', logo: ''
@@ -105,7 +105,7 @@ export function useAppConfig() {
     }
   };
 
-  return { urls, brokers, loading, saveUrls, addBroker, deleteBroker, areServicesAvailable };
+  return { urls, brokers, loading, saveUrls, addBroker, deleteBroker, areServicesAvailable, initError };
 }
 
     

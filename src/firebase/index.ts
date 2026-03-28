@@ -2,37 +2,53 @@
 'use client';
 
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getAuth, signInAnonymously } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getAuth, signInAnonymously, Auth } from 'firebase/auth';
+import { getFirestore, Firestore } from 'firebase/firestore';
 
-export async function initializeFirebase() {
+// Define a type for the successful return
+type FirebaseServices = {
+  firebaseApp: FirebaseApp;
+  auth: Auth;
+  firestore: Firestore;
+};
+
+// Define a type for the return value of initializeFirebase
+type InitResult = {
+  services: FirebaseServices | null;
+  error: string | null;
+};
+
+
+export async function initializeFirebase(): Promise<InitResult> {
   try {
     const response = await fetch('/api/config');
     if (!response.ok) {
       const errorData = await response.json();
-      console.error("Failed to fetch Firebase config:", response.status, errorData.error);
-      return null;
+      const errorMessage = errorData.error || "Falha ao buscar a configuração do servidor.";
+      console.error("Failed to fetch Firebase config:", response.status, errorMessage);
+      return { services: null, error: errorMessage };
     }
     
     const firebaseConfig = await response.json();
     
     if (!firebaseConfig.apiKey) {
-      console.error("Incomplete Firebase config received from API. Check server logs.");
-      return null;
+      const errorMessage = "Configuração do Firebase incompleta recebida da API. Verifique os logs do servidor.";
+      console.error(errorMessage);
+      return { services: null, error: errorMessage };
     }
 
-    if (!getApps().length) {
-      const firebaseApp = initializeApp(firebaseConfig);
-      return getSdks(firebaseApp);
-    }
-    return getSdks(getApp());
+    const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+    const services = getSdks(app);
+    return { services, error: null };
+
   } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido durante a inicialização.";
       console.error("Error during Firebase initialization:", error);
-      return null;
+      return { services: null, error: errorMessage };
   }
 }
 
-export function getSdks(firebaseApp: FirebaseApp) {
+export function getSdks(firebaseApp: FirebaseApp): FirebaseServices {
   return {
     firebaseApp,
     auth: getAuth(firebaseApp),

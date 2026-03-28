@@ -11,6 +11,7 @@ interface FirebaseProviderProps {
   firebaseApp: FirebaseApp | null;
   firestore: Firestore | null;
   auth: Auth | null;
+  initError: string | null;
 }
 
 // Internal state for user authentication
@@ -30,6 +31,7 @@ export interface FirebaseContextState {
   user: User | null;
   isUserLoading: boolean; // True during initial auth check
   userError: Error | null; // Error from auth listener
+  initError: string | null;
 }
 
 // Return type for useFirebase()
@@ -41,6 +43,7 @@ export interface FirebaseServicesAndUser {
   isUserLoading: boolean;
   userError: Error | null;
   areServicesAvailable: boolean;
+  initError: string | null;
 }
 
 // Return type for useUser() - specific to user auth state
@@ -61,6 +64,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   firebaseApp,
   firestore,
   auth,
+  initError,
 }) => {
   const [userAuthState, setUserAuthState] = useState<UserAuthState>({
     user: null,
@@ -101,8 +105,9 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       user: userAuthState.user,
       isUserLoading: userAuthState.isUserLoading,
       userError: userAuthState.userError,
+      initError: initError,
     };
-  }, [firebaseApp, firestore, auth, userAuthState]);
+  }, [firebaseApp, firestore, auth, userAuthState, initError]);
 
   return (
     <FirebaseContext.Provider value={contextValue}>

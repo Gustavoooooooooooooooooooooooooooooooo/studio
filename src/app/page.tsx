@@ -133,7 +133,7 @@ function Dashboard() {
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const { toast } = useToast();
 
-  const { urls, brokers: allBrokers, loading: configLoading, saveUrls, addBroker, deleteBroker, areServicesAvailable } = useAppConfig();
+  const { urls, brokers: allBrokers, loading: configLoading, saveUrls, addBroker, deleteBroker, areServicesAvailable, initError } = useAppConfig();
 
   const [targets, setTargets] = useState<{
     [key: string]: {
@@ -195,18 +195,18 @@ function Dashboard() {
 
   const handleUrlsChange = useCallback(async (newUrls: AppUrls) => {
     if (!areServicesAvailable) {
-        toast({ variant: 'destructive', title: 'Erro de Conexão', description: 'A conexão com o banco de dados não foi estabelecida.' });
+        toast({ variant: 'destructive', title: 'Erro de Conexão', description: initError || 'A conexão com o banco de dados não foi estabelecida.' });
         return;
     }
     await saveUrls(newUrls);
     toast({ title: 'Configurações Salvas', description: 'Os links das planilhas foram atualizados.' });
     handleSync(false, newUrls);
-  }, [saveUrls, toast, areServicesAvailable]);
+  }, [saveUrls, toast, areServicesAvailable, handleSync, initError]);
 
   const handleAddBroker = useCallback(async (brokerName: string) => {
     if (!brokerName.trim()) return;
     if (!areServicesAvailable) {
-        toast({ variant: 'destructive', title: 'Erro de Conexão', description: 'A conexão com o banco de dados não foi estabelecida.' });
+        toast({ variant: 'destructive', title: 'Erro de Conexão', description: initError || 'A conexão com o banco de dados não foi estabelecida.' });
         return;
     }
     const result = await addBroker(brokerName.trim());
@@ -217,16 +217,16 @@ function Dashboard() {
     } else {
       toast({ title: 'Corretor Adicionado', description: `"${brokerName}" foi adicionado à lista.` });
     }
-  }, [addBroker, toast, areServicesAvailable]);
+  }, [addBroker, toast, areServicesAvailable, initError]);
 
   const handleDeleteBroker = useCallback(async (name: string) => {
     if (!areServicesAvailable) {
-        toast({ variant: 'destructive', title: 'Erro de Conexão', description: 'A conexão com o banco de dados não foi estabelecida.' });
+        toast({ variant: 'destructive', title: 'Erro de Conexão', description: initError || 'A conexão com o banco de dados não foi estabelecida.' });
         return;
     }
     await deleteBroker(name);
     toast({ title: 'Corretor Removido', description: `"${name}" foi removido da lista.` });
-  }, [deleteBroker, toast, areServicesAvailable]);
+  }, [deleteBroker, toast, areServicesAvailable, initError]);
 
   const handleTargetsChange = useCallback((newTargets: typeof targets) => {
     setTargets(newTargets);
