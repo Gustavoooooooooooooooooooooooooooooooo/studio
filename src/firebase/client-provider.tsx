@@ -21,14 +21,12 @@ export function FirebaseClientProvider({ children }: FirebaseClientProviderProps
   const [firebaseServices, setFirebaseServices] = useState<FirebaseServices | null>(null);
 
   useEffect(() => {
-    // This effect runs only on the client, after the initial render.
-    // This is the key to preventing Firebase initialization during the server-side build.
-    setFirebaseServices(initializeFirebase());
-  }, []); // Empty dependency array ensures this runs only once on mount
+    const services = initializeFirebase();
+    if (services) {
+      setFirebaseServices(services);
+    }
+  }, []);
 
-  // Pass services to the provider. They will be null on initial server render
-  // and will be populated on the client after useEffect runs.
-  // The FirebaseProvider is designed to handle this gracefully.
   return (
     <FirebaseProvider
       firebaseApp={firebaseServices?.firebaseApp || null}

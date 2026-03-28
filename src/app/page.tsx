@@ -281,106 +281,124 @@ function Dashboard() {
 
 
   const handleSync = useCallback(async (silent = false) => {
-    if (syncingRef.current || !auth || !user) return;
+    if (syncingRef.current) return; // Prevent multiple syncs
+
+    if (!auth || !user) {
+      if (!silent) {
+        toast({
+          variant: "destructive",
+          title: "Autenticação pendente",
+          description: "Aguarde a conexão com o servidor e tente novamente em alguns segundos.",
+        });
+      }
+      return;
+    }
     
-    syncingRef.current = true;
     setSyncing(true);
+    syncingRef.current = true;
 
-    const processSheet = async (url: string, mode: 'inventory' | 'sales' | 'leads', dealType?: 'Venda' | 'Locação') => {
-      if (!url) return { success: false, data: [] };
-      try {
-        const result = await syncGoogleSheets({ sheetUrl: url });
-        if (!result.success || !result.data) {
-          throw new Error(result.message || "Falha ao ler planilha");
-        }
+    try {
+      const processSheet = async (url: string, mode: 'inventory' | 'sales' | 'leads', dealType?: 'Venda' | 'Locação') => {
+        if (!url) return { success: false, data: [] };
+        try {
+          const result = await syncGoogleSheets({ sheetUrl: url });
+          if (!result.success || !result.data) {
+            throw new Error(result.message || "Falha ao ler planilha");
+          }
 
-        const processedData = result.data.map((row, idx) => {
-          if (mode === 'inventory') {
-            const propertyCode = getVal(row, ["codigo", "unidade", "referencia", "id_imovel"]) || `REF-${idx + 1}`;
-            return {
-              id: propertyCode,
-              propertyCode,
-              neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
-              saleValue: parseCurrency(getVal(row, ["valor venda", "venda"])),
-              rentalValue: parseCurrency(getVal(row, ["valor locacao", "aluguel", "locacao", "valor aluguel"])),
-              brokerId: String(getVal(row, ["angariador", "corretor", "captador"]) || "N/A"),
-              captureDate: formatDateDisplay(getVal(row, ["data entrada", "entrada", "cadastro", "carimbo"])),
-              status: String(getVal(row, ["status", "situacao"]) || "Disponível"),
-            };
-          } else if (mode === 'sales') {
-            const propertyCode = getVal(row, ["codigo", "unidade", "referencia", "id_imovel"]) || `REF-${idx + 1}`;
-            
-            if (dealType === 'Locação') {
-              return { // Mapping specific for RENTALS
-                id: `${propertyCode}-${idx}`,
-                vendedor: String(getVal(row, ["vendedor", "corretor", "responsavel", "atendente"]) || "N/A"),
-                angariador: String(getVal(row, ["angariador", "captador"]) || "N/A"),
+          const processedData = result.data.map((row, idx) => {
+            if (mode === 'inventory') {
+              const propertyCode = getVal(row, ["codigo", "unidade", "referencia", "id_imovel"]) || `REF-${idx + 1}`;
+              return {
+                id: propertyCode,
                 propertyCode,
                 neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
-                clientName: String(getVal(row, ["locatario", "inquilino", "cliente"]) || "N/A"),
-                advertisedValue: parseCurrency(getVal(row, ["valor do aluguel", "valor locacao", "aluguel", "anuncio", "valor do anuncio", "valor anuncio", "valor do anúncio"])),
-                closedValue: parseCurrency(getVal(row, ["valor aluguel fechado", "valor final locacao", "valor fechado", "negocio fechado", "negócio fechado"])),
-                commission: parseCurrency(getVal(row, ["comissao", "comissão"])),
-                saleDate: formatDateDisplay(getVal(row, ["data locacao", "data do contrato", "fechamento", "negocio fechado", "negócio fechado"], ["vendedor"])),
-                propertyCaptureDate: formatDateDisplay(getVal(row, ["entrada do imovel", "data entrada", "cadastro", "carimbo"])),
-                origem: String(getVal(row, ["origem", "origem do lead?"]) || "N/A"),
-                tipo: 'Locação',
-                status: 'Alugado',
+                saleValue: parseCurrency(getVal(row, ["valor venda", "venda"])),
+                rentalValue: parseCurrency(getVal(row, ["valor locacao", "aluguel", "locacao", "valor aluguel"])),
+                brokerId: String(getVal(row, ["angariador", "corretor", "captador"]) || "N/A"),
+                captureDate: formatDateDisplay(getVal(row, ["data entrada", "entrada", "cadastro", "carimbo"])),
+                status: String(getVal(row, ["status", "situacao"]) || "Disponível"),
               };
-            } else { // Default to Venda
-              return { // Mapping specific for SALES
-                id: `${propertyCode}-${idx}`,
-                vendedor: String(getVal(row, ["vendedor", "corretor", "responsavel"]) || "N/A"),
-                angariador: String(getVal(row, ["angariador", "captador"]) || "N/A"),
-                propertyCode,
-                neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
-                clientName: String(getVal(row, ["cliente", "comprador"]) || "N/A"),
-                advertisedValue: parseCurrency(getVal(row, ["valor do anuncio", "valor anuncio", "anuncio", "qual valor anunciado?"])),
-                closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda", "qual valor final de venda?", "negocio fechado", "negócio fechado"])),
-                commission: parseCurrency(getVal(row, ["comissao", "comissão"])),
-                saleDate: formatDateDisplay(getVal(row, ["data do venda", "data venda", "fechamento", "venda"], ["vendedor", "corretor"])),
-                propertyCaptureDate: formatDateDisplay(getVal(row, ["entrada do imovel", "data entrada", "cadastro", "carimbo"])),
-                origem: String(getVal(row, ["origem do lead?"]) || "N/A"),
-                tipo: 'Venda',
-                status: 'Vendido',
+            } else if (mode === 'sales') {
+              const propertyCode = getVal(row, ["codigo", "unidade", "referencia", "id_imovel"]) || `REF-${idx + 1}`;
+              
+              if (dealType === 'Locação') {
+                return { // Mapping specific for RENTALS
+                  id: `${propertyCode}-${idx}`,
+                  vendedor: String(getVal(row, ["vendedor", "corretor", "responsavel", "atendente"]) || "N/A"),
+                  angariador: String(getVal(row, ["angariador", "captador"]) || "N/A"),
+                  propertyCode,
+                  neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
+                  clientName: String(getVal(row, ["locatario", "inquilino", "cliente"]) || "N/A"),
+                  advertisedValue: parseCurrency(getVal(row, ["valor do aluguel", "valor locacao", "aluguel", "anuncio", "valor do anuncio", "valor anuncio", "valor do anúncio"])),
+                  closedValue: parseCurrency(getVal(row, ["valor aluguel fechado", "valor final locacao", "valor fechado", "negocio fechado", "negócio fechado"])),
+                  commission: parseCurrency(getVal(row, ["comissao", "comissão"])),
+                  saleDate: formatDateDisplay(getVal(row, ["data locacao", "data do contrato", "fechamento", "negocio fechado", "negócio fechado"], ["vendedor"])),
+                  propertyCaptureDate: formatDateDisplay(getVal(row, ["entrada do imovel", "data entrada", "cadastro", "carimbo"])),
+                  origem: String(getVal(row, ["origem", "origem do lead?"]) || "N/A"),
+                  tipo: 'Locação',
+                  status: 'Alugado',
+                };
+              } else { // Default to Venda
+                return { // Mapping specific for SALES
+                  id: `${propertyCode}-${idx}`,
+                  vendedor: String(getVal(row, ["vendedor", "corretor", "responsavel"]) || "N/A"),
+                  angariador: String(getVal(row, ["angariador", "captador"]) || "N/A"),
+                  propertyCode,
+                  neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
+                  clientName: String(getVal(row, ["cliente", "comprador"]) || "N/A"),
+                  advertisedValue: parseCurrency(getVal(row, ["valor do anuncio", "valor anuncio", "anuncio", "qual valor anunciado?"])),
+                  closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda", "qual valor final de venda?", "negocio fechado", "negócio fechado"])),
+                  commission: parseCurrency(getVal(row, ["comissao", "comissão"])),
+                  saleDate: formatDateDisplay(getVal(row, ["data do venda", "data venda", "fechamento", "venda"], ["vendedor", "corretor"])),
+                  propertyCaptureDate: formatDateDisplay(getVal(row, ["entrada do imovel", "data entrada", "cadastro", "carimbo"])),
+                  origem: String(getVal(row, ["origem do lead?"]) || "N/A"),
+                  tipo: 'Venda',
+                  status: 'Vendido',
+                };
+              }
+            } else { // leads
+              const rowValues = Object.values(row).map((v) => String(v || "").trim()).join("|");
+              const leadIdSeed = rowValues.substring(0, 100).replace(/[\/\.\#\$\/\[\] ]/g, "-");
+              return {
+                id: `lead-${leadIdSeed}-${idx}`,
+                ...row
               };
             }
-          } else { // leads
-            const rowValues = Object.values(row).map((v) => String(v || "").trim()).join("|");
-            const leadIdSeed = rowValues.substring(0, 100).replace(/[\/\.\#\$\/\[\] ]/g, "-");
-            return {
-              id: `lead-${leadIdSeed}-${idx}`,
-              ...row
-            };
-          }
-        });
-        return { success: true, data: processedData, count: processedData.length };
-      } catch (error: any) {
-        if (!silent) toast({ variant: "destructive", title: `Erro na Planilha (${mode})`, description: error.message });
-        return { success: false, data: [] };
+          });
+          return { success: true, data: processedData, count: processedData.length };
+        } catch (error: any) {
+          if (!silent) toast({ variant: "destructive", title: `Erro na Planilha (${mode})`, description: error.message });
+          return { success: false, data: [] };
+        }
+      };
+      
+      const [inventoryResult, leadsResult, salesResult, rentalsResult] = await Promise.all([
+        processSheet(urls.inventory, 'inventory'),
+        processSheet(urls.leads, 'leads'),
+        processSheet(urls.sales, 'sales', 'Venda'),
+        processSheet(urls.rentals, 'sales', 'Locação')
+      ]);
+
+      if (inventoryResult.success) setInventory(inventoryResult.data);
+      if (leadsResult.success) setLeads(leadsResult.data);
+      
+      const combinedSales = [];
+      if (salesResult.success) combinedSales.push(...salesResult.data);
+      if (rentalsResult.success) combinedSales.push(...rentalsResult.data);
+      setSales(combinedSales);
+
+      if (!silent) {
+        toast({ title: "Sincronização Concluída", description: `Dados das planilhas foram atualizados.` });
       }
-    };
-    
-    const [inventoryResult, leadsResult, salesResult, rentalsResult] = await Promise.all([
-      processSheet(urls.inventory, 'inventory'),
-      processSheet(urls.leads, 'leads'),
-      processSheet(urls.sales, 'sales', 'Venda'),
-      processSheet(urls.rentals, 'sales', 'Locação')
-    ]);
-
-    if (inventoryResult.success) setInventory(inventoryResult.data);
-    if (leadsResult.success) setLeads(leadsResult.data);
-    
-    const combinedSales = [];
-    if (salesResult.success) combinedSales.push(...salesResult.data);
-    if (rentalsResult.success) combinedSales.push(...rentalsResult.data);
-    setSales(combinedSales);
-
-
-    syncingRef.current = false;
-    setSyncing(false);
-    if (!silent) {
-      toast({ title: "Sincronização Concluída", description: `Dados das planilhas foram atualizados.` });
+    } catch (e) {
+        console.error("Sincronização falhou", e);
+        if(!silent) {
+            toast({ variant: "destructive", title: `Erro inesperado na sincronização`, description: e instanceof Error ? e.message : 'Verifique o console para mais detalhes.' });
+        }
+    } finally {
+        setSyncing(false);
+        syncingRef.current = false;
     }
   }, [urls, toast, auth, user]);
 

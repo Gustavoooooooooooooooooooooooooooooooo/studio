@@ -2,19 +2,18 @@
 
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore'
+import { getAuth, signInAnonymously } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
 
-// IMPORTANT: DO NOT MODIFY THIS FUNCTION
 export function initializeFirebase() {
+  if (!firebaseConfig.apiKey) {
+    console.warn('Firebase config is missing. Check your environment variables.');
+    return null as any;
+  }
   if (!getApps().length) {
-    // Initialize with the config object.
-    // For Vercel, environment variables must be set in the Vercel project settings.
     const firebaseApp = initializeApp(firebaseConfig);
     return getSdks(firebaseApp);
   }
-
-  // If already initialized, return the SDKs with the already initialized App
   return getSdks(getApp());
 }
 
@@ -22,8 +21,16 @@ export function getSdks(firebaseApp: FirebaseApp) {
   return {
     firebaseApp,
     auth: getAuth(firebaseApp),
-    firestore: getFirestore(firebaseApp)
+    firestore: getFirestore(firebaseApp),
   };
+}
+
+export async function initiateAnonymousSignIn(auth: ReturnType<typeof getAuth>) {
+  try {
+    await signInAnonymously(auth);
+  } catch (error) {
+    console.error('Anonymous sign-in failed:', error);
+  }
 }
 
 export * from './provider';
