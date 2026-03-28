@@ -70,7 +70,6 @@ const toDate = (val: any): Date | null => {
   
   const d = new Date(val);
   if (isNaN(d.getTime())) return null;
-  // Ensure it's a UTC date by re-creating it
   return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
 };
 
@@ -82,7 +81,6 @@ const getVal = (row: any, searchKeys: string[], excludeKeys: string[] = []) => {
     const normalizedSearch = searchKeys.map(normalize);
     const normalizedExclude = excludeKeys.map(normalize);
 
-    // Prioritize exact matches first for critical fields like 'origem do lead?'
     if (searchKeys.some(k => k === "origem do lead?")) {
         const exactMatchKey = rowKeys.find(rk => rk.trim() === "origem do lead?");
         if (exactMatchKey) {
@@ -90,7 +88,6 @@ const getVal = (row: any, searchKeys: string[], excludeKeys: string[] = []) => {
         }
     }
 
-    // Prioritize general exact matches
     for (const sKey of normalizedSearch) {
       const match = rowKeys.find(rk => normalize(rk) === sKey);
       if (match) {
@@ -102,7 +99,6 @@ const getVal = (row: any, searchKeys: string[], excludeKeys: string[] = []) => {
       }
     }
 
-    // Fallback to includes for flexibility
     for (const sKey of normalizedSearch) {
       const match = rowKeys.find(rk => {
         const nrk = normalize(rk);
@@ -187,13 +183,11 @@ function Dashboard() {
     if (savedTargets) {
       try {
         const parsed = JSON.parse(savedTargets);
-        if (parsed.global && (parsed.global.capturesSale !== undefined || parsed.global.captures !== undefined)) { // Validates old and new structures
-          // Simple migration from old 'captures' to new 'capturesSale'/'capturesRent'
+        if (parsed.global && (parsed.global.capturesSale !== undefined || parsed.global.captures !== undefined)) {
           if (parsed.global.captures && parsed.global.capturesSale === undefined) {
             Object.keys(parsed).forEach(key => {
               const oldCaptures = parsed[key].captures;
               if (oldCaptures) {
-                // Heuristic: split 60/40 between sale and rent
                 parsed[key].capturesSale = { 
                   annual: Math.round(oldCaptures.annual * 0.6), 
                   quarterly: Math.round(oldCaptures.quarterly * 0.6), 
@@ -208,7 +202,6 @@ function Dashboard() {
               }
             });
           }
-          // The new validation for setting state needs to check the new structure.
           if(parsed.global.capturesSale){
             setTargets(parsed);
           }
@@ -230,7 +223,6 @@ function Dashboard() {
     localStorage.setItem('sheet_url_sales', newUrls.sales);
     localStorage.setItem('sheet_url_rentals', newUrls.rentals);
     localStorage.setItem('sheet_url_logo', newUrls.logo);
-    // Trigger a sync after saving new URLs
     handleSync(false);
   };
   
@@ -243,8 +235,6 @@ function Dashboard() {
       const brokerExists = prevBrokers.some(b => normalize(b) === normalize(trimmedBrokerName));
   
       if (brokerExists) {
-        // We can't call toast here directly because of React's render cycle rules.
-        // Instead, we can schedule it.
         setTimeout(() => toast({ variant: "destructive", title: "Corretor já existe", description: `"${trimmedBrokerName}" já está na sua lista.` }), 0);
         return prevBrokers;
       }
@@ -273,25 +263,12 @@ function Dashboard() {
     toast({ title: "Metas Atualizadas", description: "As novas metas de performance foram salvas." });
   }, [toast]);
   
-  // The definitive list of brokers is the one managed manually.
   const allBrokers = useMemo(() => {
     return [...manualBrokers].sort();
   }, [manualBrokers]);
 
-
   const handleSync = useCallback(async (silent = false) => {
-    if (syncingRef.current) return; // Prevent multiple syncs
-
-    if (!auth || !user) {
-      if (!silent) {
-        toast({
-          variant: "destructive",
-          title: "Autenticação pendente",
-          description: "Aguarde a conexão com o servidor e tente novamente em alguns segundos.",
-        });
-      }
-      return;
-    }
+    if (syncingRef.current) return;
     
     setSyncing(true);
     syncingRef.current = true;
@@ -322,7 +299,7 @@ function Dashboard() {
               const propertyCode = getVal(row, ["codigo", "unidade", "referencia", "id_imovel"]) || `REF-${idx + 1}`;
               
               if (dealType === 'Locação') {
-                return { // Mapping specific for RENTALS
+                return {
                   id: `${propertyCode}-${idx}`,
                   vendedor: String(getVal(row, ["vendedor", "corretor", "responsavel", "atendente"]) || "N/A"),
                   angariador: String(getVal(row, ["angariador", "captador"]) || "N/A"),
@@ -338,8 +315,8 @@ function Dashboard() {
                   tipo: 'Locação',
                   status: 'Alugado',
                 };
-              } else { // Default to Venda
-                return { // Mapping specific for SALES
+              } else {
+                return {
                   id: `${propertyCode}-${idx}`,
                   vendedor: String(getVal(row, ["vendedor", "corretor", "responsavel"]) || "N/A"),
                   angariador: String(getVal(row, ["angariador", "captador"]) || "N/A"),
@@ -356,7 +333,7 @@ function Dashboard() {
                   status: 'Vendido',
                 };
               }
-            } else { // leads
+            } else {
               const rowValues = Object.values(row).map((v) => String(v || "").trim()).join("|");
               const leadIdSeed = rowValues.substring(0, 100).replace(/[\/\.\#\$\/\[\] ]/g, "-");
               return {
@@ -399,17 +376,16 @@ function Dashboard() {
         setSyncing(false);
         syncingRef.current = false;
     }
-  }, [urls, toast, auth, user]);
+  }, [urls, toast]);
 
-  // Auto-sync effect
   useEffect(() => {
-    if (!auth || !user || (!urls.inventory && !urls.leads && !urls.sales && !urls.rentals)) return;
+    if (!urls.inventory && !urls.leads && !urls.sales && !urls.rentals) return;
 
-    handleSync(true); // Initial sync
-    const intervalId = setInterval(() => handleSync(true), 300000); // Sync every 5 minutes
+    handleSync(true);
+    const intervalId = setInterval(() => handleSync(true), 300000);
     
     return () => clearInterval(intervalId);
-  }, [urls, handleSync, auth, user]);
+  }, [urls, handleSync]);
   
   const processedSales = useMemo(() => sales.map(s => ({
     ...s,
@@ -437,7 +413,6 @@ function Dashboard() {
           dateObj: getLeadDate(l)
       };
   }), [leads]);
-
 
   const metrics = useMemo(() => {
     const normalize = (s: any) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
@@ -476,12 +451,9 @@ function Dashboard() {
     if (salesForFrequencyCalc.length > 0) {
         const yearsToConsider = selectedYears.length > 0 ? selectedYears.map(y => parseInt(y)) : [now.getFullYear()];
         const minYear = Math.min(...yearsToConsider);
-        
         const startOfPeriod = new Date(Date.UTC(minYear, 0, 1));
         const endOfPeriod = now;
-        
         const totalDays = Math.ceil((endOfPeriod.getTime() - startOfPeriod.getTime()) / (1000 * 60 * 60 * 24));
-        
         if (totalDays > 0) {
             salesFrequency = totalDays / salesForFrequencyCalc.length;
         }
@@ -685,7 +657,7 @@ function Dashboard() {
           </div>
           
           <div className="flex items-center gap-3">
-             <Button variant="ghost" size="icon" onClick={() => handleSync(false)} disabled={syncing || isUserLoading} aria-label="Sincronizar dados">
+             <Button variant="ghost" size="icon" onClick={() => handleSync(false)} disabled={syncing} aria-label="Sincronizar dados">
                 <RefreshCcw className={`h-5 w-5 text-primary ${syncing ? 'animate-spin' : ''}`} />
              </Button>
             <div className="flex items-center gap-2 bg-muted/30 px-3 py-1.5 rounded-lg border">
@@ -846,7 +818,6 @@ function Dashboard() {
         </SheetContent>
       </Sheet>
 
-
       <footer className="mt-12 py-8 border-t bg-white">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
           © {new Date().getFullYear()} Gestão Imobiliária.
@@ -863,3 +834,5 @@ export default function Page() {
     </ClientOnly>
   );
 }
+
+    
