@@ -166,7 +166,7 @@ function Dashboard() {
 
   useEffect(() => {
     if (auth && !user && !isUserLoading) {
-      initiateAnonymousSignIn(auth);
+      initiateAnonymousSignIn(auth, toast);
     }
     const savedUrls = {
       inventory: localStorage.getItem('sheet_url_inventory') || "",
@@ -218,7 +218,7 @@ function Dashboard() {
         console.error("Failed to parse targets from localStorage", e);
       }
     }
-  }, [auth, user, isUserLoading]);
+  }, [auth, user, isUserLoading, toast]);
 
   useEffect(() => {
     setMounted(true);
@@ -686,7 +686,7 @@ function Dashboard() {
           </div>
           
           <div className="flex items-center gap-3">
-             <Button variant="ghost" size="icon" onClick={() => handleSync(false)} disabled={syncing || isUserLoading || !user} aria-label="Sincronizar dados">
+             <Button variant="ghost" size="icon" onClick={() => handleSync(false)} disabled={syncing || isUserLoading} aria-label="Sincronizar dados">
                 <RefreshCcw className={`h-5 w-5 text-primary ${syncing ? 'animate-spin' : ''}`} />
              </Button>
             <div className="flex items-center gap-2 bg-muted/30 px-3 py-1.5 rounded-lg border">

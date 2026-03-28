@@ -25,11 +25,19 @@ export function getSdks(firebaseApp: FirebaseApp) {
   };
 }
 
-export async function initiateAnonymousSignIn(auth: ReturnType<typeof getAuth>) {
+export async function initiateAnonymousSignIn(auth: ReturnType<typeof getAuth>, toast?: (props: any) => void) {
   try {
     await signInAnonymously(auth);
   } catch (error) {
     console.error('Anonymous sign-in failed:', error);
+    if (toast) {
+      toast({
+        variant: "destructive",
+        title: "Falha na Autenticação Anônima",
+        description: "Não foi possível conectar ao servidor. Verifique se o método de login anônimo está ativado no painel do Firebase.",
+        duration: 15000,
+      });
+    }
   }
 }
 
