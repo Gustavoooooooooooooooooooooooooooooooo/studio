@@ -21,10 +21,14 @@ export function FirebaseClientProvider({ children }: FirebaseClientProviderProps
   const [firebaseServices, setFirebaseServices] = useState<FirebaseServices | null>(null);
 
   useEffect(() => {
-    const services = initializeFirebase();
-    if (services) {
-      setFirebaseServices(services);
-    }
+    const init = async () => {
+      const services = await initializeFirebase();
+      if (services) {
+        setFirebaseServices(services);
+      }
+    };
+    
+    init();
   }, []);
 
   return (

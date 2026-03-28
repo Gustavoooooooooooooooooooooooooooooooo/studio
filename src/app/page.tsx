@@ -33,8 +33,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ClientOnly } from "@/components/client-only";
 import { doc, onSnapshot, setDoc, type DocumentReference } from "firebase/firestore";
-import { getMissingConfigKeys } from "@/firebase/config";
-import { EnvChecker } from "@/components/dev/env-checker";
 
 
 // Engine for specialized date handling (Performant Version)
@@ -346,14 +344,10 @@ function Dashboard() {
 
   const handleUrlsChange = (newUrls: { inventory: string; leads: string; sales: string; rentals: string; logo: string; }) => {
     if (!configDocRef) {
-        const missingKeys = getMissingConfigKeys();
-        const description = missingKeys.length > 0
-            ? `As seguintes chaves estão faltando nas suas variáveis de ambiente: ${missingKeys.join(', ')}`
-            : "A conexão com o banco de dados não foi estabelecida. Verifique as variáveis de ambiente do Firebase.";
         toast({
             variant: "destructive",
-            title: "Erro de Configuração",
-            description: description,
+            title: "Erro de Conexão",
+            description: "A conexão com o banco de dados falhou. Verifique o console do navegador e as configurações do projeto para mais detalhes.",
         });
         return;
     }
@@ -380,14 +374,10 @@ function Dashboard() {
     if (!trimmedBrokerName) return;
 
     if (!configDocRef) {
-        const missingKeys = getMissingConfigKeys();
-        const description = missingKeys.length > 0
-            ? `As seguintes chaves estão faltando nas suas variáveis de ambiente: ${missingKeys.join(', ')}`
-            : "A conexão com o banco de dados não foi estabelecida. Verifique as variáveis de ambiente do Firebase.";
         toast({
             variant: "destructive",
-            title: "Erro de Configuração",
-            description: description,
+            title: "Erro de Conexão",
+            description: "A conexão com o banco de dados falhou. Verifique o console do navegador e as configurações do projeto para mais detalhes.",
         });
         return;
     }
@@ -417,14 +407,10 @@ function Dashboard() {
   
   const handleDeleteBroker = useCallback((brokerNameToDelete: string) => {
     if (!configDocRef) {
-        const missingKeys = getMissingConfigKeys();
-        const description = missingKeys.length > 0
-            ? `As seguintes chaves estão faltando nas suas variáveis de ambiente: ${missingKeys.join(', ')}`
-            : "A conexão com o banco de dados não foi estabelecida. Verifique as variáveis de ambiente do Firebase.";
         toast({
             variant: "destructive",
-            title: "Erro de Configuração",
-            description: description,
+            title: "Erro de Conexão",
+            description: "A conexão com o banco de dados falhou. Verifique o console do navegador e as configurações do projeto para mais detalhes.",
         });
         return;
     }
@@ -448,14 +434,10 @@ function Dashboard() {
 
   const handleTargetsChange = useCallback((newTargets: typeof targets) => {
     if (!configDocRef) {
-        const missingKeys = getMissingConfigKeys();
-        const description = missingKeys.length > 0
-            ? `As seguintes chaves estão faltando nas suas variáveis de ambiente: ${missingKeys.join(', ')}`
-            : "A conexão com o banco de dados não foi estabelecida. Verifique as variáveis de ambiente do Firebase.";
         toast({
             variant: "destructive",
-            title: "Erro de Configuração",
-            description: description,
+            title: "Erro de Conexão",
+            description: "A conexão com o banco de dados falhou. Verifique o console do navegador e as configurações do projeto para mais detalhes.",
         });
         return;
     }
@@ -738,7 +720,6 @@ function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <EnvChecker />
       <header className="sticky top-0 z-40 w-full border-b bg-white/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -938,5 +919,6 @@ export default function Page() {
     
 
     
+
 
 

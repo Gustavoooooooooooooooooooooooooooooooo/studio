@@ -1,21 +1,35 @@
 
 'use client';
 
-import { getFirebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-export function initializeFirebase() {
-  const firebaseConfig = getFirebaseConfig();
-  if (!firebaseConfig.apiKey) {
-    return null as any;
+export async function initializeFirebase() {
+  try {
+    const response = await fetch('/api/config');
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("Failed to fetch Firebase config:", response.status, errorData.error);
+      return null;
+    }
+    
+    const firebaseConfig = await response.json();
+    
+    if (!firebaseConfig.apiKey) {
+      console.error("Incomplete Firebase config received from API. Check server logs.");
+      return null;
+    }
+
+    if (!getApps().length) {
+      const firebaseApp = initializeApp(firebaseConfig);
+      return getSdks(firebaseApp);
+    }
+    return getSdks(getApp());
+  } catch (error) {
+      console.error("Error during Firebase initialization:", error);
+      return null;
   }
-  if (!getApps().length) {
-    const firebaseApp = initializeApp(firebaseConfig);
-    return getSdks(firebaseApp);
-  }
-  return getSdks(getApp());
 }
 
 export function getSdks(firebaseApp: FirebaseApp) {
