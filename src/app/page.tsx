@@ -32,6 +32,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ClientOnly } from "@/components/client-only";
 
 
 // Engine for specialized date handling (Performant Version)
@@ -132,7 +133,7 @@ const parseCurrency = (val: any) => {
 };
 
 
-export default function AppContainer() {
+function Dashboard() {
   const [mounted, setMounted] = useState(false);
   const [now] = useState<Date>(new Date());
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
@@ -835,5 +836,13 @@ export default function AppContainer() {
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <ClientOnly>
+      <Dashboard />
+    </ClientOnly>
   );
 }
