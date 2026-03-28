@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ClientOnly } from "@/components/client-only";
 import { doc, onSnapshot, setDoc, type DocumentReference } from "firebase/firestore";
+import { getMissingConfigKeys } from "@/firebase/config";
 
 
 // Engine for specialized date handling (Performant Version)
@@ -344,10 +345,14 @@ function Dashboard() {
 
   const handleUrlsChange = (newUrls: { inventory: string; leads: string; sales: string; rentals: string; logo: string; }) => {
     if (!configDocRef) {
+        const missingKeys = getMissingConfigKeys();
+        const description = missingKeys.length > 0
+            ? `As seguintes chaves estão faltando nas suas variáveis de ambiente: ${missingKeys.join(', ')}`
+            : "A conexão com o banco de dados não foi estabelecida. Verifique as variáveis de ambiente do Firebase.";
         toast({
             variant: "destructive",
             title: "Erro de Configuração",
-            description: "A conexão com o banco de dados não foi estabelecida. Verifique as variáveis de ambiente do Firebase.",
+            description: description,
         });
         return;
     }
@@ -374,10 +379,14 @@ function Dashboard() {
     if (!trimmedBrokerName) return;
 
     if (!configDocRef) {
+        const missingKeys = getMissingConfigKeys();
+        const description = missingKeys.length > 0
+            ? `As seguintes chaves estão faltando nas suas variáveis de ambiente: ${missingKeys.join(', ')}`
+            : "A conexão com o banco de dados não foi estabelecida. Verifique as variáveis de ambiente do Firebase.";
         toast({
             variant: "destructive",
             title: "Erro de Configuração",
-            description: "A conexão com o banco de dados não foi estabelecida. Verifique as variáveis de ambiente do Firebase.",
+            description: description,
         });
         return;
     }
@@ -407,12 +416,16 @@ function Dashboard() {
   
   const handleDeleteBroker = useCallback((brokerNameToDelete: string) => {
     if (!configDocRef) {
-      toast({
-          variant: "destructive",
-          title: "Erro de Configuração",
-          description: "A conexão com o banco de dados não foi estabelecida. Verifique as variáveis de ambiente do Firebase.",
-      });
-      return;
+        const missingKeys = getMissingConfigKeys();
+        const description = missingKeys.length > 0
+            ? `As seguintes chaves estão faltando nas suas variáveis de ambiente: ${missingKeys.join(', ')}`
+            : "A conexão com o banco de dados não foi estabelecida. Verifique as variáveis de ambiente do Firebase.";
+        toast({
+            variant: "destructive",
+            title: "Erro de Configuração",
+            description: description,
+        });
+        return;
     }
 
     const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
@@ -434,12 +447,16 @@ function Dashboard() {
 
   const handleTargetsChange = useCallback((newTargets: typeof targets) => {
     if (!configDocRef) {
-      toast({
-          variant: "destructive",
-          title: "Erro de Configuração",
-          description: "A conexão com o banco de dados não foi estabelecida. Verifique as variáveis de ambiente do Firebase.",
-      });
-      return;
+        const missingKeys = getMissingConfigKeys();
+        const description = missingKeys.length > 0
+            ? `As seguintes chaves estão faltando nas suas variáveis de ambiente: ${missingKeys.join(', ')}`
+            : "A conexão com o banco de dados não foi estabelecida. Verifique as variáveis de ambiente do Firebase.";
+        toast({
+            variant: "destructive",
+            title: "Erro de Configuração",
+            description: description,
+        });
+        return;
     }
     setDoc(configDocRef, { targets: newTargets }, { merge: true })
       .then(() => {
@@ -919,3 +936,4 @@ export default function Page() {
     
 
     
+
