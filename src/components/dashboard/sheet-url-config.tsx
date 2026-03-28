@@ -39,10 +39,6 @@ export function SheetUrlConfig({ urls, onUrlsChange }: SheetUrlConfigProps) {
       logo: logoUrl,
     };
     onUrlsChange(newUrls);
-    toast({
-      title: "Configurações Salvas",
-      description: "Os links das planilhas e a logo foram salvos no navegador.",
-    });
   };
 
   const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {

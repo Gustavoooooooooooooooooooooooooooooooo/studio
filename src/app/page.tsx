@@ -231,59 +231,6 @@ function Dashboard() {
     setMounted(true);
   },[])
 
-  // Handlers now write to Firestore instead of localStorage
-  const handleUrlsChange = (newUrls: { inventory: string; leads: string; sales: string; rentals: string; logo: string; }) => {
-    if (configDocRef) {
-      setDoc(configDocRef, { urls: newUrls }, { merge: true }).then(() => {
-        toast({
-          title: "Configurações Salvas",
-          description: "Os links das planilhas foram salvos na nuvem.",
-        });
-      });
-      handleSync(false, newUrls);
-    }
-  };
-  
-  const handleAddBroker = useCallback((brokerName: string) => {
-    const trimmedBrokerName = brokerName.trim();
-    if (!trimmedBrokerName || !configDocRef) return;
-
-    const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-    const brokerExists = manualBrokers.some(b => normalize(b) === normalize(trimmedBrokerName));
-  
-    if (brokerExists) {
-      setTimeout(() => toast({ variant: "destructive", title: "Corretor já existe", description: `"${trimmedBrokerName}" já está na sua lista.` }), 0);
-      return;
-    }
-      
-    const updatedBrokers = [...manualBrokers, trimmedBrokerName];
-    setDoc(configDocRef, { manualBrokers: updatedBrokers }, { merge: true }).then(() => {
-      setTimeout(() => toast({ title: "Corretor Adicionado", description: `"${trimmedBrokerName}" foi adicionado à lista.` }), 0);
-    });
-  }, [manualBrokers, configDocRef, toast]);
-  
-  const handleDeleteBroker = useCallback((brokerNameToDelete: string) => {
-    if (!configDocRef) return;
-    const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-    const updatedBrokers = manualBrokers.filter(b => normalize(b) !== normalize(brokerNameToDelete));
-      
-    setDoc(configDocRef, { manualBrokers: updatedBrokers }, { merge: true }).then(() => {
-      setTimeout(() => toast({ title: "Corretor Removido", description: `"${brokerNameToDelete}" foi removido da lista.` }), 0);
-    });
-  }, [manualBrokers, configDocRef, toast]);
-
-  const handleTargetsChange = useCallback((newTargets: typeof targets) => {
-    if (configDocRef) {
-      setDoc(configDocRef, { targets: newTargets }, { merge: true }).then(() => {
-        toast({ title: "Metas Atualizadas", description: "As novas metas de performance foram salvas na nuvem." });
-      });
-    }
-  }, [configDocRef, toast]);
-  
-  const allBrokers = useMemo(() => {
-    return [...manualBrokers].sort();
-  }, [manualBrokers]);
-
   const handleSync = useCallback(async (silent = false, syncUrls = urls) => {
     if (syncingRef.current) return;
     
@@ -393,7 +340,96 @@ function Dashboard() {
         setSyncing(false);
         syncingRef.current = false;
     }
-  }, [toast]);
+  }, [toast, urls]);
+
+  // Handlers now write to Firestore instead of localStorage
+  const handleUrlsChange = (newUrls: { inventory: string; leads: string; sales: string; rentals: string; logo: string; }) => {
+    if (configDocRef) {
+      setDoc(configDocRef, { urls: newUrls }, { merge: true })
+        .then(() => {
+          toast({
+            title: "Configurações Salvas",
+            description: "Os links das planilhas foram salvos na nuvem.",
+          });
+          handleSync(false, newUrls);
+        })
+        .catch((error) => {
+          console.error("Erro ao salvar URLs:", error);
+          toast({
+            variant: "destructive",
+            title: "Erro ao Salvar",
+            description: "Não foi possível salvar os links. Verifique o console para mais detalhes.",
+          });
+        });
+    }
+  };
+  
+  const handleAddBroker = useCallback((brokerName: string) => {
+    const trimmedBrokerName = brokerName.trim();
+    if (!trimmedBrokerName || !configDocRef) return;
+
+    const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const brokerExists = manualBrokers.some(b => normalize(b) === normalize(trimmedBrokerName));
+  
+    if (brokerExists) {
+      setTimeout(() => toast({ variant: "destructive", title: "Corretor já existe", description: `"${trimmedBrokerName}" já está na sua lista.` }), 0);
+      return;
+    }
+      
+    const updatedBrokers = [...manualBrokers, trimmedBrokerName];
+    setDoc(configDocRef, { manualBrokers: updatedBrokers }, { merge: true })
+      .then(() => {
+        setTimeout(() => toast({ title: "Corretor Adicionado", description: `"${trimmedBrokerName}" foi adicionado à lista.` }), 0);
+      })
+      .catch((error) => {
+        console.error("Erro ao adicionar corretor:", error);
+        toast({
+          variant: "destructive",
+          title: "Erro ao Salvar",
+          description: "Não foi possível adicionar o corretor. Verifique o console para mais detalhes.",
+        });
+      });
+  }, [manualBrokers, configDocRef, toast]);
+  
+  const handleDeleteBroker = useCallback((brokerNameToDelete: string) => {
+    if (!configDocRef) return;
+    const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const updatedBrokers = manualBrokers.filter(b => normalize(b) !== normalize(brokerNameToDelete));
+      
+    setDoc(configDocRef, { manualBrokers: updatedBrokers }, { merge: true })
+      .then(() => {
+        setTimeout(() => toast({ title: "Corretor Removido", description: `"${brokerNameToDelete}" foi removido da lista.` }), 0);
+      })
+      .catch((error) => {
+        console.error("Erro ao remover corretor:", error);
+        toast({
+          variant: "destructive",
+          title: "Erro ao Salvar",
+          description: "Não foi possível remover o corretor. Verifique o console para mais detalhes.",
+        });
+      });
+  }, [manualBrokers, configDocRef, toast]);
+
+  const handleTargetsChange = useCallback((newTargets: typeof targets) => {
+    if (configDocRef) {
+      setDoc(configDocRef, { targets: newTargets }, { merge: true })
+        .then(() => {
+          toast({ title: "Metas Atualizadas", description: "As novas metas de performance foram salvas na nuvem." });
+        })
+        .catch((error) => {
+          console.error("Erro ao atualizar metas:", error);
+          toast({
+            variant: "destructive",
+            title: "Erro ao Salvar",
+            description: "Não foi possível salvar as metas. Verifique o console para mais detalhes.",
+          });
+        });
+    }
+  }, [configDocRef, toast]);
+  
+  const allBrokers = useMemo(() => {
+    return [...manualBrokers].sort();
+  }, [manualBrokers]);
 
   useEffect(() => {
     if (!urls.inventory && !urls.leads && !urls.sales && !urls.rentals) return;
