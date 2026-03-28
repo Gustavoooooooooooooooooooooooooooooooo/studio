@@ -1,3 +1,4 @@
+
 'use client';
 
 import { firebaseConfig } from '@/firebase/config';
@@ -24,11 +25,21 @@ export function getSdks(firebaseApp: FirebaseApp) {
   };
 }
 
-export async function initiateAnonymousSignIn(auth: ReturnType<typeof getAuth>) {
+export async function initiateAnonymousSignIn(auth: ReturnType<typeof getAuth>, toast: any) {
   try {
     await signInAnonymously(auth);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Anonymous sign-in failed:', error);
+    const errorMessage = error.code === 'auth/operation-not-allowed'
+      ? 'Login anônimo precisa ser habilitado no seu painel do Firebase (Authentication > Sign-in method).'
+      : `Falha na autenticação: ${error.code}`;
+    
+    toast({
+        variant: "destructive",
+        title: "Erro de Autenticação",
+        description: errorMessage,
+        duration: 999999, // Make the toast persistent
+    });
   }
 }
 
