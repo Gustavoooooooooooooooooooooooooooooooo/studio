@@ -161,7 +161,7 @@ function Dashboard() {
   const [sales, setSales] = useState<any[]>([]);
   const [inventory, setInventory] = useState<any[]>([]);
 
-  const { auth, user } = useFirebase();
+  const { auth, user, isUserLoading } = useFirebase();
   const syncingRef = useRef(false);
 
   useEffect(() => {
@@ -686,7 +686,7 @@ function Dashboard() {
           </div>
           
           <div className="flex items-center gap-3">
-             <Button variant="ghost" size="icon" onClick={() => handleSync(false)} disabled={syncing} aria-label="Sincronizar dados">
+             <Button variant="ghost" size="icon" onClick={() => handleSync(false)} disabled={syncing || isUserLoading} aria-label="Sincronizar dados">
                 <RefreshCcw className={`h-5 w-5 text-primary ${syncing ? 'animate-spin' : ''}`} />
              </Button>
             <div className="flex items-center gap-2 bg-muted/30 px-3 py-1.5 rounded-lg border">
