@@ -372,14 +372,14 @@ function Dashboard() {
     const brokerExists = manualBrokers.some(b => normalize(b) === normalize(trimmedBrokerName));
   
     if (brokerExists) {
-      setTimeout(() => toast({ variant: "destructive", title: "Corretor já existe", description: `"${trimmedBrokerName}" já está na sua lista.` }), 0);
+      toast({ variant: "destructive", title: "Corretor já existe", description: `"${trimmedBrokerName}" já está na sua lista.` });
       return;
     }
       
     const updatedBrokers = [...manualBrokers, trimmedBrokerName];
     setDoc(configDocRef, { manualBrokers: updatedBrokers }, { merge: true })
       .then(() => {
-        setTimeout(() => toast({ title: "Corretor Adicionado", description: `"${trimmedBrokerName}" foi adicionado à lista.` }), 0);
+        toast({ title: "Corretor Adicionado", description: `"${trimmedBrokerName}" foi adicionado à lista.` });
       })
       .catch((error) => {
         console.error("Erro ao adicionar corretor:", error);
@@ -398,7 +398,7 @@ function Dashboard() {
       
     setDoc(configDocRef, { manualBrokers: updatedBrokers }, { merge: true })
       .then(() => {
-        setTimeout(() => toast({ title: "Corretor Removido", description: `"${brokerNameToDelete}" foi removido da lista.` }), 0);
+        toast({ title: "Corretor Removido", description: `"${brokerNameToDelete}" foi removido da lista.` });
       })
       .catch((error) => {
         console.error("Erro ao remover corretor:", error);
