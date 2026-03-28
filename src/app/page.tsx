@@ -34,6 +34,7 @@ import {
 import { ClientOnly } from "@/components/client-only";
 import { doc, onSnapshot, setDoc, type DocumentReference } from "firebase/firestore";
 import { getMissingConfigKeys } from "@/firebase/config";
+import { EnvChecker } from "@/components/dev/env-checker";
 
 
 // Engine for specialized date handling (Performant Version)
@@ -737,6 +738,7 @@ function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+      <EnvChecker />
       <header className="sticky top-0 z-40 w-full border-b bg-white/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -936,4 +938,5 @@ export default function Page() {
     
 
     
+
 
