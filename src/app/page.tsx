@@ -342,31 +342,45 @@ function Dashboard() {
     }
   }, [toast, urls]);
 
-  // Handlers now write to Firestore instead of localStorage
   const handleUrlsChange = (newUrls: { inventory: string; leads: string; sales: string; rentals: string; logo: string; }) => {
-    if (configDocRef) {
-      setDoc(configDocRef, { urls: newUrls }, { merge: true })
-        .then(() => {
-          toast({
-            title: "Configurações Salvas",
-            description: "Os links das planilhas foram salvos na nuvem.",
-          });
-          handleSync(false, newUrls);
-        })
-        .catch((error) => {
-          console.error("Erro ao salvar URLs:", error);
-          toast({
+    if (!configDocRef) {
+        toast({
             variant: "destructive",
-            title: "Erro ao Salvar",
-            description: "Não foi possível salvar os links. Verifique o console para mais detalhes.",
-          });
+            title: "Erro de Configuração",
+            description: "A conexão com o banco de dados não foi estabelecida. Verifique as variáveis de ambiente do Firebase.",
         });
+        return;
     }
+    setDoc(configDocRef, { urls: newUrls }, { merge: true })
+      .then(() => {
+        toast({
+          title: "Configurações Salvas",
+          description: "Os links das planilhas foram salvos na nuvem.",
+        });
+        handleSync(false, newUrls);
+      })
+      .catch((error) => {
+        console.error("Erro ao salvar URLs:", error);
+        toast({
+          variant: "destructive",
+          title: "Erro ao Salvar",
+          description: "Não foi possível salvar os links. Verifique o console para mais detalhes.",
+        });
+      });
   };
   
   const handleAddBroker = useCallback((brokerName: string) => {
     const trimmedBrokerName = brokerName.trim();
-    if (!trimmedBrokerName || !configDocRef) return;
+    if (!trimmedBrokerName) return;
+
+    if (!configDocRef) {
+        toast({
+            variant: "destructive",
+            title: "Erro de Configuração",
+            description: "A conexão com o banco de dados não foi estabelecida. Verifique as variáveis de ambiente do Firebase.",
+        });
+        return;
+    }
 
     const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
     const brokerExists = manualBrokers.some(b => normalize(b) === normalize(trimmedBrokerName));
@@ -392,7 +406,15 @@ function Dashboard() {
   }, [manualBrokers, configDocRef, toast]);
   
   const handleDeleteBroker = useCallback((brokerNameToDelete: string) => {
-    if (!configDocRef) return;
+    if (!configDocRef) {
+      toast({
+          variant: "destructive",
+          title: "Erro de Configuração",
+          description: "A conexão com o banco de dados não foi estabelecida. Verifique as variáveis de ambiente do Firebase.",
+      });
+      return;
+    }
+
     const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
     const updatedBrokers = manualBrokers.filter(b => normalize(b) !== normalize(brokerNameToDelete));
       
@@ -411,20 +433,26 @@ function Dashboard() {
   }, [manualBrokers, configDocRef, toast]);
 
   const handleTargetsChange = useCallback((newTargets: typeof targets) => {
-    if (configDocRef) {
-      setDoc(configDocRef, { targets: newTargets }, { merge: true })
-        .then(() => {
-          toast({ title: "Metas Atualizadas", description: "As novas metas de performance foram salvas na nuvem." });
-        })
-        .catch((error) => {
-          console.error("Erro ao atualizar metas:", error);
-          toast({
-            variant: "destructive",
-            title: "Erro ao Salvar",
-            description: "Não foi possível salvar as metas. Verifique o console para mais detalhes.",
-          });
-        });
+    if (!configDocRef) {
+      toast({
+          variant: "destructive",
+          title: "Erro de Configuração",
+          description: "A conexão com o banco de dados não foi estabelecida. Verifique as variáveis de ambiente do Firebase.",
+      });
+      return;
     }
+    setDoc(configDocRef, { targets: newTargets }, { merge: true })
+      .then(() => {
+        toast({ title: "Metas Atualizadas", description: "As novas metas de performance foram salvas na nuvem." });
+      })
+      .catch((error) => {
+        console.error("Erro ao atualizar metas:", error);
+        toast({
+          variant: "destructive",
+          title: "Erro ao Salvar",
+          description: "Não foi possível salvar as metas. Verifique o console para mais detalhes.",
+        });
+      });
   }, [configDocRef, toast]);
   
   const allBrokers = useMemo(() => {
