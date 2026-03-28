@@ -31,7 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ClientOnly } from "@/components/client-only";
-import { useAppConfig } from "@/hooks/use-app-config";
+import { useAppConfig, type AppUrls } from "@/hooks/use-app-config";
 
 
 // Engine for specialized date handling (Performant Version)
@@ -133,8 +133,7 @@ function Dashboard() {
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const { toast } = useToast();
 
-  // ✅ URLs e corretores compartilhados via Firestore
-  const { urls, brokers: allBrokers, loading: configLoading, saveUrls, addBroker, deleteBroker } = useAppConfig();
+  const { urls, brokers: allBrokers, loading: configLoading, saveUrls, addBroker, deleteBroker, areServicesAvailable } = useAppConfig();
 
   const [targets, setTargets] = useState<{
     [key: string]: {
@@ -194,30 +193,40 @@ function Dashboard() {
     setMounted(true);
   }, []);
 
-  // ✅ Salva URLs no Firestore (compartilhado com toda equipe)
-  const handleUrlsChange = useCallback(async (newUrls: typeof urls) => {
+  const handleUrlsChange = useCallback(async (newUrls: AppUrls) => {
+    if (!areServicesAvailable) {
+        toast({ variant: 'destructive', title: 'Erro de Conexão', description: 'A conexão com o banco de dados não foi estabelecida.' });
+        return;
+    }
     await saveUrls(newUrls);
+    toast({ title: 'Configurações Salvas', description: 'Os links das planilhas foram atualizados.' });
     handleSync(false, newUrls);
-  }, [saveUrls]);
+  }, [saveUrls, toast, areServicesAvailable]);
 
-  // ✅ Adiciona corretor no Firestore
   const handleAddBroker = useCallback(async (brokerName: string) => {
     if (!brokerName.trim()) return;
+    if (!areServicesAvailable) {
+        toast({ variant: 'destructive', title: 'Erro de Conexão', description: 'A conexão com o banco de dados não foi estabelecida.' });
+        return;
+    }
     const result = await addBroker(brokerName.trim());
     if (result?.error === 'already-exists') {
       toast({ variant: 'destructive', title: 'Corretor já existe', description: `"${brokerName}" já está na lista.` });
     } else if (result?.error) {
-      toast({ variant: 'destructive', title: 'Erro ao adicionar corretor', description: 'Verifique a conexão com o banco de dados.' });
+      toast({ variant: 'destructive', title: 'Erro ao adicionar corretor', description: 'Verifique a conexão e tente novamente.' });
     } else {
       toast({ title: 'Corretor Adicionado', description: `"${brokerName}" foi adicionado à lista.` });
     }
-  }, [addBroker, toast]);
+  }, [addBroker, toast, areServicesAvailable]);
 
-  // ✅ Remove corretor do Firestore
   const handleDeleteBroker = useCallback(async (name: string) => {
+    if (!areServicesAvailable) {
+        toast({ variant: 'destructive', title: 'Erro de Conexão', description: 'A conexão com o banco de dados não foi estabelecida.' });
+        return;
+    }
     await deleteBroker(name);
     toast({ title: 'Corretor Removido', description: `"${name}" foi removido da lista.` });
-  }, [deleteBroker, toast]);
+  }, [deleteBroker, toast, areServicesAvailable]);
 
   const handleTargetsChange = useCallback((newTargets: typeof targets) => {
     setTargets(newTargets);
@@ -701,3 +710,5 @@ export default function Page() {
     </ClientOnly>
   );
 }
+
+    

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useFirebase } from '@/firebase';
 import {
   doc, collection, onSnapshot,
@@ -23,10 +23,14 @@ export function useAppConfig() {
   });
   const [brokers, setBrokers] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [brokerDocs, setBrokerDocs] = useState<{ id: string; name: string }[]>([]);
 
   // Listen to URLs from Firestore
   useEffect(() => {
-    if (!firestore || !areServicesAvailable) return;
+    if (!firestore || !areServicesAvailable) {
+        setLoading(false);
+        return;
+    }
 
     const configRef = doc(firestore, 'config', 'sheet-urls');
     const unsub = onSnapshot(configRef, (snap) => {
@@ -35,7 +39,7 @@ export function useAppConfig() {
         setUrls(data);
       }
       setLoading(false);
-    });
+    }, () => setLoading(false));
 
     return () => unsub();
   }, [firestore, areServicesAvailable]);
@@ -50,38 +54,58 @@ export function useAppConfig() {
       const list = snap.docs.map(d => ({ id: d.id, name: d.data().name as string }));
       list.sort((a, b) => a.name.localeCompare(b.name));
       setBrokers(list.map(b => b.name));
-      // Store IDs for deletion
       setBrokerDocs(list);
     });
 
     return () => unsub();
   }, [firestore, areServicesAvailable]);
 
-  const [brokerDocs, setBrokerDocs] = useState<{ id: string; name: string }[]>([]);
-
   const saveUrls = async (newUrls: AppUrls) => {
     if (!firestore) return;
-    setUrls(newUrls); // optimistic update
+    setUrls(newUrls); // Optimistic update
     await setDoc(doc(firestore, 'config', 'sheet-urls'), newUrls);
   };
 
   const addBroker = async (name: string) => {
-    if (!firestore) return;
+    if (!firestore) return { error: 'no-firestore' };
+    const normalizedName = name.trim();
     const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-    const exists = brokerDocs.some(b => normalize(b.name) === normalize(name));
-    if (exists) return { error: 'already-exists' };
-    await addDoc(collection(firestore, 'brokers'), { name: name.trim() });
-    return { error: null };
+    
+    if (brokers.some(b => normalize(b) === normalize(normalizedName))) {
+        return { error: 'already-exists' };
+    }
+  
+    // Optimistic update
+    const newBrokers = [...brokers, normalizedName].sort((a, b) => a.localeCompare(b));
+    setBrokers(newBrokers);
+    
+    try {
+        await addDoc(collection(firestore, 'brokers'), { name: normalizedName });
+        return { error: null };
+    } catch (e) {
+        setBrokers(brokers); // Revert on error
+        return { error: 'firestore-error' };
+    }
   };
 
   const deleteBroker = async (name: string) => {
     if (!firestore) return;
     const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
     const brokerDoc = brokerDocs.find(b => normalize(b.name) === normalize(name));
+    
     if (brokerDoc) {
-      await deleteDoc(doc(firestore, 'brokers', brokerDoc.id));
+      const originalBrokers = brokers;
+      // Optimistic update
+      setBrokers(prevBrokers => prevBrokers.filter(b => normalize(b) !== normalize(name)));
+      try {
+        await deleteDoc(doc(firestore, 'brokers', brokerDoc.id));
+      } catch (e) {
+        setBrokers(originalBrokers); // Revert on error
+      }
     }
   };
 
   return { urls, brokers, loading, saveUrls, addBroker, deleteBroker, areServicesAvailable };
 }
+
+    
