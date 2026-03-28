@@ -1,15 +1,16 @@
 
-export const firebaseConfig = {
+export const getFirebaseConfig = () => ({
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-};
+});
 
 export const getMissingConfigKeys = (): string[] => {
-    const requiredKeys: (keyof typeof firebaseConfig)[] = [
+    const config = getFirebaseConfig();
+    const requiredKeys: (keyof ReturnType<typeof getFirebaseConfig>)[] = [
         'apiKey', 
         'authDomain', 
         'projectId', 
@@ -17,7 +18,7 @@ export const getMissingConfigKeys = (): string[] => {
         'messagingSenderId', 
         'appId'
     ];
-    const missing = requiredKeys.filter(key => !firebaseConfig[key]);
+    const missing = requiredKeys.filter(key => !config[key]);
 
     // Map to the env var name for better user feedback
     const keyToEnvVar: Record<string, string> = {
