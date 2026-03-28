@@ -2,8 +2,8 @@
  * @type {import('next').NextConfig}
  */
 
-// Check for Firebase environment variables during the build process
-if (process.env.NODE_ENV === 'production') {
+// Check for Firebase environment variables during the build process on Vercel
+if (process.env.VERCEL) {
   const requiredFirebaseEnvVars = [
     'NEXT_PUBLIC_FIREBASE_API_KEY',
     'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
