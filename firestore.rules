@@ -13,6 +13,12 @@ service cloud.firestore {
       return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
 
+    // --- NEW: SHARED APP CONFIGURATION ---
+    match /app_config/{docId} {
+      // Allow any authenticated user to read/write the shared config
+      allow read, write: if isSignedIn();
+    }
+
     // --- COLLECTION RULES ---
 
     match /brokers/{brokerId} {
@@ -42,3 +48,5 @@ service cloud.firestore {
     }
   }
 }
+
+    

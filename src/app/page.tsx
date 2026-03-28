@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { TrendingUp, Settings, Calendar as CalendarIcon, Loader2, AlertTriangle, RefreshCcw, Trophy } from "lucide-react";
+import { TrendingUp, Settings, Calendar as CalendarIcon, AlertTriangle, RefreshCcw, Trophy } from "lucide-react";
 import { useFirebase, initiateAnonymousSignIn } from "@/firebase";
 import { syncGoogleSheets } from "@/ai/flows/sync-sheets-flow";
 import { useToast } from "@/hooks/use-toast";
@@ -32,6 +32,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ClientOnly } from "@/components/client-only";
+import { doc, onSnapshot, setDoc, type DocumentReference } from "firebase/firestore";
 
 
 // Engine for specialized date handling (Performant Version)
@@ -137,6 +138,7 @@ function Dashboard() {
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const { toast } = useToast();
 
+  // States for shared config, will be populated from Firestore
   const [urls, setUrls] = useState({ inventory: "", leads: "", sales: "", rentals: "", logo: "" });
   const [manualBrokers, setManualBrokers] = useState<string[]>([]);
   const [targets, setTargets] = useState<{
@@ -151,123 +153,138 @@ function Dashboard() {
     }
   });
 
-  // Data states
+  // Data states (local to the session)
   const [leads, setLeads] = useState<any[]>([]);
   const [sales, setSales] = useState<any[]>([]);
   const [inventory, setInventory] = useState<any[]>([]);
 
-  const { auth, user, isUserLoading } = useFirebase();
+  const { auth, user, isUserLoading, firestore } = useFirebase();
   const syncingRef = useRef(false);
+  const [configDocRef, setConfigDocRef] = useState<DocumentReference | null>(null);
 
+  // Effect to handle anonymous sign-in
   useEffect(() => {
     if (auth && !user && !isUserLoading) {
       initiateAnonymousSignIn(auth, toast);
     }
-    const savedUrls = {
-      inventory: localStorage.getItem('sheet_url_inventory') || "",
-      leads: localStorage.getItem('sheet_url_leads') || "",
-      sales: localStorage.getItem('sheet_url_sales') || "",
-      rentals: localStorage.getItem('sheet_url_rentals') || "",
-      logo: localStorage.getItem('sheet_url_logo') || ""
-    };
-    setUrls(savedUrls);
-    const savedManualBrokers = localStorage.getItem('manual_brokers');
-    if (savedManualBrokers) {
-      try {
-        setManualBrokers(JSON.parse(savedManualBrokers));
-      } catch (e) {
-        console.error("Failed to parse manual brokers from localStorage", e);
-      }
+  }, [auth, user, isUserLoading, toast]);
+  
+  // Effect to get Firestore doc reference for the shared config
+  useEffect(() => {
+    if (firestore) {
+      setConfigDocRef(doc(firestore, "app_config", "dashboard_settings"));
     }
-    const savedTargets = localStorage.getItem('app_targets');
-    if (savedTargets) {
-      try {
-        const parsed = JSON.parse(savedTargets);
-        if (parsed.global && (parsed.global.capturesSale !== undefined || parsed.global.captures !== undefined)) {
-          if (parsed.global.captures && parsed.global.capturesSale === undefined) {
-            Object.keys(parsed).forEach(key => {
-              const oldCaptures = parsed[key].captures;
-              if (oldCaptures) {
-                parsed[key].capturesSale = { 
-                  annual: Math.round(oldCaptures.annual * 0.6), 
-                  quarterly: Math.round(oldCaptures.quarterly * 0.6), 
-                  semiannual: Math.round(oldCaptures.semiannual * 0.6) 
-                };
-                parsed[key].capturesRent = { 
-                  annual: Math.round(oldCaptures.annual * 0.4), 
-                  quarterly: Math.round(oldCaptures.quarterly * 0.4), 
-                  semiannual: Math.round(oldCaptures.semiannual * 0.4)
-                };
-                delete parsed[key].captures;
-              }
-            });
-          }
-          if(parsed.global.capturesSale){
-            setTargets(parsed);
+  }, [firestore]);
+
+  // Effect to listen for real-time config changes from Firestore
+  useEffect(() => {
+    if (!configDocRef) return;
+
+    const unsubscribe = onSnapshot(configDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setUrls(data.urls || { inventory: "", leads: "", sales: "", rentals: "", logo: "" });
+        setManualBrokers(data.manualBrokers || []);
+        
+        const savedTargets = data.targets;
+        if (savedTargets) {
+          try {
+            if (savedTargets.global && (savedTargets.global.capturesSale !== undefined || savedTargets.global.captures !== undefined)) {
+                const parsed = JSON.parse(JSON.stringify(savedTargets)); // deep copy
+                if (parsed.global.captures && parsed.global.capturesSale === undefined) {
+                    Object.keys(parsed).forEach(key => {
+                        const oldCaptures = parsed[key].captures;
+                        if (oldCaptures) {
+                            parsed[key].capturesSale = { 
+                                annual: Math.round(oldCaptures.annual * 0.6), 
+                                quarterly: Math.round(oldCaptures.quarterly * 0.6), 
+                                semiannual: Math.round(oldCaptures.semiannual * 0.6) 
+                            };
+                            parsed[key].capturesRent = { 
+                                annual: Math.round(oldCaptures.annual * 0.4), 
+                                quarterly: Math.round(oldCaptures.quarterly * 0.4), 
+                                semiannual: Math.round(oldCaptures.semiannual * 0.4)
+                            };
+                            delete parsed[key].captures;
+                        }
+                    });
+                }
+                if (parsed.global.capturesSale) {
+                    setTargets(parsed);
+                }
+            }
+          } catch (e) {
+            console.error("Failed to parse targets from Firestore", e);
+            setTargets({ global: { capturesSale: { annual: 250, quarterly: 65, semiannual: 125 }, capturesRent: { annual: 150, quarterly: 40, semiannual: 75 } } });
           }
         }
-      } catch (e) {
-        console.error("Failed to parse targets from localStorage", e);
+      } else {
+        console.log("No config document found in Firestore. Using initial state. First save will create the document.");
       }
-    }
-  }, [auth, user, isUserLoading, toast]);
+    });
+
+    return () => unsubscribe();
+  }, [configDocRef]);
+
 
   useEffect(() => {
     setMounted(true);
   },[])
 
+  // Handlers now write to Firestore instead of localStorage
   const handleUrlsChange = (newUrls: { inventory: string; leads: string; sales: string; rentals: string; logo: string; }) => {
-    setUrls(newUrls);
-    localStorage.setItem('sheet_url_inventory', newUrls.inventory);
-    localStorage.setItem('sheet_url_leads', newUrls.leads);
-    localStorage.setItem('sheet_url_sales', newUrls.sales);
-    localStorage.setItem('sheet_url_rentals', newUrls.rentals);
-    localStorage.setItem('sheet_url_logo', newUrls.logo);
-    handleSync(false);
+    if (configDocRef) {
+      setDoc(configDocRef, { urls: newUrls }, { merge: true }).then(() => {
+        toast({
+          title: "Configurações Salvas",
+          description: "Os links das planilhas foram salvos na nuvem.",
+        });
+      });
+      handleSync(false, newUrls);
+    }
   };
   
   const handleAddBroker = useCallback((brokerName: string) => {
     const trimmedBrokerName = brokerName.trim();
-    if (!trimmedBrokerName) return;
+    if (!trimmedBrokerName || !configDocRef) return;
 
-    setManualBrokers(prevBrokers => {
-      const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-      const brokerExists = prevBrokers.some(b => normalize(b) === normalize(trimmedBrokerName));
+    const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const brokerExists = manualBrokers.some(b => normalize(b) === normalize(trimmedBrokerName));
   
-      if (brokerExists) {
-        setTimeout(() => toast({ variant: "destructive", title: "Corretor já existe", description: `"${trimmedBrokerName}" já está na sua lista.` }), 0);
-        return prevBrokers;
-      }
+    if (brokerExists) {
+      setTimeout(() => toast({ variant: "destructive", title: "Corretor já existe", description: `"${trimmedBrokerName}" já está na sua lista.` }), 0);
+      return;
+    }
       
-      const updatedBrokers = [...prevBrokers, trimmedBrokerName];
-      localStorage.setItem('manual_brokers', JSON.stringify(updatedBrokers));
+    const updatedBrokers = [...manualBrokers, trimmedBrokerName];
+    setDoc(configDocRef, { manualBrokers: updatedBrokers }, { merge: true }).then(() => {
       setTimeout(() => toast({ title: "Corretor Adicionado", description: `"${trimmedBrokerName}" foi adicionado à lista.` }), 0);
-      return updatedBrokers;
     });
-  }, [toast]);
+  }, [manualBrokers, configDocRef, toast]);
   
   const handleDeleteBroker = useCallback((brokerNameToDelete: string) => {
-    setManualBrokers(prevBrokers => {
-      const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-      const updatedBrokers = prevBrokers.filter(b => normalize(b) !== normalize(brokerNameToDelete));
+    if (!configDocRef) return;
+    const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const updatedBrokers = manualBrokers.filter(b => normalize(b) !== normalize(brokerNameToDelete));
       
-      localStorage.setItem('manual_brokers', JSON.stringify(updatedBrokers));
+    setDoc(configDocRef, { manualBrokers: updatedBrokers }, { merge: true }).then(() => {
       setTimeout(() => toast({ title: "Corretor Removido", description: `"${brokerNameToDelete}" foi removido da lista.` }), 0);
-      return updatedBrokers;
     });
-  }, [toast]);
+  }, [manualBrokers, configDocRef, toast]);
 
   const handleTargetsChange = useCallback((newTargets: typeof targets) => {
-    setTargets(newTargets);
-    localStorage.setItem('app_targets', JSON.stringify(newTargets));
-    toast({ title: "Metas Atualizadas", description: "As novas metas de performance foram salvas." });
-  }, [toast]);
+    if (configDocRef) {
+      setDoc(configDocRef, { targets: newTargets }, { merge: true }).then(() => {
+        toast({ title: "Metas Atualizadas", description: "As novas metas de performance foram salvas na nuvem." });
+      });
+    }
+  }, [configDocRef, toast]);
   
   const allBrokers = useMemo(() => {
     return [...manualBrokers].sort();
   }, [manualBrokers]);
 
-  const handleSync = useCallback(async (silent = false) => {
+  const handleSync = useCallback(async (silent = false, syncUrls = urls) => {
     if (syncingRef.current) return;
     
     setSyncing(true);
@@ -350,10 +367,10 @@ function Dashboard() {
       };
       
       const [inventoryResult, leadsResult, salesResult, rentalsResult] = await Promise.all([
-        processSheet(urls.inventory, 'inventory'),
-        processSheet(urls.leads, 'leads'),
-        processSheet(urls.sales, 'sales', 'Venda'),
-        processSheet(urls.rentals, 'sales', 'Locação')
+        processSheet(syncUrls.inventory, 'inventory'),
+        processSheet(syncUrls.leads, 'leads'),
+        processSheet(syncUrls.sales, 'sales', 'Venda'),
+        processSheet(syncUrls.rentals, 'sales', 'Locação')
       ]);
 
       if (inventoryResult.success) setInventory(inventoryResult.data);
@@ -376,13 +393,13 @@ function Dashboard() {
         setSyncing(false);
         syncingRef.current = false;
     }
-  }, [urls, toast]);
+  }, [toast]);
 
   useEffect(() => {
     if (!urls.inventory && !urls.leads && !urls.sales && !urls.rentals) return;
 
-    handleSync(true);
-    const intervalId = setInterval(() => handleSync(true), 300000);
+    handleSync(true, urls);
+    const intervalId = setInterval(() => handleSync(true, urls), 300000);
     
     return () => clearInterval(intervalId);
   }, [urls, handleSync]);
@@ -834,5 +851,7 @@ export default function Page() {
     </ClientOnly>
   );
 }
+
+    
 
     
