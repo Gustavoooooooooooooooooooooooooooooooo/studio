@@ -173,6 +173,8 @@ function Dashboard() {
   useEffect(() => {
     if (firestore) {
       setConfigDocRef(doc(firestore, "app_config", "dashboard_settings"));
+    } else {
+      setConfigDocRef(null);
     }
   }, [firestore]);
 
@@ -342,14 +344,25 @@ function Dashboard() {
     }
   }, [toast, urls]);
 
-  const handleUrlsChange = (newUrls: { inventory: string; leads: string; sales: string; rentals: string; logo: string; }) => {
-    if (!configDocRef) {
-        toast({
-            variant: "destructive",
-            title: "Erro de Conexão",
-            description: "A conexão com o banco de dados falhou. Verifique o console do navegador e as configurações do projeto para mais detalhes.",
-        });
-        return;
+  const handleUrlsChange = async (newUrls: { inventory: string; leads: string; sales: string; rentals: string; logo: string; }) => {
+    if (!firestore || !configDocRef) {
+      try {
+        const response = await fetch('/api/config');
+        if (!response.ok) {
+            const errorData = await response.json();
+            toast({
+                variant: "destructive",
+                title: "Erro de Configuração",
+                description: errorData.error || "A conexão com o banco de dados falhou. Verifique as variáveis de ambiente na Vercel.",
+                duration: 9000,
+            });
+        } else {
+            toast({ variant: "destructive", title: "Erro de Conexão", description: "A conexão com o banco de dados não está pronta. Tente novamente." });
+        }
+      } catch (e) {
+          toast({ variant: "destructive", title: "Erro de Rede", description: "Não foi possível verificar a configuração do servidor." });
+      }
+      return;
     }
     setDoc(configDocRef, { urls: newUrls }, { merge: true })
       .then(() => {
@@ -369,17 +382,28 @@ function Dashboard() {
       });
   };
   
-  const handleAddBroker = useCallback((brokerName: string) => {
+  const handleAddBroker = useCallback(async (brokerName: string) => {
     const trimmedBrokerName = brokerName.trim();
     if (!trimmedBrokerName) return;
 
-    if (!configDocRef) {
-        toast({
-            variant: "destructive",
-            title: "Erro de Conexão",
-            description: "A conexão com o banco de dados falhou. Verifique o console do navegador e as configurações do projeto para mais detalhes.",
-        });
-        return;
+    if (!firestore || !configDocRef) {
+      try {
+          const response = await fetch('/api/config');
+          if (!response.ok) {
+              const errorData = await response.json();
+              toast({
+                  variant: "destructive",
+                  title: "Erro de Configuração",
+                  description: errorData.error || "A conexão com o banco de dados falhou. Verifique as variáveis de ambiente na Vercel.",
+                  duration: 9000,
+              });
+          } else {
+              toast({ variant: "destructive", title: "Erro de Conexão", description: "A conexão com o banco de dados não está pronta. Tente novamente." });
+          }
+      } catch (e) {
+          toast({ variant: "destructive", title: "Erro de Rede", description: "Não foi possível verificar a configuração do servidor." });
+      }
+      return;
     }
 
     const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
@@ -403,16 +427,27 @@ function Dashboard() {
           description: "Não foi possível adicionar o corretor. Verifique o console para mais detalhes.",
         });
       });
-  }, [manualBrokers, configDocRef, toast]);
+  }, [manualBrokers, firestore, configDocRef, toast]);
   
-  const handleDeleteBroker = useCallback((brokerNameToDelete: string) => {
-    if (!configDocRef) {
-        toast({
-            variant: "destructive",
-            title: "Erro de Conexão",
-            description: "A conexão com o banco de dados falhou. Verifique o console do navegador e as configurações do projeto para mais detalhes.",
-        });
-        return;
+  const handleDeleteBroker = useCallback(async (brokerNameToDelete: string) => {
+    if (!firestore || !configDocRef) {
+      try {
+          const response = await fetch('/api/config');
+          if (!response.ok) {
+              const errorData = await response.json();
+              toast({
+                  variant: "destructive",
+                  title: "Erro de Configuração",
+                  description: errorData.error || "A conexão com o banco de dados falhou. Verifique as variáveis de ambiente na Vercel.",
+                  duration: 9000,
+              });
+          } else {
+              toast({ variant: "destructive", title: "Erro de Conexão", description: "A conexão com o banco de dados não está pronta. Tente novamente." });
+          }
+      } catch (e) {
+          toast({ variant: "destructive", title: "Erro de Rede", description: "Não foi possível verificar a configuração do servidor." });
+      }
+      return;
     }
 
     const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
@@ -430,16 +465,27 @@ function Dashboard() {
           description: "Não foi possível remover o corretor. Verifique o console para mais detalhes.",
         });
       });
-  }, [manualBrokers, configDocRef, toast]);
+  }, [manualBrokers, firestore, configDocRef, toast]);
 
-  const handleTargetsChange = useCallback((newTargets: typeof targets) => {
-    if (!configDocRef) {
-        toast({
-            variant: "destructive",
-            title: "Erro de Conexão",
-            description: "A conexão com o banco de dados falhou. Verifique o console do navegador e as configurações do projeto para mais detalhes.",
-        });
-        return;
+  const handleTargetsChange = useCallback(async (newTargets: typeof targets) => {
+    if (!firestore || !configDocRef) {
+      try {
+          const response = await fetch('/api/config');
+          if (!response.ok) {
+              const errorData = await response.json();
+              toast({
+                  variant: "destructive",
+                  title: "Erro de Configuração",
+                  description: errorData.error || "A conexão com o banco de dados falhou. Verifique as variáveis de ambiente na Vercel.",
+                  duration: 9000,
+              });
+          } else {
+              toast({ variant: "destructive", title: "Erro de Conexão", description: "A conexão com o banco de dados não está pronta. Tente novamente." });
+          }
+      } catch (e) {
+          toast({ variant: "destructive", title: "Erro de Rede", description: "Não foi possível verificar a configuração do servidor." });
+      }
+      return;
     }
     setDoc(configDocRef, { targets: newTargets }, { merge: true })
       .then(() => {
@@ -453,7 +499,7 @@ function Dashboard() {
           description: "Não foi possível salvar as metas. Verifique o console para mais detalhes.",
         });
       });
-  }, [configDocRef, toast]);
+  }, [firestore, configDocRef, toast]);
   
   const allBrokers = useMemo(() => {
     return [...manualBrokers].sort();
@@ -919,6 +965,7 @@ export default function Page() {
     
 
     
+
 
 
 

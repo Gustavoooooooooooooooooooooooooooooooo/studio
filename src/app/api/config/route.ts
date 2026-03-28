@@ -15,10 +15,10 @@ export async function GET() {
     .map(([key]) => key);
 
   if (missingKeys.length > 0) {
-    console.error(`Firebase config keys are missing on the server: ${missingKeys.join(', ')}`);
-    // Do not expose which keys are missing to the client for security reasons.
+    const error = `Server configuration for Firebase is incomplete. Missing env variables: ${missingKeys.join(', ')}`;
+    console.error(error);
     return NextResponse.json(
-        { error: 'Server configuration for Firebase is incomplete.' }, 
+        { error }, 
         { status: 500 }
     );
   }
