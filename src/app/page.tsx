@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
@@ -17,7 +16,7 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendingUp, Settings, Calendar as CalendarIcon, AlertTriangle, RefreshCcw, Trophy } from "lucide-react";
 import { useFirebase, initiateAnonymousSignIn } from "@/firebase";
 import { syncGoogleSheets } from "@/ai/flows/sync-sheets-flow";
@@ -32,7 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ClientOnly } from "@/components/client-only";
-import { doc, onSnapshot, setDoc, type DocumentReference } from "firebase/firestore";
+import { useAppConfig } from "@/hooks/use-app-config";
 
 
 // Engine for specialized date handling (Performant Version)
@@ -55,7 +54,6 @@ const formatDateDisplay = (val: any) => {
   return strVal;
 };
 
-// Converter for Date calculations
 const toDate = (val: any): Date | null => {
   const formatted = formatDateDisplay(val);
   if (formatted === "N/A") return null;
@@ -74,7 +72,6 @@ const toDate = (val: any): Date | null => {
   return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
 };
 
-// Helper functions from the old google-sheets-sync component
 const getVal = (row: any, searchKeys: string[], excludeKeys: string[] = []) => {
     if (!row) return undefined;
     const rowKeys = Object.keys(row);
@@ -84,9 +81,7 @@ const getVal = (row: any, searchKeys: string[], excludeKeys: string[] = []) => {
 
     if (searchKeys.some(k => k === "origem do lead?")) {
         const exactMatchKey = rowKeys.find(rk => rk.trim() === "origem do lead?");
-        if (exactMatchKey) {
-            return row[exactMatchKey];
-        }
+        if (exactMatchKey) return row[exactMatchKey];
     }
 
     for (const sKey of normalizedSearch) {
@@ -138,9 +133,9 @@ function Dashboard() {
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const { toast } = useToast();
 
-  // States for shared config, will be populated from Firestore
-  const [urls, setUrls] = useState({ inventory: "", leads: "", sales: "", rentals: "", logo: "" });
-  const [manualBrokers, setManualBrokers] = useState<string[]>([]);
+  // ✅ URLs e corretores compartilhados via Firestore
+  const { urls, brokers: allBrokers, loading: configLoading, saveUrls, addBroker, deleteBroker } = useAppConfig();
+
   const [targets, setTargets] = useState<{
     [key: string]: {
       capturesSale: { annual: number; quarterly: number; semiannual: number; };
@@ -153,89 +148,85 @@ function Dashboard() {
     }
   });
 
-  // Data states (local to the session)
   const [leads, setLeads] = useState<any[]>([]);
   const [sales, setSales] = useState<any[]>([]);
   const [inventory, setInventory] = useState<any[]>([]);
 
-  const { auth, user, isUserLoading, firestore } = useFirebase();
+  const { auth, user, isUserLoading } = useFirebase();
   const syncingRef = useRef(false);
-  const [configDocRef, setConfigDocRef] = useState<DocumentReference | null>(null);
 
-  // Effect to handle anonymous sign-in
   useEffect(() => {
     if (auth && !user && !isUserLoading) {
       initiateAnonymousSignIn(auth, toast);
     }
   }, [auth, user, isUserLoading, toast]);
-  
-  // Effect to get Firestore doc reference for the shared config
-  useEffect(() => {
-    if (firestore) {
-      setConfigDocRef(doc(firestore, "app_config", "dashboard_settings"));
-    } else {
-      setConfigDocRef(null);
-    }
-  }, [firestore]);
 
-  // Effect to listen for real-time config changes from Firestore
   useEffect(() => {
-    if (!configDocRef) return;
-
-    const unsubscribe = onSnapshot(configDocRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setUrls(data.urls || { inventory: "", leads: "", sales: "", rentals: "", logo: "" });
-        setManualBrokers(data.manualBrokers || []);
-        
-        const savedTargets = data.targets;
-        if (savedTargets) {
-          try {
-            if (savedTargets.global && (savedTargets.global.capturesSale !== undefined || savedTargets.global.captures !== undefined)) {
-                const parsed = JSON.parse(JSON.stringify(savedTargets)); // deep copy
-                if (parsed.global.captures && parsed.global.capturesSale === undefined) {
-                    Object.keys(parsed).forEach(key => {
-                        const oldCaptures = parsed[key].captures;
-                        if (oldCaptures) {
-                            parsed[key].capturesSale = { 
-                                annual: Math.round(oldCaptures.annual * 0.6), 
-                                quarterly: Math.round(oldCaptures.quarterly * 0.6), 
-                                semiannual: Math.round(oldCaptures.semiannual * 0.6) 
-                            };
-                            parsed[key].capturesRent = { 
-                                annual: Math.round(oldCaptures.annual * 0.4), 
-                                quarterly: Math.round(oldCaptures.quarterly * 0.4), 
-                                semiannual: Math.round(oldCaptures.semiannual * 0.4)
-                            };
-                            delete parsed[key].captures;
-                        }
-                    });
-                }
-                if (parsed.global.capturesSale) {
-                    setTargets(parsed);
-                }
-            }
-          } catch (e) {
-            console.error("Failed to parse targets from Firestore", e);
-            setTargets({ global: { capturesSale: { annual: 250, quarterly: 65, semiannual: 125 }, capturesRent: { annual: 150, quarterly: 40, semiannual: 75 } } });
+    const savedTargets = localStorage.getItem('app_targets');
+    if (savedTargets) {
+      try {
+        const parsed = JSON.parse(savedTargets);
+        if (parsed.global && (parsed.global.capturesSale !== undefined || parsed.global.captures !== undefined)) {
+          if (parsed.global.captures && parsed.global.capturesSale === undefined) {
+            Object.keys(parsed).forEach(key => {
+              const oldCaptures = parsed[key].captures;
+              if (oldCaptures) {
+                parsed[key].capturesSale = { 
+                  annual: Math.round(oldCaptures.annual * 0.6), 
+                  quarterly: Math.round(oldCaptures.quarterly * 0.6), 
+                  semiannual: Math.round(oldCaptures.semiannual * 0.6) 
+                };
+                parsed[key].capturesRent = { 
+                  annual: Math.round(oldCaptures.annual * 0.4), 
+                  quarterly: Math.round(oldCaptures.quarterly * 0.4), 
+                  semiannual: Math.round(oldCaptures.semiannual * 0.4)
+                };
+                delete parsed[key].captures;
+              }
+            });
           }
+          if(parsed.global.capturesSale) setTargets(parsed);
         }
-      } else {
-        console.log("No config document found in Firestore. Using initial state. First save will create the document.");
+      } catch (e) {
+        console.error("Failed to parse targets from localStorage", e);
       }
-    });
-
-    return () => unsubscribe();
-  }, [configDocRef]);
-
-
-  useEffect(() => {
+    }
     setMounted(true);
-  },[])
+  }, []);
+
+  // ✅ Salva URLs no Firestore (compartilhado com toda equipe)
+  const handleUrlsChange = useCallback(async (newUrls: typeof urls) => {
+    await saveUrls(newUrls);
+    handleSync(false, newUrls);
+  }, [saveUrls]);
+
+  // ✅ Adiciona corretor no Firestore
+  const handleAddBroker = useCallback(async (brokerName: string) => {
+    if (!brokerName.trim()) return;
+    const result = await addBroker(brokerName.trim());
+    if (result?.error === 'already-exists') {
+      toast({ variant: 'destructive', title: 'Corretor já existe', description: `"${brokerName}" já está na lista.` });
+    } else if (result?.error) {
+      toast({ variant: 'destructive', title: 'Erro ao adicionar corretor', description: 'Verifique a conexão com o banco de dados.' });
+    } else {
+      toast({ title: 'Corretor Adicionado', description: `"${brokerName}" foi adicionado à lista.` });
+    }
+  }, [addBroker, toast]);
+
+  // ✅ Remove corretor do Firestore
+  const handleDeleteBroker = useCallback(async (name: string) => {
+    await deleteBroker(name);
+    toast({ title: 'Corretor Removido', description: `"${name}" foi removido da lista.` });
+  }, [deleteBroker, toast]);
+
+  const handleTargetsChange = useCallback((newTargets: typeof targets) => {
+    setTargets(newTargets);
+    localStorage.setItem('app_targets', JSON.stringify(newTargets));
+    toast({ title: "Metas Atualizadas", description: "As novas metas de performance foram salvas." });
+  }, [toast]);
 
   const handleSync = useCallback(async (silent = false, syncUrls = urls) => {
     if (syncingRef.current) return;
-    
     setSyncing(true);
     syncingRef.current = true;
 
@@ -244,16 +235,13 @@ function Dashboard() {
         if (!url) return { success: false, data: [] };
         try {
           const result = await syncGoogleSheets({ sheetUrl: url });
-          if (!result.success || !result.data) {
-            throw new Error(result.message || "Falha ao ler planilha");
-          }
+          if (!result.success || !result.data) throw new Error(result.message || "Falha ao ler planilha");
 
           const processedData = result.data.map((row, idx) => {
             if (mode === 'inventory') {
               const propertyCode = getVal(row, ["codigo", "unidade", "referencia", "id_imovel"]) || `REF-${idx + 1}`;
               return {
-                id: propertyCode,
-                propertyCode,
+                id: propertyCode, propertyCode,
                 neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
                 saleValue: parseCurrency(getVal(row, ["valor venda", "venda"])),
                 rentalValue: parseCurrency(getVal(row, ["valor locacao", "aluguel", "locacao", "valor aluguel"])),
@@ -263,7 +251,6 @@ function Dashboard() {
               };
             } else if (mode === 'sales') {
               const propertyCode = getVal(row, ["codigo", "unidade", "referencia", "id_imovel"]) || `REF-${idx + 1}`;
-              
               if (dealType === 'Locação') {
                 return {
                   id: `${propertyCode}-${idx}`,
@@ -278,8 +265,7 @@ function Dashboard() {
                   saleDate: formatDateDisplay(getVal(row, ["data locacao", "data do contrato", "fechamento", "negocio fechado", "negócio fechado"], ["vendedor"])),
                   propertyCaptureDate: formatDateDisplay(getVal(row, ["entrada do imovel", "data entrada", "cadastro", "carimbo"])),
                   origem: String(getVal(row, ["origem", "origem do lead?"]) || "N/A"),
-                  tipo: 'Locação',
-                  status: 'Alugado',
+                  tipo: 'Locação', status: 'Alugado',
                 };
               } else {
                 return {
@@ -295,17 +281,13 @@ function Dashboard() {
                   saleDate: formatDateDisplay(getVal(row, ["data do venda", "data venda", "fechamento", "venda"], ["vendedor", "corretor"])),
                   propertyCaptureDate: formatDateDisplay(getVal(row, ["entrada do imovel", "data entrada", "cadastro", "carimbo"])),
                   origem: String(getVal(row, ["origem do lead?"]) || "N/A"),
-                  tipo: 'Venda',
-                  status: 'Vendido',
+                  tipo: 'Venda', status: 'Vendido',
                 };
               }
             } else {
               const rowValues = Object.values(row).map((v) => String(v || "").trim()).join("|");
               const leadIdSeed = rowValues.substring(0, 100).replace(/[\/\.\#\$\/\[\] ]/g, "-");
-              return {
-                id: `lead-${leadIdSeed}-${idx}`,
-                ...row
-              };
+              return { id: `lead-${leadIdSeed}-${idx}`, ...row };
             }
           });
           return { success: true, data: processedData, count: processedData.length };
@@ -330,189 +312,24 @@ function Dashboard() {
       if (rentalsResult.success) combinedSales.push(...rentalsResult.data);
       setSales(combinedSales);
 
-      if (!silent) {
-        toast({ title: "Sincronização Concluída", description: `Dados das planilhas foram atualizados.` });
-      }
+      if (!silent) toast({ title: "Sincronização Concluída", description: `Dados das planilhas foram atualizados.` });
     } catch (e) {
         console.error("Sincronização falhou", e);
-        if(!silent) {
-            toast({ variant: "destructive", title: `Erro inesperado na sincronização`, description: e instanceof Error ? e.message : 'Verifique o console para mais detalhes.' });
-        }
+        if(!silent) toast({ variant: "destructive", title: `Erro inesperado na sincronização`, description: e instanceof Error ? e.message : 'Verifique o console.' });
     } finally {
         setSyncing(false);
         syncingRef.current = false;
     }
   }, [toast, urls]);
 
-  const handleUrlsChange = async (newUrls: { inventory: string; leads: string; sales: string; rentals: string; logo: string; }) => {
-    if (!firestore || !configDocRef) {
-      try {
-        const response = await fetch('/api/config');
-        if (!response.ok) {
-            const errorData = await response.json();
-            toast({
-                variant: "destructive",
-                title: "Erro de Configuração",
-                description: errorData.error || "A conexão com o banco de dados falhou. Verifique as variáveis de ambiente na Vercel.",
-                duration: 9000,
-            });
-        } else {
-            toast({ variant: "destructive", title: "Erro de Conexão", description: "A conexão com o banco de dados não está pronta. Tente novamente." });
-        }
-      } catch (e) {
-          toast({ variant: "destructive", title: "Erro de Rede", description: "Não foi possível verificar a configuração do servidor." });
-      }
-      return;
-    }
-    setDoc(configDocRef, { urls: newUrls }, { merge: true })
-      .then(() => {
-        toast({
-          title: "Configurações Salvas",
-          description: "Os links das planilhas foram salvos na nuvem.",
-        });
-        handleSync(false, newUrls);
-      })
-      .catch((error) => {
-        console.error("Erro ao salvar URLs:", error);
-        toast({
-          variant: "destructive",
-          title: "Erro ao Salvar",
-          description: "Não foi possível salvar os links. Verifique o console para mais detalhes.",
-        });
-      });
-  };
-  
-  const handleAddBroker = useCallback(async (brokerName: string) => {
-    const trimmedBrokerName = brokerName.trim();
-    if (!trimmedBrokerName) return;
-
-    if (!firestore || !configDocRef) {
-      try {
-          const response = await fetch('/api/config');
-          if (!response.ok) {
-              const errorData = await response.json();
-              toast({
-                  variant: "destructive",
-                  title: "Erro de Configuração",
-                  description: errorData.error || "A conexão com o banco de dados falhou. Verifique as variáveis de ambiente na Vercel.",
-                  duration: 9000,
-              });
-          } else {
-              toast({ variant: "destructive", title: "Erro de Conexão", description: "A conexão com o banco de dados não está pronta. Tente novamente." });
-          }
-      } catch (e) {
-          toast({ variant: "destructive", title: "Erro de Rede", description: "Não foi possível verificar a configuração do servidor." });
-      }
-      return;
-    }
-
-    const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-    const brokerExists = manualBrokers.some(b => normalize(b) === normalize(trimmedBrokerName));
-  
-    if (brokerExists) {
-      toast({ variant: "destructive", title: "Corretor já existe", description: `"${trimmedBrokerName}" já está na sua lista.` });
-      return;
-    }
-      
-    const updatedBrokers = [...manualBrokers, trimmedBrokerName];
-    setDoc(configDocRef, { manualBrokers: updatedBrokers }, { merge: true })
-      .then(() => {
-        toast({ title: "Corretor Adicionado", description: `"${trimmedBrokerName}" foi adicionado à lista.` });
-      })
-      .catch((error) => {
-        console.error("Erro ao adicionar corretor:", error);
-        toast({
-          variant: "destructive",
-          title: "Erro ao Salvar",
-          description: "Não foi possível adicionar o corretor. Verifique o console para mais detalhes.",
-        });
-      });
-  }, [manualBrokers, firestore, configDocRef, toast]);
-  
-  const handleDeleteBroker = useCallback(async (brokerNameToDelete: string) => {
-    if (!firestore || !configDocRef) {
-      try {
-          const response = await fetch('/api/config');
-          if (!response.ok) {
-              const errorData = await response.json();
-              toast({
-                  variant: "destructive",
-                  title: "Erro de Configuração",
-                  description: errorData.error || "A conexão com o banco de dados falhou. Verifique as variáveis de ambiente na Vercel.",
-                  duration: 9000,
-              });
-          } else {
-              toast({ variant: "destructive", title: "Erro de Conexão", description: "A conexão com o banco de dados não está pronta. Tente novamente." });
-          }
-      } catch (e) {
-          toast({ variant: "destructive", title: "Erro de Rede", description: "Não foi possível verificar a configuração do servidor." });
-      }
-      return;
-    }
-
-    const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-    const updatedBrokers = manualBrokers.filter(b => normalize(b) !== normalize(brokerNameToDelete));
-      
-    setDoc(configDocRef, { manualBrokers: updatedBrokers }, { merge: true })
-      .then(() => {
-        toast({ title: "Corretor Removido", description: `"${brokerNameToDelete}" foi removido da lista.` });
-      })
-      .catch((error) => {
-        console.error("Erro ao remover corretor:", error);
-        toast({
-          variant: "destructive",
-          title: "Erro ao Salvar",
-          description: "Não foi possível remover o corretor. Verifique o console para mais detalhes.",
-        });
-      });
-  }, [manualBrokers, firestore, configDocRef, toast]);
-
-  const handleTargetsChange = useCallback(async (newTargets: typeof targets) => {
-    if (!firestore || !configDocRef) {
-      try {
-          const response = await fetch('/api/config');
-          if (!response.ok) {
-              const errorData = await response.json();
-              toast({
-                  variant: "destructive",
-                  title: "Erro de Configuração",
-                  description: errorData.error || "A conexão com o banco de dados falhou. Verifique as variáveis de ambiente na Vercel.",
-                  duration: 9000,
-              });
-          } else {
-              toast({ variant: "destructive", title: "Erro de Conexão", description: "A conexão com o banco de dados não está pronta. Tente novamente." });
-          }
-      } catch (e) {
-          toast({ variant: "destructive", title: "Erro de Rede", description: "Não foi possível verificar a configuração do servidor." });
-      }
-      return;
-    }
-    setDoc(configDocRef, { targets: newTargets }, { merge: true })
-      .then(() => {
-        toast({ title: "Metas Atualizadas", description: "As novas metas de performance foram salvas na nuvem." });
-      })
-      .catch((error) => {
-        console.error("Erro ao atualizar metas:", error);
-        toast({
-          variant: "destructive",
-          title: "Erro ao Salvar",
-          description: "Não foi possível salvar as metas. Verifique o console para mais detalhes.",
-        });
-      });
-  }, [firestore, configDocRef, toast]);
-  
-  const allBrokers = useMemo(() => {
-    return [...manualBrokers].sort();
-  }, [manualBrokers]);
-
+  // Auto-sync quando URLs carregarem do Firestore
   useEffect(() => {
+    if (configLoading) return;
     if (!urls.inventory && !urls.leads && !urls.sales && !urls.rentals) return;
-
     handleSync(true, urls);
     const intervalId = setInterval(() => handleSync(true, urls), 300000);
-    
     return () => clearInterval(intervalId);
-  }, [urls, handleSync]);
+  }, [urls, handleSync, configLoading]);
   
   const processedSales = useMemo(() => sales.map(s => ({
     ...s,
@@ -535,10 +352,7 @@ function Dashboard() {
           });
           return dateKey ? toDate(lead[dateKey]) : null;
       }
-      return {
-          ...l,
-          dateObj: getLeadDate(l)
-      };
+      return { ...l, dateObj: getLeadDate(l) };
   }), [leads]);
 
   const metrics = useMemo(() => {
@@ -581,9 +395,7 @@ function Dashboard() {
         const startOfPeriod = new Date(Date.UTC(minYear, 0, 1));
         const endOfPeriod = now;
         const totalDays = Math.ceil((endOfPeriod.getTime() - startOfPeriod.getTime()) / (1000 * 60 * 60 * 24));
-        if (totalDays > 0) {
-            salesFrequency = totalDays / salesForFrequencyCalc.length;
-        }
+        if (totalDays > 0) salesFrequency = totalDays / salesForFrequencyCalc.length;
     }
     
     const validCycles = processedSales.map(s => {
@@ -611,11 +423,8 @@ function Dashboard() {
     const daysSinceLastSale = lastSaleDate ? Math.floor((now.getTime() - lastSaleDate.getTime()) / (1000 * 60 * 60 * 24)) : null;
 
     const salesForDiscount = filteredSales.filter(s => 
-      !normalize(s.tipo).includes('loca') && 
-      !normalize(s.tipo).includes('aluguel') && 
-      s.advertisedValue > 0 && 
-      s.closedValue > 0 && 
-      s.advertisedValue >= s.closedValue
+      !normalize(s.tipo).includes('loca') && !normalize(s.tipo).includes('aluguel') && 
+      s.advertisedValue > 0 && s.closedValue > 0 && s.advertisedValue >= s.closedValue
     );
     const totalSaleDiscountPercent = salesForDiscount.reduce((acc, s) => acc + ((s.advertisedValue - s.closedValue) / s.advertisedValue), 0);
     const avgDiscountSale = salesForDiscount.length > 0 ? (totalSaleDiscountPercent / salesForDiscount.length) * 100 : 0;
@@ -624,9 +433,7 @@ function Dashboard() {
 
     const rentalsForDiscount = filteredSales.filter(s => 
       (normalize(s.tipo).includes('loca') || normalize(s.tipo).includes('aluguel')) && 
-      s.advertisedValue > 0 && 
-      s.closedValue > 0 && 
-      s.advertisedValue >= s.closedValue
+      s.advertisedValue > 0 && s.closedValue > 0 && s.advertisedValue >= s.closedValue
     );
     const totalRentDiscountPercent = rentalsForDiscount.reduce((acc, s) => acc + ((s.advertisedValue - s.closedValue) / s.advertisedValue), 0);
     const avgDiscountRent = rentalsForDiscount.length > 0 ? (totalRentDiscountPercent / rentalsForDiscount.length) * 100 : 0;
@@ -634,16 +441,13 @@ function Dashboard() {
     const avgDiscountValueRent = rentalsForDiscount.length > 0 ? totalRentDiscountValue / rentalsForDiscount.length : 0;
 
     const salesForCommission = filteredSales.filter(s => 
-      !normalize(s.tipo).includes('loca') && 
-      !normalize(s.tipo).includes('aluguel') && 
-      s.commission > 0
+      !normalize(s.tipo).includes('loca') && !normalize(s.tipo).includes('aluguel') && s.commission > 0
     );
     const totalSaleCommission = salesForCommission.reduce((acc, s) => acc + s.commission, 0);
     const avgCommissionSale = salesForCommission.length > 0 ? totalSaleCommission / salesForCommission.length : 0;
 
     const rentalsForCommission = filteredSales.filter(s => 
-      (normalize(s.tipo).includes('loca') || normalize(s.tipo).includes('aluguel')) && 
-      s.commission > 0
+      (normalize(s.tipo).includes('loca') || normalize(s.tipo).includes('aluguel')) && s.commission > 0
     );
     const totalRentCommission = rentalsForCommission.reduce((acc, s) => acc + s.commission, 0);
     const avgCommissionRent = rentalsForCommission.length > 0 ? totalRentCommission / rentalsForCommission.length : 0;
@@ -664,20 +468,11 @@ function Dashboard() {
         return { isLocacao: isLocacaoLead, isVisit: hasVisit };
     };
     
-    let leadsVenda = 0;
-    let leadsLocacao = 0;
-    let visitsVenda = 0;
-    let visitsLocacao = 0;
-
+    let leadsVenda = 0, leadsLocacao = 0, visitsVenda = 0, visitsLocacao = 0;
     filteredLeads.forEach(l => {
         const { isLocacao, isVisit } = getLeadDetails(l);
-        if (isLocacao) {
-            leadsLocacao++;
-            if (isVisit) visitsLocacao++;
-        } else {
-            leadsVenda++;
-            if (isVisit) visitsVenda++;
-        }
+        if (isLocacao) { leadsLocacao++; if (isVisit) visitsLocacao++; }
+        else { leadsVenda++; if (isVisit) visitsVenda++; }
     });
 
     let monthsToAverage = 1;
@@ -696,39 +491,29 @@ function Dashboard() {
             }, 0);
         }
     } else {
-        if (selectedMonths.length > 0) {
-            monthsToAverage = selectedMonths.filter(m => parseInt(m) < currentMonthIndex).length;
-        } else {
-            monthsToAverage = currentMonthIndex;
-        }
+        monthsToAverage = selectedMonths.length > 0
+          ? selectedMonths.filter(m => parseInt(m) < currentMonthIndex).length
+          : currentMonthIndex;
     }
     monthsToAverage = Math.max(1, monthsToAverage);
 
     return {
-      avgDaysToSell,
-      avgDaysToRent: 0,
+      avgDaysToSell, avgDaysToRent: 0,
       totalValue: inventory.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0),
       lastSaleDisplay: daysSinceLastSale !== null ? `${Math.max(0, daysSinceLastSale)} Dias` : "-",
       totalLeads: leads.length,
       totalSales: filteredSales.filter(s => normalize(s.tipo) === 'venda').length,
       totalRentals: filteredSales.filter(s => normalize(s.tipo) !== 'venda').length,
       totalProperties: filteredProperties.length,
-      avgTicket,
-      avgTicketRent,
-      salesFrequency,
-      avgDiscountSale,
-      avgDiscountRent,
-      avgDiscountValueSale,
-      avgDiscountValueRent,
-      avgCommissionSale,
-      avgCommissionRent,
+      avgTicket, avgTicketRent, salesFrequency,
+      avgDiscountSale, avgDiscountRent, avgDiscountValueSale, avgDiscountValueRent,
+      avgCommissionSale, avgCommissionRent,
       totalDeals: filteredSales.length,
       avgLeadsVenda: leadsVenda / monthsToAverage,
       avgLeadsLocacao: leadsLocacao / monthsToAverage,
       avgVisitsVenda: visitsVenda / monthsToAverage,
       avgVisitsLocacao: visitsLocacao / monthsToAverage,
-      totalVGVFechado,
-      totalVGLFechado,
+      totalVGVFechado, totalVGLFechado,
     };
   }, [processedSales, leads, processedInventory, inventory, now, selectedMonths, selectedYears, processedLeads]);
 
@@ -745,21 +530,11 @@ function Dashboard() {
   }));
 
   const handleMonthSelect = (month: string) => {
-    setSelectedMonths(prev => {
-      const newSelection = prev.includes(month)
-        ? prev.filter(m => m !== month)
-        : [...prev, month];
-      return newSelection;
-    });
+    setSelectedMonths(prev => prev.includes(month) ? prev.filter(m => m !== month) : [...prev, month]);
   };
 
   const handleYearSelect = (year: string) => {
-    setSelectedYears(prev => {
-      const newSelection = prev.includes(year)
-        ? prev.filter(y => y !== year)
-        : [...prev, year];
-      return newSelection;
-    });
+    setSelectedYears(prev => prev.includes(year) ? prev.filter(y => y !== year) : [...prev, year]);
   };
 
   if (!mounted) return null;
@@ -789,73 +564,48 @@ function Dashboard() {
              </Button>
             <div className="flex items-center gap-2 bg-muted/30 px-3 py-1.5 rounded-lg border">
               <CalendarIcon className="h-4 w-4 text-primary" />
-              
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="h-8 border-none bg-transparent shadow-none focus:ring-0 px-2 text-sm">
                     <span className="truncate max-w-[120px]">
-                      {selectedMonths.length === 0 
-                        ? "Todos os Meses" 
-                        : selectedMonths.length === 1 
-                          ? monthOptions.find(m => m.value === selectedMonths[0])?.label 
-                          : `${selectedMonths.length} meses`}
+                      {selectedMonths.length === 0 ? "Todos os Meses" 
+                        : selectedMonths.length === 1 ? monthOptions.find(m => m.value === selectedMonths[0])?.label 
+                        : `${selectedMonths.length} meses`}
                     </span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56">
                   <DropdownMenuLabel>Filtrar por Mês</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuCheckboxItem
-                      checked={selectedMonths.length === 0}
-                      onCheckedChange={() => setSelectedMonths([])}
-                      onSelect={(e) => e.preventDefault()}
-                    >
-                      Todos os Meses
-                    </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem checked={selectedMonths.length === 0} onCheckedChange={() => setSelectedMonths([])} onSelect={(e) => e.preventDefault()}>
+                    Todos os Meses
+                  </DropdownMenuCheckboxItem>
                   {monthOptions.map((option) => (
-                    <DropdownMenuCheckboxItem
-                      key={option.value}
-                      checked={selectedMonths.includes(option.value)}
-                      onCheckedChange={() => handleMonthSelect(option.value)}
-                      onSelect={(e) => e.preventDefault()}
-                    >
+                    <DropdownMenuCheckboxItem key={option.value} checked={selectedMonths.includes(option.value)} onCheckedChange={() => handleMonthSelect(option.value)} onSelect={(e) => e.preventDefault()}>
                       {option.label}
                     </DropdownMenuCheckboxItem>
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
-
               <div className="w-[1px] h-4 bg-muted-foreground/20 mx-1" />
-
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="h-8 border-none bg-transparent shadow-none focus:ring-0 px-2 text-sm">
-                     <span className="truncate max-w-[100px]">
-                      {selectedYears.length === 0 
-                        ? "Todos os Anos" 
-                        : selectedYears.length === 1 
-                          ? selectedYears[0] 
-                          : `${selectedYears.length} anos`}
+                    <span className="truncate max-w-[100px]">
+                      {selectedYears.length === 0 ? "Todos os Anos" 
+                        : selectedYears.length === 1 ? selectedYears[0] 
+                        : `${selectedYears.length} anos`}
                     </span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56">
                   <DropdownMenuLabel>Filtrar por Ano</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuCheckboxItem
-                      checked={selectedYears.length === 0}
-                      onCheckedChange={() => setSelectedYears([])}
-                      onSelect={(e) => e.preventDefault()}
-                    >
-                      Todos os Anos
-                    </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem checked={selectedYears.length === 0} onCheckedChange={() => setSelectedYears([])} onSelect={(e) => e.preventDefault()}>
+                    Todos os Anos
+                  </DropdownMenuCheckboxItem>
                   {yearOptions.map((option) => (
-                    <DropdownMenuCheckboxItem
-                      key={option.value}
-                      checked={selectedYears.includes(option.value)}
-                      onCheckedChange={() => handleYearSelect(option.value)}
-                      onSelect={(e) => e.preventDefault()}
-                    >
+                    <DropdownMenuCheckboxItem key={option.value} checked={selectedYears.includes(option.value)} onCheckedChange={() => handleYearSelect(option.value)} onSelect={(e) => e.preventDefault()}>
                       {option.label}
                     </DropdownMenuCheckboxItem>
                   ))}
@@ -877,7 +627,7 @@ function Dashboard() {
                     <div>
                         <CardTitle className="text-amber-800">Ação Necessária</CardTitle>
                         <p className="text-sm text-muted-foreground">
-                            Para começar, por favor, clique no ícone de engrenagem e insira os links das suas planilhas.
+                            Para começar, clique no ícone de engrenagem e insira os links das suas planilhas.
                         </p>
                     </div>
                 </CardHeader>
@@ -892,30 +642,20 @@ function Dashboard() {
                     Metas de Performance
                 </h2>
                 <InventoryHealth 
-                  properties={inventory} 
-                  sales={sales}
-                  targets={targets}
-                  onTargetsChange={handleTargetsChange}
-                  brokers={allBrokers}
-                  selectedMonths={selectedMonths}
-                  selectedYears={selectedYears}
+                  properties={inventory} sales={sales} targets={targets}
+                  onTargetsChange={handleTargetsChange} brokers={allBrokers}
+                  selectedMonths={selectedMonths} selectedYears={selectedYears}
                 />
             </div>
             <div className="space-y-6">
               <MonthlyTrends sales={sales} properties={inventory} />
               <BrokerPerformanceGrid 
-                sales={sales} 
-                leads={leads} 
-                properties={inventory} 
-                selectedMonths={selectedMonths}
-                selectedYears={selectedYears}
-                brokers={allBrokers}
+                sales={sales} leads={leads} properties={inventory} 
+                selectedMonths={selectedMonths} selectedYears={selectedYears} brokers={allBrokers}
               />
               <ChannelPerformance 
-                leads={leads} 
-                sales={sales} 
-                selectedMonths={selectedMonths}
-                selectedYears={selectedYears}
+                leads={leads} sales={sales} 
+                selectedMonths={selectedMonths} selectedYears={selectedYears}
               />
             </div>
           </div>
@@ -961,12 +701,3 @@ export default function Page() {
     </ClientOnly>
   );
 }
-
-    
-
-    
-
-
-
-
-
