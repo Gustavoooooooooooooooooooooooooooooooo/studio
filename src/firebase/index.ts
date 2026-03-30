@@ -17,21 +17,42 @@ type InitResult = {
   error: string | null;
 };
 
-async function getFirebaseConfig(): Promise<any> {
-    const response = await fetch('/api/config');
-    if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch Firebase config from server.');
-    }
-    return response.json();
+// This function now runs entirely on the client
+function getFirebaseConfig(): { config: any; error: string | null } {
+  const requiredKeys = [
+    'NEXT_PUBLIC_FIREBASE_API_KEY',
+    'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
+    'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
+    'NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID',
+    'NEXT_PUBLIC_FIREBASE_APP_ID',
+  ];
+
+  const missingKeys = requiredKeys.filter(key => !process.env[key]);
+
+  if (missingKeys.length > 0) {
+    const error = `Client-side configuration is incomplete. The following environment variables are missing: ${missingKeys.join(', ')}. Please ensure they are defined as NEXT_PUBLIC_... in your Vercel Project's settings and a new deployment has been triggered.`;
+    return { config: null, error };
+  }
+
+  const firebaseConfig = {
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "", // storageBucket is optional
+  };
+  
+  return { config: firebaseConfig, error: null };
 }
 
 export async function initializeFirebase(): Promise<InitResult> {
   try {
-    const firebaseConfig = await getFirebaseConfig();
+    const { config: firebaseConfig, error: configError } = getFirebaseConfig();
 
-    if (!firebaseConfig) {
-      return { services: null, error: "Failed to load Firebase config." };
+    if (configError) {
+      console.error("Error getting Firebase config:", configError);
+      return { services: null, error: configError };
     }
 
     const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
