@@ -17,38 +17,29 @@ type InitResult = {
   error: string | null;
 };
 
-// This function now runs entirely on the client
-function getFirebaseConfig(): { config: any; error: string | null } {
-  const requiredKeys = [
-    'NEXT_PUBLIC_FIREBASE_API_KEY',
-    'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
-    'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
-    'NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID',
-    'NEXT_PUBLIC_FIREBASE_APP_ID',
-  ];
+// This function now fetches config from an API route
+async function getFirebaseConfig(): Promise<{ config: any; error: string | null }> {
+  try {
+    // Fetch from the API route
+    const response = await fetch('/api/config');
 
-  const missingKeys = requiredKeys.filter(key => !process.env[key]);
+    if (!response.ok) {
+      const errorData = await response.json();
+      const errorMessage = `Failed to fetch Firebase config: ${errorData.error || `Status ${response.status}`}`;
+      return { config: null, error: errorMessage };
+    }
 
-  if (missingKeys.length > 0) {
-    const error = `Client-side configuration is incomplete. The following environment variables are missing: ${missingKeys.join(', ')}. Please ensure they are defined as NEXT_PUBLIC_... in your Vercel Project's settings and a new deployment has been triggered.`;
-    return { config: null, error };
+    const config = await response.json();
+    return { config, error: null };
+  } catch (e: any) {
+    const errorMessage = `Network error while fetching Firebase config: ${e.message}`;
+    return { config: null, error: errorMessage };
   }
-
-  const firebaseConfig = {
-    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "", // storageBucket is optional
-  };
-  
-  return { config: firebaseConfig, error: null };
 }
 
 export async function initializeFirebase(): Promise<InitResult> {
   try {
-    const { config: firebaseConfig, error: configError } = getFirebaseConfig();
+    const { config: firebaseConfig, error: configError } = await getFirebaseConfig();
 
     if (configError) {
       console.error("Error getting Firebase config:", configError);
