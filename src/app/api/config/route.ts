@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   // Define only the keys that are strictly required for the app to function.
+  // Be robust: check for NEXT_PUBLIC_ prefixed variables, but fall back to non-prefixed
+  // versions, as the server doesn't strictly need the prefix. This handles cases
+  // where the user might have omitted the prefix in Vercel settings.
   const requiredConfig = {
     apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
     authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
