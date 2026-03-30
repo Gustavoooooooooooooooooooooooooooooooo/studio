@@ -15,13 +15,14 @@ const firebaseConfig = {
 
 export function initializeFirebase() {
   if (!firebaseConfig.apiKey) {
-    return null as any;
+    return { services: null, error: 'Firebase config is missing. Check your environment variables.' };
   }
-  if (!getApps().length) {
-    const firebaseApp = initializeApp(firebaseConfig);
-    return getSdks(firebaseApp);
+  try {
+    const firebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+    return { services: getSdks(firebaseApp), error: null };
+  } catch (e: any) {
+    return { services: null, error: e.message };
   }
-  return getSdks(getApp());
 }
 
 export function getSdks(firebaseApp: FirebaseApp) {
