@@ -124,7 +124,7 @@ const parseCurrency = (val: any) => {
 };
 
 
-function Dashboard() {
+function DashboardContent() {
   const [mounted, setMounted] = useState(false);
   const [now] = useState<Date>(new Date());
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
@@ -133,7 +133,7 @@ function Dashboard() {
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const { toast } = useToast();
 
-  const { urls, brokers: allBrokers, loading: configLoading, saveUrls, addBroker, deleteBroker, areServicesAvailable, initError } = useAppConfig();
+  const { urls, brokers: allBrokers, loading: configLoading, saveUrls, addBroker, deleteBroker, areServicesAvailable } = useAppConfig();
 
   const [targets, setTargets] = useState<{
     [key: string]: {
@@ -152,50 +152,6 @@ function Dashboard() {
   const [inventory, setInventory] = useState<any[]>([]);
 
   const syncingRef = useRef(false);
-
-  useEffect(() => {
-    // The full-screen error below makes this toast redundant for initError.
-    // We keep it for other potential errors.
-  }, [initError, toast]);
-
-  // Full-screen error display for critical configuration issues
-  if (initError) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-3xl border-destructive bg-destructive/5 shadow-2xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-3 text-xl text-destructive">
-              <AlertTriangle className="h-8 w-8" />
-              Erro Crítico de Configuração do Servidor
-            </CardTitle>
-            <CardDescription className="!mt-2 text-base text-destructive/80">
-              A aplicação não pôde ser iniciada porque o servidor da Vercel não está configurado corretamente.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              <p className="font-semibold text-foreground">
-                A seguinte mensagem de erro foi recebida do servidor, indicando que as variáveis de ambiente não foram encontradas:
-              </p>
-              <pre className="whitespace-pre-wrap rounded-md bg-destructive/10 p-4 font-mono text-sm text-destructive-foreground">
-                {initError}
-              </pre>
-              <div className="rounded-md border border-amber-500/50 bg-amber-500/10 p-4 text-amber-800">
-                <p className="text-lg font-bold">Como resolver:</p>
-                <ol className="ml-5 mt-2 list-decimal space-y-2 text-sm">
-                  <li>Acesse as configurações do seu projeto no painel da Vercel.</li>
-                  <li>Navegue até a seção **Settings &gt; Environment Variables**.</li>
-                  <li>Confirme que todas as variáveis de ambiente listadas acima existem e que os valores estão corretos.</li>
-                  <li>Certifique-se de que elas estão aplicadas ao ambiente de **Production**.</li>
-                  <li className="font-bold">Após salvar as variáveis, vá até a aba **Deployments**, encontre o último deploy, clique nos três pontos (...) e selecione **"Redeploy"** para aplicar as mudanças.</li>
-                </ol>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   useEffect(() => {
     const savedTargets = localStorage.getItem('app_targets');
@@ -329,18 +285,18 @@ function Dashboard() {
 
   const handleUrlsChange = useCallback(async (newUrls: AppUrls) => {
     if (!areServicesAvailable) {
-        toast({ variant: 'destructive', title: 'Erro de Conexão', description: initError || 'A conexão com o banco de dados não foi estabelecida.' });
+        toast({ variant: 'destructive', title: 'Erro de Conexão', description: 'A conexão com o banco de dados não foi estabelecida.' });
         return;
     }
     await saveUrls(newUrls);
     toast({ title: 'Configurações Salvas', description: 'Os links das planilhas foram atualizados.' });
     handleSync(false, newUrls);
-  }, [saveUrls, toast, areServicesAvailable, handleSync, initError]);
+  }, [saveUrls, toast, areServicesAvailable, handleSync]);
 
   const handleAddBroker = useCallback(async (brokerName: string) => {
     if (!brokerName.trim()) return;
     if (!areServicesAvailable) {
-        toast({ variant: 'destructive', title: 'Erro de Conexão', description: initError || 'A conexão com o banco de dados não foi estabelecida.' });
+        toast({ variant: 'destructive', title: 'Erro de Conexão', description: 'A conexão com o banco de dados não foi estabelecida.' });
         return;
     }
     const result = await addBroker(brokerName.trim());
@@ -351,16 +307,16 @@ function Dashboard() {
     } else {
       toast({ title: 'Corretor Adicionado', description: `"${brokerName}" foi adicionado à lista.` });
     }
-  }, [addBroker, toast, areServicesAvailable, initError]);
+  }, [addBroker, toast, areServicesAvailable]);
 
   const handleDeleteBroker = useCallback(async (name: string) => {
     if (!areServicesAvailable) {
-        toast({ variant: 'destructive', title: 'Erro de Conexão', description: initError || 'A conexão com o banco de dados não foi estabelecida.' });
+        toast({ variant: 'destructive', title: 'Erro de Conexão', description: 'A conexão com o banco de dados não foi estabelecida.' });
         return;
     }
     await deleteBroker(name);
     toast({ title: 'Corretor Removido', description: `"${name}" foi removido da lista.` });
-  }, [deleteBroker, toast, areServicesAvailable, initError]);
+  }, [deleteBroker, toast, areServicesAvailable]);
 
   const handleTargetsChange = useCallback((newTargets: typeof targets) => {
     setTargets(newTargets);
@@ -738,6 +694,50 @@ function Dashboard() {
       </footer>
     </div>
   );
+}
+
+function Dashboard() {
+  const { initError } = useFirebase();
+
+  if (initError) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-3xl border-destructive bg-destructive/5 shadow-2xl">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-3 text-xl text-destructive">
+              <AlertTriangle className="h-8 w-8" />
+              Erro Crítico de Configuração do Servidor
+            </CardTitle>
+            <CardDescription className="!mt-2 text-base text-destructive/80">
+              A aplicação não pôde ser iniciada porque o servidor da Vercel não está configurado corretamente.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              <p className="font-semibold text-foreground">
+                A seguinte mensagem de erro foi recebida do servidor, indicando que as variáveis de ambiente não foram encontradas:
+              </p>
+              <pre className="whitespace-pre-wrap rounded-md bg-destructive/10 p-4 font-mono text-sm text-destructive-foreground">
+                {initError}
+              </pre>
+              <div className="rounded-md border border-amber-500/50 bg-amber-500/10 p-4 text-amber-800">
+                <p className="text-lg font-bold">Como resolver:</p>
+                <ol className="ml-5 mt-2 list-decimal space-y-2 text-sm">
+                  <li>Acesse as configurações do seu projeto no painel da Vercel.</li>
+                  <li>Navegue até a seção **Settings &gt; Environment Variables**.</li>
+                  <li>Confirme que todas as variáveis de ambiente listadas acima existem e que os valores estão corretos.</li>
+                  <li>Certifique-se de que elas estão aplicadas ao ambiente de **Production**.</li>
+                  <li className="font-bold">Após salvar as variáveis, vá até a aba **Deployments**, encontre o último deploy, clique nos três pontos (...) e selecione **"Redeploy"** para aplicar as mudanças.</li>
+                </ol>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return <DashboardContent />;
 }
 
 export default function Page() {

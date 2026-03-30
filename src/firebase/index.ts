@@ -25,8 +25,8 @@ async function getFirebaseConfig(): Promise<{ config: any; error: string | null 
 
     if (!response.ok) {
       const errorData = await response.json();
-      const errorMessage = `Failed to fetch Firebase config: ${errorData.error || `Status ${response.status}`}`;
-      return { config: null, error: errorMessage };
+      // The API route provides a full, descriptive error. No need to add a prefix.
+      return { config: null, error: errorData.error || `Failed to fetch Firebase config with status: ${response.status}` };
     }
 
     const config = await response.json();
