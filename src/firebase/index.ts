@@ -18,7 +18,7 @@ type InitResult = {
 };
 
 // This function now fetches config from an API route
-async function getFirebaseConfig(): Promise<{ config: any; error: string | null }> {
+async function getFirebaseConfig(): Promise<{ config: any; error: string | null; debug?: any }> {
   try {
     // Fetch from the API route
     const response = await fetch('/api/config');
@@ -33,7 +33,7 @@ async function getFirebaseConfig(): Promise<{ config: any; error: string | null 
       return { config: null, error };
     }
     
-    return { config: data.config, error: null };
+    return { config: data.config, error: null, debug: data.debug };
   } catch (e: any) {
     const errorMessage = `Network error while fetching Firebase config: ${e.message}`;
     console.error(errorMessage, e);
@@ -43,7 +43,7 @@ async function getFirebaseConfig(): Promise<{ config: any; error: string | null 
 
 export async function initializeFirebase(): Promise<InitResult> {
   try {
-    const { config: firebaseConfig, error: configError } = await getFirebaseConfig();
+    const { config: firebaseConfig, error: configError, debug: debugInfo } = await getFirebaseConfig();
 
     if (configError) {
       console.error("Error getting Firebase config:", configError);
@@ -63,7 +63,11 @@ export async function initializeFirebase(): Promise<InitResult> {
   } catch (error: any) {
       let errorMessage = error instanceof Error ? error.message : "An unknown error occurred during Firebase initialization.";
       if (error.code === 'auth/invalid-api-key') {
-        errorMessage = 'A chave de API do Firebase (apiKey) é inválida. Verifique o valor da variável de ambiente NEXT_PUBLIC_FIREBASE_API_KEY nas configurações do seu projeto Vercel e certifique-se de que corresponde à chave do seu projeto no console do Firebase. Após corrigir, faça um novo deploy.';
+        const { debug: debugInfo } = await getFirebaseConfig(); // refetch to get debug info
+        const apiKeyPartial = debugInfo?.apiKeyPartial || 'não foi possível ler';
+        const start = apiKeyPartial.split('...')[0];
+        const end = apiKeyPartial.split('...')[1];
+        errorMessage = `A chave de API do Firebase (apiKey) é inválida. A aplicação está recebendo uma chave que começa com '${start}' e termina com '${end}'. Por favor, verifique se este é o começo e o fim corretos da sua chave no console do Firebase. Se não for, corrija o valor da variável NEXT_PUBLIC_FIREBASE_API_KEY nas configurações do seu projeto Vercel e faça um novo deploy.`;
       } else if (error.code === 'auth/operation-not-allowed') {
         errorMessage = 'A autenticação anônima precisa ser habilitada no seu painel do Firebase. Vá em Authentication > Sign-in method e ative a opção "Anônimo". Depois disso, faça um novo deploy na Vercel.';
       }

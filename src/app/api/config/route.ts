@@ -26,14 +26,15 @@ export async function GET() {
       if (key !== 'storageBucket') {
         missingKeys.push(varNames[0]);
       }
-
-      // fallback seguro (evita crash no front)
       firebaseConfig[key] = '';
     }
   }
 
-  // Log completo para debug (Vercel logs)
-  console.log('🔥 Firebase Config carregada:', firebaseConfig);
+  const debugInfo = {
+    apiKeyPartial: firebaseConfig.apiKey 
+      ? `${firebaseConfig.apiKey.substring(0, 5)}...${firebaseConfig.apiKey.slice(-5)}` 
+      : 'N/A',
+  };
 
   if (missingKeys.length > 0) {
     console.error('❌ Variáveis faltando:', missingKeys);
@@ -43,5 +44,6 @@ export async function GET() {
     success: missingKeys.length === 0,
     missingKeys,
     config: firebaseConfig,
+    debug: debugInfo,
   });
 }
