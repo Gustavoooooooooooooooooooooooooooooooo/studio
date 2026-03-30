@@ -23,10 +23,11 @@ export async function GET() {
     );
   }
 
-  // Construct the full config, now treating storageBucket as optional.
+  // Construct the full config, providing a fallback for storageBucket.
   const firebaseConfig = {
     ...requiredConfig,
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    // Provide a default empty string if the env var is not set.
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "", 
   };
 
   return NextResponse.json(firebaseConfig);
