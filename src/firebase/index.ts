@@ -17,35 +17,21 @@ type InitResult = {
   error: string | null;
 };
 
+async function getFirebaseConfig(): Promise<any> {
+    const response = await fetch('/api/config');
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch Firebase config from server.');
+    }
+    return response.json();
+}
 
 export async function initializeFirebase(): Promise<InitResult> {
   try {
-    const firebaseConfig = {
-      apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-      authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-      messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-      appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-    };
+    const firebaseConfig = await getFirebaseConfig();
 
-    const missingKeys: string[] = [];
-    for (const [key, value] of Object.entries(firebaseConfig)) {
-        if (key !== 'storageBucket' && !value) {
-            const envVarName = `NEXT_PUBLIC_FIREBASE_${key.replace(/([A-Z])/g, '_$1').toUpperCase()}`;
-            missingKeys.push(envVarName);
-        }
-    }
-
-    if (missingKeys.length > 0) {
-        const error = `Firebase configuration is incomplete. The following environment variables are missing from your Vercel project's "Production" environment: ${missingKeys.join(', ')}. Please ensure they are added and trigger a new deployment.`;
-        console.error(error);
-        return { services: null, error };
-    }
-    
-    // Ensure storageBucket is present, even if empty, as the SDK expects it.
-    if (!firebaseConfig.storageBucket) {
-      (firebaseConfig as any).storageBucket = "";
+    if (!firebaseConfig) {
+      return { services: null, error: "Failed to load Firebase config." };
     }
 
     const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
@@ -54,7 +40,7 @@ export async function initializeFirebase(): Promise<InitResult> {
 
   } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred during Firebase initialization.";
-      console.error("Error during Firebase initialization:", error);
+      console.error("Error during Firebase initialization:", errorMessage);
       return { services: null, error: errorMessage };
   }
 }
