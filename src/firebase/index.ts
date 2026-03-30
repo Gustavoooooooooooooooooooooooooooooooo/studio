@@ -48,11 +48,21 @@ export async function initializeFirebase(): Promise<InitResult> {
 
     const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
     const services = getSdks(app);
+
+    // Automatically sign in anonymously if no user is present
+    if (!services.auth.currentUser) {
+      await signInAnonymously(services.auth);
+    }
+    
     return { services, error: null };
 
-  } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred during Firebase initialization.";
-      console.error("Error during Firebase initialization:", errorMessage);
+  } catch (error: any) {
+      let errorMessage = error instanceof Error ? error.message : "An unknown error occurred during Firebase initialization.";
+      // Provide a specific, helpful error message if anonymous sign-in is not enabled
+      if (error.code === 'auth/operation-not-allowed') {
+        errorMessage = 'A autenticação anônima precisa ser habilitada no seu painel do Firebase. Vá em Authentication > Sign-in method e ative a opção "Anônimo". Depois disso, faça um novo deploy na Vercel.';
+      }
+      console.error("Error during Firebase initialization or sign-in:", errorMessage);
       return { services: null, error: errorMessage };
   }
 }
