@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 
 export async function GET() {
-  // Define the keys we need and the possible env var names
   const configMapping = {
     apiKey: ['NEXT_PUBLIC_FIREBASE_API_KEY', 'FIREBASE_API_KEY'],
     authDomain: ['NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN', 'FIREBASE_AUTH_DOMAIN'],
@@ -14,31 +13,35 @@ export async function GET() {
   const firebaseConfig: { [key: string]: string } = {};
   const missingKeys: string[] = [];
 
-  // Find the first available env var for each config key
   for (const key in configMapping) {
     const varNames = configMapping[key as keyof typeof configMapping];
-    const value = varNames.map(name => process.env[name]).find(v => v);
+
+    const value = varNames
+      .map((name) => process.env[name])
+      .find((v) => v && v !== '');
 
     if (value) {
       firebaseConfig[key] = value;
     } else {
-      // Don't fail for storageBucket, it's optional
       if (key !== 'storageBucket') {
-        missingKeys.push(varNames[0]); // Report the recommended name
+        missingKeys.push(varNames[0]);
       }
+
+      // fallback seguro (evita crash no front)
+      firebaseConfig[key] = '';
     }
   }
 
+  // Log completo para debug (Vercel logs)
+  console.log('🔥 Firebase Config carregada:', firebaseConfig);
+
   if (missingKeys.length > 0) {
-    const error = `Vercel server configuration is incomplete. The following environment variables are missing from your Vercel Project's "Production" environment settings: ${missingKeys.join(', ')}. Please ensure they are added and trigger a new deployment.`;
-    console.error(error);
-    return NextResponse.json({ error }, { status: 500 });
-  }
-  
-  // Ensure storageBucket is present, even if empty
-  if (!firebaseConfig.storageBucket) {
-    firebaseConfig.storageBucket = "";
+    console.error('❌ Variáveis faltando:', missingKeys);
   }
 
-  return NextResponse.json(firebaseConfig);
+  return NextResponse.json({
+    success: missingKeys.length === 0,
+    missingKeys,
+    config: firebaseConfig,
+  });
 }

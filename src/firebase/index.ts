@@ -22,17 +22,21 @@ async function getFirebaseConfig(): Promise<{ config: any; error: string | null 
   try {
     // Fetch from the API route
     const response = await fetch('/api/config');
+    const data = await response.json();
 
     if (!response.ok) {
-      const errorData = await response.json();
-      // The API route provides a full, descriptive error. No need to add a prefix.
-      return { config: null, error: errorData.error || `Failed to fetch Firebase config with status: ${response.status}` };
+        return { config: null, error: `Failed to fetch Firebase config with status: ${response.status}` };
     }
-
-    const config = await response.json();
-    return { config, error: null };
+    
+    if (!data.success) {
+      const error = `A configuração do servidor Vercel está incompleta. As seguintes variáveis de ambiente estão faltando nas configurações de 'Production' do seu Projeto Vercel: ${data.missingKeys.join(', ')}. Por favor, adicione-as e faça um novo deploy.`;
+      return { config: null, error };
+    }
+    
+    return { config: data.config, error: null };
   } catch (e: any) {
     const errorMessage = `Network error while fetching Firebase config: ${e.message}`;
+    console.error(errorMessage, e);
     return { config: null, error: errorMessage };
   }
 }
@@ -58,8 +62,9 @@ export async function initializeFirebase(): Promise<InitResult> {
 
   } catch (error: any) {
       let errorMessage = error instanceof Error ? error.message : "An unknown error occurred during Firebase initialization.";
-      // Provide a specific, helpful error message if anonymous sign-in is not enabled
-      if (error.code === 'auth/operation-not-allowed') {
+      if (error.code === 'auth/invalid-api-key') {
+        errorMessage = 'A chave de API do Firebase (apiKey) é inválida. Verifique o valor da variável de ambiente NEXT_PUBLIC_FIREBASE_API_KEY nas configurações do seu projeto Vercel e certifique-se de que corresponde à chave do seu projeto no console do Firebase. Após corrigir, faça um novo deploy.';
+      } else if (error.code === 'auth/operation-not-allowed') {
         errorMessage = 'A autenticação anônima precisa ser habilitada no seu painel do Firebase. Vá em Authentication > Sign-in method e ative a opção "Anônimo". Depois disso, faça um novo deploy na Vercel.';
       }
       console.error("Error during Firebase initialization or sign-in:", errorMessage);
