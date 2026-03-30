@@ -18,7 +18,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendingUp, Settings, Calendar as CalendarIcon, AlertTriangle, RefreshCcw, Trophy } from "lucide-react";
-import { useFirebase, initiateAnonymousSignIn } from "@/firebase";
+import { useFirebase } from "@/firebase";
 import { syncGoogleSheets } from "@/ai/flows/sync-sheets-flow";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -151,7 +151,6 @@ function Dashboard() {
   const [sales, setSales] = useState<any[]>([]);
   const [inventory, setInventory] = useState<any[]>([]);
 
-  const { auth, user, isUserLoading } = useFirebase();
   const syncingRef = useRef(false);
 
   useEffect(() => {
@@ -160,16 +159,10 @@ function Dashboard() {
         variant: "destructive",
         title: "Erro de Configuração do Firebase",
         description: initError,
-        duration: 999999, // Make it very long
+        duration: 999999,
       });
     }
   }, [initError, toast]);
-
-  useEffect(() => {
-    if (auth && !user && !isUserLoading) {
-      initiateAnonymousSignIn(auth, toast);
-    }
-  }, [auth, user, isUserLoading, toast]);
 
   useEffect(() => {
     const savedTargets = localStorage.getItem('app_targets');
@@ -203,47 +196,6 @@ function Dashboard() {
     }
     setMounted(true);
   }, []);
-
-  const handleUrlsChange = useCallback(async (newUrls: AppUrls) => {
-    if (!areServicesAvailable) {
-        toast({ variant: 'destructive', title: 'Erro de Conexão', description: initError || 'A conexão com o banco de dados não foi estabelecida.' });
-        return;
-    }
-    await saveUrls(newUrls);
-    toast({ title: 'Configurações Salvas', description: 'Os links das planilhas foram atualizados.' });
-    handleSync(false, newUrls);
-  }, [saveUrls, toast, areServicesAvailable, handleSync, initError]);
-
-  const handleAddBroker = useCallback(async (brokerName: string) => {
-    if (!brokerName.trim()) return;
-    if (!areServicesAvailable) {
-        toast({ variant: 'destructive', title: 'Erro de Conexão', description: initError || 'A conexão com o banco de dados não foi estabelecida.' });
-        return;
-    }
-    const result = await addBroker(brokerName.trim());
-    if (result?.error === 'already-exists') {
-      toast({ variant: 'destructive', title: 'Corretor já existe', description: `"${brokerName}" já está na lista.` });
-    } else if (result?.error) {
-      toast({ variant: 'destructive', title: 'Erro ao adicionar corretor', description: 'Verifique a conexão e tente novamente.' });
-    } else {
-      toast({ title: 'Corretor Adicionado', description: `"${brokerName}" foi adicionado à lista.` });
-    }
-  }, [addBroker, toast, areServicesAvailable, initError]);
-
-  const handleDeleteBroker = useCallback(async (name: string) => {
-    if (!areServicesAvailable) {
-        toast({ variant: 'destructive', title: 'Erro de Conexão', description: initError || 'A conexão com o banco de dados não foi estabelecida.' });
-        return;
-    }
-    await deleteBroker(name);
-    toast({ title: 'Corretor Removido', description: `"${name}" foi removido da lista.` });
-  }, [deleteBroker, toast, areServicesAvailable, initError]);
-
-  const handleTargetsChange = useCallback((newTargets: typeof targets) => {
-    setTargets(newTargets);
-    localStorage.setItem('app_targets', JSON.stringify(newTargets));
-    toast({ title: "Metas Atualizadas", description: "As novas metas de performance foram salvas." });
-  }, [toast]);
 
   const handleSync = useCallback(async (silent = false, syncUrls = urls) => {
     if (syncingRef.current) return;
@@ -341,6 +293,47 @@ function Dashboard() {
         syncingRef.current = false;
     }
   }, [toast, urls]);
+
+  const handleUrlsChange = useCallback(async (newUrls: AppUrls) => {
+    if (!areServicesAvailable) {
+        toast({ variant: 'destructive', title: 'Erro de Conexão', description: initError || 'A conexão com o banco de dados não foi estabelecida.' });
+        return;
+    }
+    await saveUrls(newUrls);
+    toast({ title: 'Configurações Salvas', description: 'Os links das planilhas foram atualizados.' });
+    handleSync(false, newUrls);
+  }, [saveUrls, toast, areServicesAvailable, handleSync, initError]);
+
+  const handleAddBroker = useCallback(async (brokerName: string) => {
+    if (!brokerName.trim()) return;
+    if (!areServicesAvailable) {
+        toast({ variant: 'destructive', title: 'Erro de Conexão', description: initError || 'A conexão com o banco de dados não foi estabelecida.' });
+        return;
+    }
+    const result = await addBroker(brokerName.trim());
+    if (result?.error === 'already-exists') {
+      toast({ variant: 'destructive', title: 'Corretor já existe', description: `"${brokerName}" já está na lista.` });
+    } else if (result?.error) {
+      toast({ variant: 'destructive', title: 'Erro ao adicionar corretor', description: 'Verifique a conexão e tente novamente.' });
+    } else {
+      toast({ title: 'Corretor Adicionado', description: `"${brokerName}" foi adicionado à lista.` });
+    }
+  }, [addBroker, toast, areServicesAvailable, initError]);
+
+  const handleDeleteBroker = useCallback(async (name: string) => {
+    if (!areServicesAvailable) {
+        toast({ variant: 'destructive', title: 'Erro de Conexão', description: initError || 'A conexão com o banco de dados não foi estabelecida.' });
+        return;
+    }
+    await deleteBroker(name);
+    toast({ title: 'Corretor Removido', description: `"${name}" foi removido da lista.` });
+  }, [deleteBroker, toast, areServicesAvailable, initError]);
+
+  const handleTargetsChange = useCallback((newTargets: typeof targets) => {
+    setTargets(newTargets);
+    localStorage.setItem('app_targets', JSON.stringify(newTargets));
+    toast({ title: "Metas Atualizadas", description: "As novas metas de performance foram salvas." });
+  }, [toast]);
 
   // Auto-sync quando URLs carregarem do Firestore
   useEffect(() => {
@@ -721,5 +714,3 @@ export default function Page() {
     </ClientOnly>
   );
 }
-
-    
