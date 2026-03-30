@@ -2,9 +2,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   // Define only the keys that are strictly required for the app to function.
-  // Be robust: check for NEXT_PUBLIC_ prefixed variables, but fall back to non-prefixed
-  // versions, as the server doesn't strictly need the prefix. This handles cases
-  // where the user might have omitted the prefix in Vercel settings.
+  // Next.js requires the NEXT_PUBLIC_ prefix for variables exposed to the browser.
   const requiredConfig = {
     apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
     authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -13,12 +11,20 @@ export async function GET() {
     appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
   };
 
+  const keyMap: { [key: string]: string } = {
+    apiKey: 'NEXT_PUBLIC_FIREBASE_API_KEY',
+    authDomain: 'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
+    projectId: 'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
+    messagingSenderId: 'NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID',
+    appId: 'NEXT_PUBLIC_FIREBASE_APP_ID',
+  };
+
   const missingKeys = Object.entries(requiredConfig)
     .filter(([, value]) => !value)
-    .map(([key]) => key);
+    .map(([key]) => keyMap[key] || key);
 
   if (missingKeys.length > 0) {
-    const error = `Server configuration for Firebase is incomplete. Missing env variables: ${missingKeys.join(', ')}`;
+    const error = `Vercel server configuration is incomplete. The following environment variables are missing from your Vercel Project's "Production" environment settings: ${missingKeys.join(', ')}. Please add them and trigger a new deployment.`;
     console.error(error);
     return NextResponse.json(
         { error }, 
@@ -29,7 +35,6 @@ export async function GET() {
   // Construct the full config, providing a fallback for storageBucket.
   const firebaseConfig = {
     ...requiredConfig,
-    // Provide a default empty string if the env var is not set.
     storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "", 
   };
 

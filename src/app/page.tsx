@@ -155,6 +155,17 @@ function Dashboard() {
   const syncingRef = useRef(false);
 
   useEffect(() => {
+    if (initError) {
+      toast({
+        variant: "destructive",
+        title: "Erro de Configuração do Firebase",
+        description: initError,
+        duration: 999999, // Make it very long
+      });
+    }
+  }, [initError, toast]);
+
+  useEffect(() => {
     if (auth && !user && !isUserLoading) {
       initiateAnonymousSignIn(auth, toast);
     }
