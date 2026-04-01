@@ -31,7 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ClientOnly } from "@/components/client-only";
-import { useAppConfig, type AppUrls } from "@/hooks/use-app-config";
+import { useAppConfig, type AppUrls, type AppTargets } from "@/hooks/use-app-config";
 
 
 // Engine for specialized date handling (Performant Version)
@@ -133,19 +133,7 @@ function DashboardContent() {
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const { toast } = useToast();
 
-  const { urls, brokers: allBrokers, loading: configLoading, saveUrls, addBroker, deleteBroker, areServicesAvailable } = useAppConfig();
-
-  const [targets, setTargets] = useState<{
-    [key: string]: {
-      capturesSale: { annual: number; quarterly: number; semiannual: number; };
-      capturesRent: { annual: number; quarterly: number; semiannual: number; };
-    }
-  }>({
-    global: {
-      capturesSale: { annual: 250, quarterly: 65, semiannual: 125 },
-      capturesRent: { annual: 150, quarterly: 40, semiannual: 75 },
-    }
-  });
+  const { urls, brokers: allBrokers, targets, loading: configLoading, saveUrls, addBroker, deleteBroker, saveTargets, areServicesAvailable } = useAppConfig();
 
   const [leads, setLeads] = useState<any[]>([]);
   const [sales, setSales] = useState<any[]>([]);
@@ -154,35 +142,6 @@ function DashboardContent() {
   const syncingRef = useRef(false);
 
   useEffect(() => {
-    const savedTargets = localStorage.getItem('app_targets');
-    if (savedTargets) {
-      try {
-        const parsed = JSON.parse(savedTargets);
-        if (parsed.global && (parsed.global.capturesSale !== undefined || parsed.global.captures !== undefined)) {
-          if (parsed.global.captures && parsed.global.capturesSale === undefined) {
-            Object.keys(parsed).forEach(key => {
-              const oldCaptures = parsed[key].captures;
-              if (oldCaptures) {
-                parsed[key].capturesSale = { 
-                  annual: Math.round(oldCaptures.annual * 0.6), 
-                  quarterly: Math.round(oldCaptures.quarterly * 0.6), 
-                  semiannual: Math.round(oldCaptures.semiannual * 0.6) 
-                };
-                parsed[key].capturesRent = { 
-                  annual: Math.round(oldCaptures.annual * 0.4), 
-                  quarterly: Math.round(oldCaptures.quarterly * 0.4), 
-                  semiannual: Math.round(oldCaptures.semiannual * 0.4)
-                };
-                delete parsed[key].captures;
-              }
-            });
-          }
-          if(parsed.global.capturesSale) setTargets(parsed);
-        }
-      } catch (e) {
-        console.error("Failed to parse targets from localStorage", e);
-      }
-    }
     setMounted(true);
   }, []);
 
@@ -318,11 +277,14 @@ function DashboardContent() {
     toast({ title: 'Corretor Removido', description: `"${name}" foi removido da lista.` });
   }, [deleteBroker, toast, areServicesAvailable]);
 
-  const handleTargetsChange = useCallback((newTargets: typeof targets) => {
-    setTargets(newTargets);
-    localStorage.setItem('app_targets', JSON.stringify(newTargets));
-    toast({ title: "Metas Atualizadas", description: "As novas metas de performance foram salvas." });
-  }, [toast]);
+  const handleTargetsChange = useCallback(async (newTargets: AppTargets) => {
+    if (!areServicesAvailable) {
+      toast({ variant: 'destructive', title: 'Erro de Conexão', description: 'A conexão com o banco de dados não foi estabelecida.' });
+      return;
+    }
+    await saveTargets(newTargets);
+    toast({ title: "Metas Atualizadas", description: "As novas metas foram salvas no banco de dados." });
+  }, [saveTargets, toast, areServicesAvailable]);
 
   // Auto-sync quando URLs carregarem do Firestore
   useEffect(() => {

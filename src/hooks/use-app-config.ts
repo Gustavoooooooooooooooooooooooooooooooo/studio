@@ -15,6 +15,13 @@ export type AppUrls = {
   logo: string;
 };
 
+export type AppTargets = {
+  [key: string]: {
+    capturesSale: { annual: number; quarterly: number; semiannual: number; };
+    capturesRent: { annual: number; quarterly: number; semiannual: number; };
+  }
+};
+
 export function useAppConfig() {
   const { firestore, areServicesAvailable, initError } = useFirebase();
 
@@ -22,6 +29,12 @@ export function useAppConfig() {
     inventory: '', leads: '', sales: '', rentals: '', logo: ''
   });
   const [brokers, setBrokers] = useState<string[]>([]);
+  const [targets, setTargets] = useState<AppTargets>({
+    global: {
+      capturesSale: { annual: 250, quarterly: 65, semiannual: 125 },
+      capturesRent: { annual: 150, quarterly: 40, semiannual: 75 },
+    }
+  });
   const [loading, setLoading] = useState(true);
   const [brokerDocs, setBrokerDocs] = useState<{ id: string; name: string }[]>([]);
 
@@ -44,6 +57,24 @@ export function useAppConfig() {
     return () => unsub();
   }, [firestore, areServicesAvailable]);
 
+  // Listen to targets from Firestore
+  useEffect(() => {
+    if (!firestore || !areServicesAvailable) return;
+
+    const targetsRef = doc(firestore, 'config', 'targets');
+    const unsub = onSnapshot(targetsRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data() as AppTargets;
+        // Basic validation
+        if (data.global && data.global.capturesSale) {
+            setTargets(data);
+        }
+      }
+    });
+    return () => unsub();
+  }, [firestore, areServicesAvailable]);
+
+
   // Listen to brokers from Firestore
   useEffect(() => {
     if (!firestore || !areServicesAvailable) return;
@@ -65,6 +96,12 @@ export function useAppConfig() {
     setUrls(newUrls); // Optimistic update
     await setDoc(doc(firestore, 'config', 'sheet-urls'), newUrls);
   };
+  
+  const saveTargets = async (newTargets: AppTargets) => {
+    if (!firestore) return;
+    setTargets(newTargets); // Optimistic update
+    await setDoc(doc(firestore, 'config', 'targets'), newTargets);
+  };
 
   const addBroker = async (name: string) => {
     if (!firestore) return { error: 'no-firestore' };
@@ -76,6 +113,7 @@ export function useAppConfig() {
     }
   
     // Optimistic update
+    const originalBrokers = [...brokers];
     const newBrokers = [...brokers, normalizedName].sort((a, b) => a.localeCompare(b));
     setBrokers(newBrokers);
     
@@ -83,7 +121,7 @@ export function useAppConfig() {
         await addDoc(collection(firestore, 'brokers'), { name: normalizedName });
         return { error: null };
     } catch (e) {
-        setBrokers(brokers); // Revert on error
+        setBrokers(originalBrokers); // Revert on error
         return { error: 'firestore-error' };
     }
   };
@@ -105,7 +143,5 @@ export function useAppConfig() {
     }
   };
 
-  return { urls, brokers, loading, saveUrls, addBroker, deleteBroker, areServicesAvailable, initError };
+  return { urls, brokers, targets, loading, saveUrls, addBroker, deleteBroker, saveTargets, areServicesAvailable, initError };
 }
-
-    
