@@ -22,6 +22,9 @@ export type AppTargets = {
   }
 };
 
+export type ChannelCost = { type: 'fixed'; value: number } | { type: 'monthly'; value: (number | string)[] };
+export type AppChannelCosts = Record<string, ChannelCost>;
+
 export function useAppConfig() {
   const { firestore, areServicesAvailable, initError } = useFirebase();
 
@@ -35,6 +38,7 @@ export function useAppConfig() {
       capturesRent: { annual: 150, quarterly: 40, semiannual: 75 },
     }
   });
+  const [channelCosts, setChannelCosts] = useState<AppChannelCosts>({});
   const [loading, setLoading] = useState(true);
   const [brokerDocs, setBrokerDocs] = useState<{ id: string; name: string }[]>([]);
 
@@ -74,6 +78,20 @@ export function useAppConfig() {
     return () => unsub();
   }, [firestore, areServicesAvailable]);
 
+  // Listen to channel costs from Firestore
+  useEffect(() => {
+    if (!firestore || !areServicesAvailable) return;
+
+    const costsRef = doc(firestore, 'config', 'channel-costs');
+    const unsub = onSnapshot(costsRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data() as AppChannelCosts;
+        setChannelCosts(data);
+      }
+    });
+    return () => unsub();
+  }, [firestore, areServicesAvailable]);
+
 
   // Listen to brokers from Firestore
   useEffect(() => {
@@ -101,6 +119,12 @@ export function useAppConfig() {
     if (!firestore) return;
     setTargets(newTargets); // Optimistic update
     await setDoc(doc(firestore, 'config', 'targets'), newTargets);
+  };
+
+  const saveChannelCosts = async (newCosts: AppChannelCosts) => {
+    if (!firestore) return;
+    setChannelCosts(newCosts); // Optimistic update
+    await setDoc(doc(firestore, 'config', 'channel-costs'), newCosts, { merge: true });
   };
 
   const addBroker = async (name: string) => {
@@ -143,5 +167,5 @@ export function useAppConfig() {
     }
   };
 
-  return { urls, brokers, targets, loading, saveUrls, addBroker, deleteBroker, saveTargets, areServicesAvailable, initError };
+  return { urls, brokers, targets, channelCosts, loading, saveUrls, addBroker, deleteBroker, saveTargets, saveChannelCosts, areServicesAvailable, initError };
 }

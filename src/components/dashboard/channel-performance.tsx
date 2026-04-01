@@ -18,14 +18,15 @@ interface ChannelPerformanceProps {
   sales: any[];
   selectedMonths: string[];
   selectedYears: string[];
+  channelCosts: Record<string, ChannelCost>;
+  onCostsChange: (costs: Record<string, ChannelCost>) => void;
 }
 
 type ChannelCost = { type: 'fixed'; value: number } | { type: 'monthly'; value: (number | string)[] };
 
 
-export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears }: ChannelPerformanceProps) {
+export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears, channelCosts, onCostsChange }: ChannelPerformanceProps) {
   const [view, setView] = useState<'anual' | 'custos' | 'negocios'>('anual');
-  const [channelCosts, setChannelCosts] = useState<Record<string, ChannelCost>>({});
   const [isCostDialogOpen, setIsCostDialogOpen] = useState(false);
   const [editingChannel, setEditingChannel] = useState<string | null>(null);
   const [tempCost, setTempCost] = useState<ChannelCost | null>(null);
@@ -63,17 +64,6 @@ export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears
       .join(' ');
   }, [normalize]);
 
-  useEffect(() => {
-    const savedCosts = localStorage.getItem('channel_costs');
-    if (savedCosts) {
-      try {
-        setChannelCosts(JSON.parse(savedCosts));
-      } catch (e) {
-        console.error("Failed to parse channel costs from localStorage", e);
-      }
-    }
-  }, []);
-
   const handleOpenCostDialog = (channel: string) => {
     const currentCost = channelCosts[channel] || { type: 'fixed', value: 0 };
     setTempCost(currentCost);
@@ -84,8 +74,7 @@ export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears
   const handleSaveCosts = () => {
     if (editingChannel && tempCost) {
       const newCosts = { ...channelCosts, [editingChannel]: tempCost };
-      setChannelCosts(newCosts);
-      localStorage.setItem('channel_costs', JSON.stringify(newCosts));
+      onCostsChange(newCosts);
     }
     setIsCostDialogOpen(false);
     setEditingChannel(null);

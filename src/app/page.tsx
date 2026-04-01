@@ -31,7 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ClientOnly } from "@/components/client-only";
-import { useAppConfig, type AppUrls, type AppTargets } from "@/hooks/use-app-config";
+import { useAppConfig, type AppUrls, type AppTargets, type AppChannelCosts } from "@/hooks/use-app-config";
 
 
 // Engine for specialized date handling (Performant Version)
@@ -133,7 +133,7 @@ function DashboardContent() {
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const { toast } = useToast();
 
-  const { urls, brokers: allBrokers, targets, loading: configLoading, saveUrls, addBroker, deleteBroker, saveTargets, areServicesAvailable } = useAppConfig();
+  const { urls, brokers: allBrokers, targets, channelCosts, loading: configLoading, saveUrls, addBroker, deleteBroker, saveTargets, saveChannelCosts, areServicesAvailable } = useAppConfig();
 
   const [leads, setLeads] = useState<any[]>([]);
   const [sales, setSales] = useState<any[]>([]);
@@ -251,6 +251,15 @@ function DashboardContent() {
     toast({ title: 'Configurações Salvas', description: 'Os links das planilhas foram atualizados.' });
     handleSync(false, newUrls);
   }, [saveUrls, toast, areServicesAvailable, handleSync]);
+
+  const handleCostsChange = useCallback(async (newCosts: AppChannelCosts) => {
+    if (!areServicesAvailable) {
+      toast({ variant: 'destructive', title: 'Erro de Conexão', description: 'A conexão com o banco de dados não foi estabelecida.' });
+      return;
+    }
+    await saveChannelCosts(newCosts);
+    toast({ title: "Custos Atualizados", description: "Os novos custos foram salvos no banco de dados." });
+  }, [saveChannelCosts, toast, areServicesAvailable]);
 
   const handleAddBroker = useCallback(async (brokerName: string) => {
     if (!brokerName.trim()) return;
@@ -620,6 +629,8 @@ function DashboardContent() {
               <ChannelPerformance 
                 leads={leads} sales={sales} 
                 selectedMonths={selectedMonths} selectedYears={selectedYears}
+                channelCosts={channelCosts}
+                onCostsChange={handleCostsChange}
               />
             </div>
           </div>
