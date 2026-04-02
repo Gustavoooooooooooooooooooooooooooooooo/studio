@@ -1,10 +1,11 @@
+
 "use client";
 
 import { useMemo, useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface BrokerPerformanceGridProps {
   sales: any[];
@@ -16,7 +17,7 @@ interface BrokerPerformanceGridProps {
 }
 
 export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths, selectedYears, brokers }: BrokerPerformanceGridProps) {
-  const [performanceView, setPerformanceView] = useState<'venda' | 'locacao'>('venda');
+  const [performanceView, setPerformanceView] = useState<'venda' | 'locacao' | 'metricas'>('venda');
 
   const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
@@ -79,7 +80,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
     return brokers.map(brokerName => {
       const configBrokerName = normalize(brokerName);
       
-      // Fuzzy match for sales, as requested to be kept
       const isMatch = (sheetName: string | undefined | null) => {
         if (!sheetName || sheetName === "N/A") return false;
         const normalizedSheetName = normalize(String(sheetName || ""));
@@ -91,7 +91,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         return configWords.every(cw => sheetWords.includes(cw));
       };
 
-      // Exact match for rentals to avoid ambiguity
       const isExactMatch = (sheetName: string | undefined | null) => {
         if (!sheetName) return false;
         return normalize(sheetName) === configBrokerName;
@@ -116,7 +115,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       const capturesRent = bPropsFiltered.filter(p => p.rentalValue && Number(p.rentalValue) > 0).length;
       const vgvAngariado = bPropsFiltered.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0);
       const vglAngariado = bPropsFiltered.reduce((acc, p) => acc + (Number(p.rentalValue) || 0), 0);
-
 
       // 2. Leads & Visitas
       const brokerLeadsAll = leads.filter(l => {
@@ -167,7 +165,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       const brokerSalesFiltered = brokerSalesAll.filter(s => filterByPeriod(s, "saleDate"));
       const numSales = brokerSalesFiltered.length;
 
-      // Use exact match for rentals
       const brokerRentalsAll = sales.filter(s => 
           isExactMatch(s.vendedor) && 
           (normalize(s.tipo || '').includes('loca') || normalize(s.tipo || '').includes('aluguel'))
@@ -175,7 +172,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       const brokerRentalsFiltered = brokerRentalsAll.filter(s => filterByPeriod(s, "saleDate"));
       const numRentals = brokerRentalsFiltered.length;
       
-      // Frequencies
       const salesFrequency = brokerSalesAll.length > 0 ? Math.floor(totalDaysCount / brokerSalesAll.length) : 0;
       
       let rentalsFrequency = 0;
@@ -195,7 +191,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         }
       }
       
-      // Venda Conversion
       const conversionLeadToVisitVenda = leadsVenda > 0 ? (visitsVenda / leadsVenda) * 100 : 0;
       const conversionVisitToSale = visitsVenda > 0 ? (numSales / visitsVenda) * 100 : 0;
       const conversionLeadToSale = leadsVenda > 0 ? (numSales / leadsVenda) * 100 : 0;
@@ -203,13 +198,45 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       const avgVisitsPerSale = numSales > 0 ? visitsVenda / numSales : 0;
       const avgLeadsPerSale = numSales > 0 ? leadsVenda / numSales : 0;
 
-      // Locacao Conversion
       const conversionLeadToVisitLocacao = leadsLocacao > 0 ? (visitsLocacao / leadsLocacao) * 100 : 0;
       const conversionVisitToRental = visitsLocacao > 0 ? (numRentals / visitsLocacao) * 100 : 0;
       const conversionLeadToRental = leadsLocacao > 0 ? (numRentals / leadsLocacao) * 100 : 0;
       const avgLeadsPerVisitLocacao = visitsLocacao > 0 ? leadsLocacao / visitsLocacao : 0;
       const avgVisitsPerRental = numRentals > 0 ? visitsLocacao / numRentals : 0;
       const avgLeadsPerRental = numRentals > 0 ? leadsLocacao / numRentals : 0;
+
+      // Metrics for the new "Métricas" tab
+      const salesInvolved = sales.filter(s => {
+        const isSaleType = !normalize(s.tipo || '').includes('loca') && !normalize(s.tipo || '').includes('aluguel');
+        if (!isSaleType) return false;
+        if (!filterByPeriod(s, "saleDate")) return false;
+        return isMatch(s.vendedor) || isMatch(s.angariador);
+      });
+
+      let comissaoVenda = 0;
+      let comissaoAngariacao = 0;
+
+      salesInvolved.forEach(s => {
+        const commission = s.commission || 0;
+        if (commission === 0) return;
+
+        const isCurrentBrokerTheSeller = isMatch(s.vendedor);
+        const isCurrentBrokerTheCapturer = isMatch(s.angariador);
+        const isSellerAndCapturerSame = normalize(s.vendedor) === normalize(s.angariador);
+
+        if (isCurrentBrokerTheSeller) {
+          if (isSellerAndCapturerSame) {
+            comissaoVenda += commission;
+          } else {
+            comissaoVenda += commission / 2;
+          }
+        }
+        if (isCurrentBrokerTheCapturer && !isSellerAndCapturerSame) {
+          comissaoAngariacao += commission / 2;
+        }
+      });
+      
+      const vgvMetrics = salesInvolved.reduce((acc, s) => acc + (s.closedValue || 0), 0);
 
       return {
         name: brokerName,
@@ -221,7 +248,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         visitsLocacao,
         numSales,
         numRentals,
-        vgvVendido: vgvAngariado,
+        vgvVendido: vgvAngariado, // This is VGV Angariado, kept for the original table
         vglFechado: vglAngariado,
         salesFrequency,
         rentalsFrequency,
@@ -237,8 +264,14 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         avgLeadsPerVisitLocacao,
         avgVisitsPerRental,
         avgLeadsPerRental,
+        comissaoVenda,
+        comissaoAngariacao,
+        vgvMetrics
       };
     }).sort((a, b) => {
+      if (performanceView === 'metricas') {
+        return (b.comissaoVenda + b.comissaoAngariacao) - (a.comissaoVenda + a.comissaoAngariacao);
+      }
       if (performanceView === 'venda') {
         return b.numSales - a.numSales || b.vgvVendido - a.vgvVendido;
       }
@@ -255,106 +288,132 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       <CardHeader className="bg-muted/10 border-b py-3 px-4">
         <div className="flex justify-between items-center">
             <CardTitle className="text-base font-bold text-primary">Performance por Corretor</CardTitle>
-            <Tabs defaultValue="venda" className="w-[200px]" onValueChange={(value) => setPerformanceView(value as 'venda' | 'locacao')}>
-                <TabsList className="grid w-full grid-cols-2 h-9 p-1">
+            <Tabs defaultValue="venda" className="w-[300px]" onValueChange={(value) => setPerformanceView(value as 'venda' | 'locacao' | 'metricas')}>
+                <TabsList className="grid w-full grid-cols-3 h-9 p-1">
                     <TabsTrigger value="venda" className="text-xs h-full">Venda</TabsTrigger>
                     <TabsTrigger value="locacao" className="text-xs h-full">Locação</TabsTrigger>
+                    <TabsTrigger value="metricas" className="text-xs h-full">Métricas</TabsTrigger>
                 </TabsList>
             </Tabs>
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        {stats.length > 0 ? (
-          <Table className="border-collapse">
+        {performanceView === 'metricas' ? (
+          <Table>
             <TableHeader>
-              <TableRow className="bg-muted/5">
-                <TableHead className="font-bold border-r text-xs uppercase sticky left-0 bg-muted/5 z-10">Corretor</TableHead>
-                <TableHead className="text-center border-r text-xs uppercase">Leads</TableHead>
-                <TableHead className="text-center border-r text-xs uppercase">Angariados</TableHead>
-                <TableHead className="text-center border-r text-xs uppercase">Visitas</TableHead>
-                <TableHead className="text-center border-r text-xs uppercase bg-primary/5">{performanceView === 'venda' ? 'Vendas' : 'Locações'}</TableHead>
-                <TableHead className="text-center border-r text-xs uppercase">
-                   Média Leads p/ Visita
-                </TableHead>
-                <TableHead className="text-center border-r text-xs uppercase">
-                   Média Visitas p/ {performanceView === 'venda' ? 'Venda' : 'Loc.'}
-                </TableHead>
-                <TableHead className="text-center border-r text-xs uppercase bg-green-50/20">
-                   Média Leads p/ {performanceView === 'venda' ? 'Venda' : 'Loc.'}
-                </TableHead>
-                <TableHead className="text-right border-r text-xs uppercase">Frequência</TableHead>
-                <TableHead className="text-right font-bold text-xs uppercase bg-primary/5">{performanceView === 'venda' ? 'VGV Angariado' : 'VGL Angariado'}</TableHead>
+              <TableRow>
+                <TableHead>Corretor</TableHead>
+                <TableHead className="text-right">Comissão Venda</TableHead>
+                <TableHead className="text-right">Comissão Angariação</TableHead>
+                <TableHead className="text-right">VGV Vendido</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {stats.map((row) => (
-                <TableRow key={row.name} className="hover:bg-muted/5 group">
-                  <TableCell className="font-semibold border-r text-sm py-2 sticky left-0 bg-white group-hover:bg-muted/5 z-10">{row.name}</TableCell>
-                  <TableCell className="text-center border-r py-2">
-                    <Badge variant="secondary" className="bg-indigo-50 text-indigo-700 hover:bg-indigo-50 shadow-none border-none text-xs">
-                      {performanceView === 'venda' ? row.leadsVenda : row.leadsLocacao}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-center border-r py-1">
-                      <Badge variant="outline" className={`border-emerald-200 bg-emerald-50/50 text-emerald-700 text-xs font-bold ${performanceView === 'venda' ? (row.capturesSale === 0 && 'opacity-20') : (row.capturesRent === 0 && 'opacity-20')}`}>
-                          {performanceView === 'venda' ? row.capturesSale : row.capturesRent}
-                      </Badge>
-                  </TableCell>
-                  <TableCell className="text-center border-r py-2">
-                    <Badge variant="outline" className={`border-indigo-200 text-indigo-700 text-xs ${performanceView === 'venda' ? (row.visitsVenda === 0 && 'opacity-20') : (row.visitsLocacao === 0 && 'opacity-20')}`}>
-                      {performanceView === 'venda' ? row.visitsVenda : row.visitsLocacao}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-center border-r py-2 text-sm font-bold bg-primary/5 text-primary">
-                    {performanceView === 'venda' ? row.numSales : row.numRentals}
-                  </TableCell>
-                  <TableCell className="text-center border-r py-2 bg-orange-50/10 text-xs font-bold text-orange-700 relative">
-                     <div className="flex flex-col items-center justify-center h-full leading-tight">
-                        <span className="font-bold text-orange-700">
-                          {(performanceView === 'venda' ? row.avgLeadsPerVisitVenda : row.avgLeadsPerVisitLocacao).toFixed(1)}
-                        </span>
-                        <span className="text-[9px] text-orange-700/60 font-medium">
-                          {(performanceView === 'venda' ? row.conversionLeadToVisitVenda : row.conversionLeadToVisitLocacao).toFixed(1)}%
-                        </span>
-                      </div>
-                  </TableCell>
-                  <TableCell className="text-center border-r py-2 bg-rose-50/10 text-xs font-bold text-rose-700 relative">
-                     <div className="flex flex-col items-center justify-center h-full leading-tight">
-                        <span className="font-bold text-rose-700">
-                          {(performanceView === 'venda' ? row.avgVisitsPerSale : row.avgVisitsPerRental).toFixed(1)}
-                        </span>
-                        <span className="text-[9px] text-rose-700/60 font-medium">
-                          {(performanceView === 'venda' ? row.conversionVisitToSale : row.conversionVisitToRental).toFixed(1)}%
-                        </span>
-                      </div>
-                  </TableCell>
-                  <TableCell className="text-center border-r py-2 bg-green-50/20 text-xs font-bold text-green-700 relative">
-                     <div className="flex flex-col items-center justify-center h-full leading-tight">
-                        <span className="font-bold text-green-700">
-                          {(performanceView === 'venda' ? row.avgLeadsPerSale : row.avgLeadsPerRental).toFixed(1)}
-                        </span>
-                        <span className="text-[9px] text-green-700/60 font-medium">
-                          {(performanceView === 'venda' ? row.conversionLeadToSale : row.conversionLeadToRental).toFixed(1)}%
-                        </span>
-                      </div>
-                  </TableCell>
-                  <TableCell className="text-right border-r py-2 text-xs font-bold text-amber-700">
-                    {(performanceView === 'venda' ? row.salesFrequency : row.rentalsFrequency) > 0 ? `${performanceView === 'venda' ? row.salesFrequency : row.rentalsFrequency} dias` : "-"}
-                  </TableCell>
-                  <TableCell className="text-right py-2 font-bold text-primary bg-primary/5 text-sm">
-                    {formatCurrency(performanceView === 'venda' ? row.vgvVendido : row.vglFechado)}
-                  </TableCell>
+              {stats.filter(s => s.comissaoVenda > 0 || s.comissaoAngariacao > 0 || s.vgvMetrics > 0).map((broker) => (
+                <TableRow key={broker.name}>
+                  <TableCell className="font-semibold">{broker.name}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(broker.comissaoVenda)}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(broker.comissaoAngariacao)}</TableCell>
+                  <TableCell className="text-right font-bold">{formatCurrency(broker.vgvMetrics)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         ) : (
-          <div className="py-20 text-center text-muted-foreground">
-            <p className="text-sm font-medium">Nenhum corretor encontrado nos dados das planilhas.</p>
-            <p className="text-xs text-muted-foreground/80">Verifique se os nomes dos corretores estão preenchidos nas planilhas.</p>
-          </div>
+          stats.length > 0 ? (
+            <Table className="border-collapse">
+              <TableHeader>
+                <TableRow className="bg-muted/5">
+                  <TableHead className="font-bold border-r text-xs uppercase sticky left-0 bg-muted/5 z-10">Corretor</TableHead>
+                  <TableHead className="text-center border-r text-xs uppercase">Leads</TableHead>
+                  <TableHead className="text-center border-r text-xs uppercase">Angariados</TableHead>
+                  <TableHead className="text-center border-r text-xs uppercase">Visitas</TableHead>
+                  <TableHead className="text-center border-r text-xs uppercase bg-primary/5">{performanceView === 'venda' ? 'Vendas' : 'Locações'}</TableHead>
+                  <TableHead className="text-center border-r text-xs uppercase">
+                    Média Leads p/ Visita
+                  </TableHead>
+                  <TableHead className="text-center border-r text-xs uppercase">
+                    Média Visitas p/ {performanceView === 'venda' ? 'Venda' : 'Loc.'}
+                  </TableHead>
+                  <TableHead className="text-center border-r text-xs uppercase bg-green-50/20">
+                    Média Leads p/ {performanceView === 'venda' ? 'Venda' : 'Loc.'}
+                  </TableHead>
+                  <TableHead className="text-right border-r text-xs uppercase">Frequência</TableHead>
+                  <TableHead className="text-right font-bold text-xs uppercase bg-primary/5">{performanceView === 'venda' ? 'VGV Angariado' : 'VGL Angariado'}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {stats.map((row) => (
+                  <TableRow key={row.name} className="hover:bg-muted/5 group">
+                    <TableCell className="font-semibold border-r text-sm py-2 sticky left-0 bg-white group-hover:bg-muted/5 z-10">{row.name}</TableCell>
+                    <TableCell className="text-center border-r py-2">
+                      <Badge variant="secondary" className="bg-indigo-50 text-indigo-700 hover:bg-indigo-50 shadow-none border-none text-xs">
+                        {performanceView === 'venda' ? row.leadsVenda : row.leadsLocacao}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center border-r py-1">
+                        <Badge variant="outline" className={`border-emerald-200 bg-emerald-50/50 text-emerald-700 text-xs font-bold ${performanceView === 'venda' ? (row.capturesSale === 0 && 'opacity-20') : (row.capturesRent === 0 && 'opacity-20')}`}>
+                            {performanceView === 'venda' ? row.capturesSale : row.capturesRent}
+                        </Badge>
+                    </TableCell>
+                    <TableCell className="text-center border-r py-2">
+                      <Badge variant="outline" className={`border-indigo-200 text-indigo-700 text-xs ${performanceView === 'venda' ? (row.visitsVenda === 0 && 'opacity-20') : (row.visitsLocacao === 0 && 'opacity-20')}`}>
+                        {performanceView === 'venda' ? row.visitsVenda : row.visitsLocacao}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center border-r py-2 text-sm font-bold bg-primary/5 text-primary">
+                      {performanceView === 'venda' ? row.numSales : row.numRentals}
+                    </TableCell>
+                    <TableCell className="text-center border-r py-2 bg-orange-50/10 text-xs font-bold text-orange-700 relative">
+                      <div className="flex flex-col items-center justify-center h-full leading-tight">
+                          <span className="font-bold text-orange-700">
+                            {(performanceView === 'venda' ? row.avgLeadsPerVisitVenda : row.avgLeadsPerVisitLocacao).toFixed(1)}
+                          </span>
+                          <span className="text-[9px] text-orange-700/60 font-medium">
+                            {(performanceView === 'venda' ? row.conversionLeadToVisitVenda : row.conversionLeadToVisitLocacao).toFixed(1)}%
+                          </span>
+                        </div>
+                    </TableCell>
+                    <TableCell className="text-center border-r py-2 bg-rose-50/10 text-xs font-bold text-rose-700 relative">
+                      <div className="flex flex-col items-center justify-center h-full leading-tight">
+                          <span className="font-bold text-rose-700">
+                            {(performanceView === 'venda' ? row.avgVisitsPerSale : row.avgVisitsPerRental).toFixed(1)}
+                          </span>
+                          <span className="text-[9px] text-rose-700/60 font-medium">
+                            {(performanceView === 'venda' ? row.conversionVisitToSale : row.conversionVisitToRental).toFixed(1)}%
+                          </span>
+                        </div>
+                    </TableCell>
+                    <TableCell className="text-center border-r py-2 bg-green-50/20 text-xs font-bold text-green-700 relative">
+                      <div className="flex flex-col items-center justify-center h-full leading-tight">
+                          <span className="font-bold text-green-700">
+                            {(performanceView === 'venda' ? row.avgLeadsPerSale : row.avgLeadsPerRental).toFixed(1)}
+                          </span>
+                          <span className="text-[9px] text-green-700/60 font-medium">
+                            {(performanceView === 'venda' ? row.conversionLeadToSale : row.conversionLeadToRental).toFixed(1)}%
+                          </span>
+                        </div>
+                    </TableCell>
+                    <TableCell className="text-right border-r py-2 text-xs font-bold text-amber-700">
+                      {(performanceView === 'venda' ? row.salesFrequency : row.rentalsFrequency) > 0 ? `${performanceView === 'venda' ? row.salesFrequency : row.rentalsFrequency} dias` : "-"}
+                    </TableCell>
+                    <TableCell className="text-right py-2 font-bold text-primary bg-primary/5 text-sm">
+                      {formatCurrency(performanceView === 'venda' ? row.vgvVendido : row.vglFechado)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="py-20 text-center text-muted-foreground">
+              <p className="text-sm font-medium">Nenhum corretor encontrado nos dados das planilhas.</p>
+              <p className="text-xs text-muted-foreground/80">Verifique se os nomes dos corretores estão preenchidos nas planilhas.</p>
+            </div>
+          )
         )}
       </CardContent>
     </Card>
   );
 }
+
+    
