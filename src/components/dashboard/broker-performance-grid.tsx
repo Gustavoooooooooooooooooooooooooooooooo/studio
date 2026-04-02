@@ -490,16 +490,10 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead rowSpan={2} className="align-bottom">Corretor</TableHead>
-                            <TableHead colSpan={2} className="text-center">Venda</TableHead>
-                            <TableHead colSpan={2} className="text-center">Angariação</TableHead>
-                            <TableHead rowSpan={2} className="text-right align-bottom">VGV (R$)</TableHead>
-                        </TableRow>
-                        <TableRow>
-                            <TableHead className="text-right font-semibold text-muted-foreground">R$</TableHead>
-                            <TableHead className="text-right font-semibold text-muted-foreground">%</TableHead>
-                            <TableHead className="text-right font-semibold text-muted-foreground">R$</TableHead>
-                            <TableHead className="text-right font-semibold text-muted-foreground">%</TableHead>
+                            <TableHead className="font-semibold">Corretor</TableHead>
+                            <TableHead colSpan={2} className="text-center font-semibold">Venda</TableHead>
+                            <TableHead colSpan={2} className="text-center font-semibold">Angariação</TableHead>
+                            <TableHead className="text-right font-semibold">VGV (R$)</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
