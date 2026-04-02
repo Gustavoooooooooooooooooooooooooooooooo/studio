@@ -237,6 +237,9 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       });
       
       const vgvMetrics = salesInvolved.reduce((acc, s) => acc + (s.closedValue || 0), 0);
+      
+      const comissaoVendaPercent = 0;
+      const comissaoAngariacaoPercent = 0;
 
       return {
         name: brokerName,
@@ -266,6 +269,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         avgLeadsPerRental,
         comissaoVenda,
         comissaoAngariacao,
+        comissaoVendaPercent,
+        comissaoAngariacaoPercent,
         vgvMetrics,
       };
     }).sort((a, b) => {
@@ -485,10 +490,16 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>Corretor</TableHead>
-                            <TableHead className="text-right">Comissão Venda (R$)</TableHead>
-                            <TableHead className="text-right">Comissão Angariação (R$)</TableHead>
-                            <TableHead className="text-right">VGV (R$)</TableHead>
+                            <TableHead rowSpan={2} className="align-bottom">Corretor</TableHead>
+                            <TableHead colSpan={2} className="text-center">Venda</TableHead>
+                            <TableHead colSpan={2} className="text-center">Angariação</TableHead>
+                            <TableHead rowSpan={2} className="text-right align-bottom">VGV (R$)</TableHead>
+                        </TableRow>
+                        <TableRow>
+                            <TableHead className="text-right font-semibold text-muted-foreground">R$</TableHead>
+                            <TableHead className="text-right font-semibold text-muted-foreground">%</TableHead>
+                            <TableHead className="text-right font-semibold text-muted-foreground">R$</TableHead>
+                            <TableHead className="text-right font-semibold text-muted-foreground">%</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -499,7 +510,13 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                                 {broker.comissaoVenda > 0 ? formatCurrency(broker.comissaoVenda) : ''}
                             </TableCell>
                             <TableCell className="text-right">
+                                {broker.comissaoVenda > 0 ? `${broker.comissaoVendaPercent.toFixed(1)}%` : ''}
+                            </TableCell>
+                            <TableCell className="text-right">
                                 {broker.comissaoAngariacao > 0 ? formatCurrency(broker.comissaoAngariacao) : ''}
+                            </TableCell>
+                            <TableCell className="text-right">
+                                {broker.comissaoAngariacao > 0 ? `${broker.comissaoAngariacaoPercent.toFixed(1)}%` : ''}
                             </TableCell>
                             <TableCell className="text-right font-bold">
                                 {broker.vgvMetrics > 0 ? formatCurrency(broker.vgvMetrics) : ''}
