@@ -238,6 +238,10 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       
       const vgvMetrics = salesInvolved.reduce((acc, s) => acc + (s.closedValue || 0), 0);
 
+      // Placeholder for percentages as per user instruction
+      const comissaoVendaPercent = 0;
+      const comissaoAngariacaoPercent = 0;
+
       return {
         name: brokerName,
         capturesSale,
@@ -266,6 +270,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         avgLeadsPerRental,
         comissaoVenda,
         comissaoAngariacao,
+        comissaoVendaPercent,
+        comissaoAngariacaoPercent,
         vgvMetrics
       };
     }).sort((a, b) => {
@@ -285,135 +291,234 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
 
   return (
     <Card className="border-none shadow-sm overflow-hidden bg-white">
-      <CardHeader className="bg-muted/10 border-b py-3 px-4">
-        <div className="flex justify-between items-center">
-            <CardTitle className="text-base font-bold text-primary">Performance por Corretor</CardTitle>
-            <Tabs defaultValue="venda" className="w-[300px]" onValueChange={(value) => setPerformanceView(value as 'venda' | 'locacao' | 'metricas')}>
-                <TabsList className="grid w-full grid-cols-3 h-9 p-1">
-                    <TabsTrigger value="venda" className="text-xs h-full">Venda</TabsTrigger>
-                    <TabsTrigger value="locacao" className="text-xs h-full">Locação</TabsTrigger>
-                    <TabsTrigger value="metricas" className="text-xs h-full">Métricas</TabsTrigger>
-                </TabsList>
-            </Tabs>
-        </div>
-      </CardHeader>
-      <CardContent className="p-0">
-        {performanceView === 'metricas' ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Corretor</TableHead>
-                <TableHead className="text-right">Comissão Venda</TableHead>
-                <TableHead className="text-right">Comissão Angariação</TableHead>
-                <TableHead className="text-right">VGV Vendido</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {stats.filter(s => s.comissaoVenda > 0 || s.comissaoAngariacao > 0 || s.vgvMetrics > 0).map((broker) => (
-                <TableRow key={broker.name}>
-                  <TableCell className="font-semibold">{broker.name}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(broker.comissaoVenda)}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(broker.comissaoAngariacao)}</TableCell>
-                  <TableCell className="text-right font-bold">{formatCurrency(broker.vgvMetrics)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        ) : (
-          stats.length > 0 ? (
-            <Table className="border-collapse">
-              <TableHeader>
-                <TableRow className="bg-muted/5">
-                  <TableHead className="font-bold border-r text-xs uppercase sticky left-0 bg-muted/5 z-10">Corretor</TableHead>
-                  <TableHead className="text-center border-r text-xs uppercase">Leads</TableHead>
-                  <TableHead className="text-center border-r text-xs uppercase">Angariados</TableHead>
-                  <TableHead className="text-center border-r text-xs uppercase">Visitas</TableHead>
-                  <TableHead className="text-center border-r text-xs uppercase bg-primary/5">{performanceView === 'venda' ? 'Vendas' : 'Locações'}</TableHead>
-                  <TableHead className="text-center border-r text-xs uppercase">
-                    Média Leads p/ Visita
-                  </TableHead>
-                  <TableHead className="text-center border-r text-xs uppercase">
-                    Média Visitas p/ {performanceView === 'venda' ? 'Venda' : 'Loc.'}
-                  </TableHead>
-                  <TableHead className="text-center border-r text-xs uppercase bg-green-50/20">
-                    Média Leads p/ {performanceView === 'venda' ? 'Venda' : 'Loc.'}
-                  </TableHead>
-                  <TableHead className="text-right border-r text-xs uppercase">Frequência</TableHead>
-                  <TableHead className="text-right font-bold text-xs uppercase bg-primary/5">{performanceView === 'venda' ? 'VGV Angariado' : 'VGL Angariado'}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {stats.map((row) => (
-                  <TableRow key={row.name} className="hover:bg-muted/5 group">
-                    <TableCell className="font-semibold border-r text-sm py-2 sticky left-0 bg-white group-hover:bg-muted/5 z-10">{row.name}</TableCell>
-                    <TableCell className="text-center border-r py-2">
-                      <Badge variant="secondary" className="bg-indigo-50 text-indigo-700 hover:bg-indigo-50 shadow-none border-none text-xs">
-                        {performanceView === 'venda' ? row.leadsVenda : row.leadsLocacao}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center border-r py-1">
-                        <Badge variant="outline" className={`border-emerald-200 bg-emerald-50/50 text-emerald-700 text-xs font-bold ${performanceView === 'venda' ? (row.capturesSale === 0 && 'opacity-20') : (row.capturesRent === 0 && 'opacity-20')}`}>
-                            {performanceView === 'venda' ? row.capturesSale : row.capturesRent}
-                        </Badge>
-                    </TableCell>
-                    <TableCell className="text-center border-r py-2">
-                      <Badge variant="outline" className={`border-indigo-200 text-indigo-700 text-xs ${performanceView === 'venda' ? (row.visitsVenda === 0 && 'opacity-20') : (row.visitsLocacao === 0 && 'opacity-20')}`}>
-                        {performanceView === 'venda' ? row.visitsVenda : row.visitsLocacao}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center border-r py-2 text-sm font-bold bg-primary/5 text-primary">
-                      {performanceView === 'venda' ? row.numSales : row.numRentals}
-                    </TableCell>
-                    <TableCell className="text-center border-r py-2 bg-orange-50/10 text-xs font-bold text-orange-700 relative">
-                      <div className="flex flex-col items-center justify-center h-full leading-tight">
-                          <span className="font-bold text-orange-700">
-                            {(performanceView === 'venda' ? row.avgLeadsPerVisitVenda : row.avgLeadsPerVisitLocacao).toFixed(1)}
-                          </span>
-                          <span className="text-[9px] text-orange-700/60 font-medium">
-                            {(performanceView === 'venda' ? row.conversionLeadToVisitVenda : row.conversionLeadToVisitLocacao).toFixed(1)}%
-                          </span>
-                        </div>
-                    </TableCell>
-                    <TableCell className="text-center border-r py-2 bg-rose-50/10 text-xs font-bold text-rose-700 relative">
-                      <div className="flex flex-col items-center justify-center h-full leading-tight">
-                          <span className="font-bold text-rose-700">
-                            {(performanceView === 'venda' ? row.avgVisitsPerSale : row.avgVisitsPerRental).toFixed(1)}
-                          </span>
-                          <span className="text-[9px] text-rose-700/60 font-medium">
-                            {(performanceView === 'venda' ? row.conversionVisitToSale : row.conversionVisitToRental).toFixed(1)}%
-                          </span>
-                        </div>
-                    </TableCell>
-                    <TableCell className="text-center border-r py-2 bg-green-50/20 text-xs font-bold text-green-700 relative">
-                      <div className="flex flex-col items-center justify-center h-full leading-tight">
-                          <span className="font-bold text-green-700">
-                            {(performanceView === 'venda' ? row.avgLeadsPerSale : row.avgLeadsPerRental).toFixed(1)}
-                          </span>
-                          <span className="text-[9px] text-green-700/60 font-medium">
-                            {(performanceView === 'venda' ? row.conversionLeadToSale : row.conversionLeadToRental).toFixed(1)}%
-                          </span>
-                        </div>
-                    </TableCell>
-                    <TableCell className="text-right border-r py-2 text-xs font-bold text-amber-700">
-                      {(performanceView === 'venda' ? row.salesFrequency : row.rentalsFrequency) > 0 ? `${performanceView === 'venda' ? row.salesFrequency : row.rentalsFrequency} dias` : "-"}
-                    </TableCell>
-                    <TableCell className="text-right py-2 font-bold text-primary bg-primary/5 text-sm">
-                      {formatCurrency(performanceView === 'venda' ? row.vgvVendido : row.vglFechado)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <div className="py-20 text-center text-muted-foreground">
-              <p className="text-sm font-medium">Nenhum corretor encontrado nos dados das planilhas.</p>
-              <p className="text-xs text-muted-foreground/80">Verifique se os nomes dos corretores estão preenchidos nas planilhas.</p>
-            </div>
-          )
-        )}
-      </CardContent>
+      <Tabs defaultValue="venda" className="w-full" onValueChange={(value) => setPerformanceView(value as 'venda' | 'locacao' | 'metricas')}>
+        <CardHeader className="bg-muted/10 border-b py-3 px-4">
+          <div className="flex justify-between items-center">
+              <CardTitle className="text-base font-bold text-primary">Performance por Corretor</CardTitle>
+              <TabsList className="grid w-[300px] grid-cols-3 h-9 p-1">
+                  <TabsTrigger value="venda" className="text-xs h-full">Venda</TabsTrigger>
+                  <TabsTrigger value="locacao" className="text-xs h-full">Locação</TabsTrigger>
+                  <TabsTrigger value="metricas" className="text-xs h-full">Métricas</TabsTrigger>
+              </TabsList>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+            <TabsContent value="venda" className="m-0">
+                {stats.length > 0 ? (
+                <Table className="border-collapse">
+                    <TableHeader>
+                    <TableRow className="bg-muted/5">
+                        <TableHead className="font-bold border-r text-xs uppercase sticky left-0 bg-muted/5 z-10">Corretor</TableHead>
+                        <TableHead className="text-center border-r text-xs uppercase">Leads</TableHead>
+                        <TableHead className="text-center border-r text-xs uppercase">Angariados</TableHead>
+                        <TableHead className="text-center border-r text-xs uppercase">Visitas</TableHead>
+                        <TableHead className="text-center border-r text-xs uppercase bg-primary/5">Vendas</TableHead>
+                        <TableHead className="text-center border-r text-xs uppercase">
+                        Média Leads p/ Visita
+                        </TableHead>
+                        <TableHead className="text-center border-r text-xs uppercase">
+                        Média Visitas p/ Venda
+                        </TableHead>
+                        <TableHead className="text-center border-r text-xs uppercase bg-green-50/20">
+                        Média Leads p/ Venda
+                        </TableHead>
+                        <TableHead className="text-right border-r text-xs uppercase">Frequência</TableHead>
+                        <TableHead className="text-right font-bold text-xs uppercase bg-primary/5">VGV Angariado</TableHead>
+                    </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                    {stats.map((row) => (
+                        <TableRow key={row.name} className="hover:bg-muted/5 group">
+                        <TableCell className="font-semibold border-r text-sm py-2 sticky left-0 bg-white group-hover:bg-muted/5 z-10">{row.name}</TableCell>
+                        <TableCell className="text-center border-r py-2">
+                            <Badge variant="secondary" className="bg-indigo-50 text-indigo-700 hover:bg-indigo-50 shadow-none border-none text-xs">
+                            {row.leadsVenda}
+                            </Badge>
+                        </TableCell>
+                        <TableCell className="text-center border-r py-1">
+                            <Badge variant="outline" className={`border-emerald-200 bg-emerald-50/50 text-emerald-700 text-xs font-bold ${row.capturesSale === 0 && 'opacity-20'}`}>
+                                {row.capturesSale}
+                            </Badge>
+                        </TableCell>
+                        <TableCell className="text-center border-r py-2">
+                            <Badge variant="outline" className={`border-indigo-200 text-indigo-700 text-xs ${row.visitsVenda === 0 && 'opacity-20'}`}>
+                            {row.visitsVenda}
+                            </Badge>
+                        </TableCell>
+                        <TableCell className="text-center border-r py-2 text-sm font-bold bg-primary/5 text-primary">
+                            {row.numSales}
+                        </TableCell>
+                        <TableCell className="text-center border-r py-2 bg-orange-50/10 text-xs font-bold text-orange-700 relative">
+                            <div className="flex flex-col items-center justify-center h-full leading-tight">
+                                <span className="font-bold text-orange-700">
+                                {row.avgLeadsPerVisitVenda.toFixed(1)}
+                                </span>
+                                <span className="text-[9px] text-orange-700/60 font-medium">
+                                {row.conversionLeadToVisitVenda.toFixed(1)}%
+                                </span>
+                            </div>
+                        </TableCell>
+                        <TableCell className="text-center border-r py-2 bg-rose-50/10 text-xs font-bold text-rose-700 relative">
+                            <div className="flex flex-col items-center justify-center h-full leading-tight">
+                                <span className="font-bold text-rose-700">
+                                {row.avgVisitsPerSale.toFixed(1)}
+                                </span>
+                                <span className="text-[9px] text-rose-700/60 font-medium">
+                                {row.conversionVisitToSale.toFixed(1)}%
+                                </span>
+                            </div>
+                        </TableCell>
+                        <TableCell className="text-center border-r py-2 bg-green-50/20 text-xs font-bold text-green-700 relative">
+                            <div className="flex flex-col items-center justify-center h-full leading-tight">
+                                <span className="font-bold text-green-700">
+                                {row.avgLeadsPerSale.toFixed(1)}
+                                </span>
+                                <span className="text-[9px] text-green-700/60 font-medium">
+                                {row.conversionLeadToSale.toFixed(1)}%
+                                </span>
+                            </div>
+                        </TableCell>
+                        <TableCell className="text-right border-r py-2 text-xs font-bold text-amber-700">
+                            {row.salesFrequency > 0 ? `${row.salesFrequency} dias` : "-"}
+                        </TableCell>
+                        <TableCell className="text-right py-2 font-bold text-primary bg-primary/5 text-sm">
+                            {formatCurrency(row.vgvVendido)}
+                        </TableCell>
+                        </TableRow>
+                    ))}
+                    </TableBody>
+                </Table>
+                ) : (
+                <div className="py-20 text-center text-muted-foreground">
+                    <p className="text-sm font-medium">Nenhum corretor encontrado nos dados das planilhas.</p>
+                    <p className="text-xs text-muted-foreground/80">Verifique se os nomes dos corretores estão preenchidos nas planilhas.</p>
+                </div>
+                )}
+            </TabsContent>
+            <TabsContent value="locacao" className="m-0">
+                {stats.length > 0 ? (
+                <Table className="border-collapse">
+                    <TableHeader>
+                    <TableRow className="bg-muted/5">
+                        <TableHead className="font-bold border-r text-xs uppercase sticky left-0 bg-muted/5 z-10">Corretor</TableHead>
+                        <TableHead className="text-center border-r text-xs uppercase">Leads</TableHead>
+                        <TableHead className="text-center border-r text-xs uppercase">Angariados</TableHead>
+                        <TableHead className="text-center border-r text-xs uppercase">Visitas</TableHead>
+                        <TableHead className="text-center border-r text-xs uppercase bg-primary/5">Locações</TableHead>
+                        <TableHead className="text-center border-r text-xs uppercase">
+                        Média Leads p/ Visita
+                        </TableHead>
+                        <TableHead className="text-center border-r text-xs uppercase">
+                        Média Visitas p/ Loc.
+                        </TableHead>
+                        <TableHead className="text-center border-r text-xs uppercase bg-green-50/20">
+                        Média Leads p/ Loc.
+                        </TableHead>
+                        <TableHead className="text-right border-r text-xs uppercase">Frequência</TableHead>
+                        <TableHead className="text-right font-bold text-xs uppercase bg-primary/5">VGL Angariado</TableHead>
+                    </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                    {stats.map((row) => (
+                        <TableRow key={row.name} className="hover:bg-muted/5 group">
+                        <TableCell className="font-semibold border-r text-sm py-2 sticky left-0 bg-white group-hover:bg-muted/5 z-10">{row.name}</TableCell>
+                        <TableCell className="text-center border-r py-2">
+                            <Badge variant="secondary" className="bg-indigo-50 text-indigo-700 hover:bg-indigo-50 shadow-none border-none text-xs">
+                            {row.leadsLocacao}
+                            </Badge>
+                        </TableCell>
+                        <TableCell className="text-center border-r py-1">
+                            <Badge variant="outline" className={`border-emerald-200 bg-emerald-50/50 text-emerald-700 text-xs font-bold ${row.capturesRent === 0 && 'opacity-20'}`}>
+                                {row.capturesRent}
+                            </Badge>
+                        </TableCell>
+                        <TableCell className="text-center border-r py-2">
+                            <Badge variant="outline" className={`border-indigo-200 text-indigo-700 text-xs ${row.visitsLocacao === 0 && 'opacity-20'}`}>
+                            {row.visitsLocacao}
+                            </Badge>
+                        </TableCell>
+                        <TableCell className="text-center border-r py-2 text-sm font-bold bg-primary/5 text-primary">
+                            {row.numRentals}
+                        </TableCell>
+                        <TableCell className="text-center border-r py-2 bg-orange-50/10 text-xs font-bold text-orange-700 relative">
+                            <div className="flex flex-col items-center justify-center h-full leading-tight">
+                                <span className="font-bold text-orange-700">
+                                {row.avgLeadsPerVisitLocacao.toFixed(1)}
+                                </span>
+                                <span className="text-[9px] text-orange-700/60 font-medium">
+                                {row.conversionLeadToVisitLocacao.toFixed(1)}%
+                                </span>
+                            </div>
+                        </TableCell>
+                        <TableCell className="text-center border-r py-2 bg-rose-50/10 text-xs font-bold text-rose-700 relative">
+                            <div className="flex flex-col items-center justify-center h-full leading-tight">
+                                <span className="font-bold text-rose-700">
+                                {row.avgVisitsPerRental.toFixed(1)}
+                                </span>
+                                <span className="text-[9px] text-rose-700/60 font-medium">
+                                {row.conversionVisitToRental.toFixed(1)}%
+                                </span>
+                            </div>
+                        </TableCell>
+                        <TableCell className="text-center border-r py-2 bg-green-50/20 text-xs font-bold text-green-700 relative">
+                            <div className="flex flex-col items-center justify-center h-full leading-tight">
+                                <span className="font-bold text-green-700">
+                                {row.avgLeadsPerRental.toFixed(1)}
+                                </span>
+                                <span className="text-[9px] text-green-700/60 font-medium">
+                                {row.conversionLeadToRental.toFixed(1)}%
+                                </span>
+                            </div>
+                        </TableCell>
+                        <TableCell className="text-right border-r py-2 text-xs font-bold text-amber-700">
+                            {row.rentalsFrequency > 0 ? `${row.rentalsFrequency} dias` : "-"}
+                        </TableCell>
+                        <TableCell className="text-right py-2 font-bold text-primary bg-primary/5 text-sm">
+                            {formatCurrency(row.vglFechado)}
+                        </TableCell>
+                        </TableRow>
+                    ))}
+                    </TableBody>
+                </Table>
+                ) : (
+                <div className="py-20 text-center text-muted-foreground">
+                    <p className="text-sm font-medium">Nenhum corretor encontrado nos dados das planilhas.</p>
+                    <p className="text-xs text-muted-foreground/80">Verifique se os nomes dos corretores estão preenchidos nas planilhas.</p>
+                </div>
+                )}
+            </TabsContent>
+            <TabsContent value="metricas" className="m-0">
+                <Table>
+                    <TableHeader>
+                    <TableRow>
+                        <TableHead rowSpan={2} className="align-bottom border-b font-bold">Corretor</TableHead>
+                        <TableHead colSpan={2} className="text-center border-b font-bold">Venda</TableHead>
+                        <TableHead colSpan={2} className="text-center border-b font-bold">Angariação</TableHead>
+                        <TableHead rowSpan={2} className="text-right align-bottom border-b font-bold">VGV</TableHead>
+                    </TableRow>
+                    <TableRow>
+                        <TableHead className="text-right font-semibold text-muted-foreground">R$</TableHead>
+                        <TableHead className="text-center font-semibold text-muted-foreground">%</TableHead>
+                        <TableHead className="text-right font-semibold text-muted-foreground">R$</TableHead>
+                        <TableHead className="text-center font-semibold text-muted-foreground">%</TableHead>
+                    </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                    {stats.filter(s => s.comissaoVenda > 0 || s.comissaoAngariacao > 0 || s.vgvMetrics > 0).map((broker) => (
+                        <TableRow key={broker.name}>
+                        <TableCell className="font-semibold">{broker.name}</TableCell>
+                        <TableCell className="text-right">{broker.comissaoVenda > 0 ? formatCurrency(broker.comissaoVenda) : ''}</TableCell>
+                        <TableCell className="text-center">{broker.comissaoVenda > 0 ? `${broker.comissaoVendaPercent.toFixed(0)}%` : ''}</TableCell>
+                        <TableCell className="text-right">{broker.comissaoAngariacao > 0 ? formatCurrency(broker.comissaoAngariacao) : ''}</TableCell>
+                        <TableCell className="text-center">{broker.comissaoAngariacao > 0 ? `${broker.comissaoAngariacaoPercent.toFixed(0)}%` : ''}</TableCell>
+                        <TableCell className="text-right font-bold">{formatCurrency(broker.vgvMetrics)}</TableCell>
+                        </TableRow>
+                    ))}
+                    </TableBody>
+                </Table>
+            </TabsContent>
+        </CardContent>
+      </Tabs>
     </Card>
   );
 }
-
-    
