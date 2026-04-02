@@ -237,6 +237,10 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       });
       
       const vgvMetrics = salesInvolved.reduce((acc, s) => acc + (s.closedValue || 0), 0);
+
+      // Placeholder for percentages as requested by the user.
+      const comissaoVendaPercent = 0;
+      const comissaoAngariacaoPercent = 0;
       
 
       return {
@@ -267,6 +271,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         avgLeadsPerRental,
         comissaoVenda,
         comissaoAngariacao,
+        comissaoVendaPercent,
+        comissaoAngariacaoPercent,
         vgvMetrics
       };
     }).sort((a, b) => {
@@ -486,19 +492,37 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead className="font-semibold">Corretor</TableHead>
-                            <TableHead className="text-right font-semibold">Comissão Venda (R$)</TableHead>
-                            <TableHead className="text-right font-semibold">Comissão Angariação (R$)</TableHead>
-                            <TableHead className="text-right font-semibold">VGV (R$)</TableHead>
+                            <TableHead rowSpan={2} className="align-bottom font-semibold border-b">Corretor</TableHead>
+                            <TableHead colSpan={2} className="text-center font-semibold border-b">Venda</TableHead>
+                            <TableHead colSpan={2} className="text-center font-semibold border-b">Angariação</TableHead>
+                            <TableHead rowSpan={2} className="align-bottom text-right font-semibold border-b">VGV</TableHead>
+                        </TableRow>
+                        <TableRow>
+                            <TableHead className="text-right font-semibold text-muted-foreground">R$</TableHead>
+                            <TableHead className="text-right font-semibold text-muted-foreground">%</TableHead>
+                            <TableHead className="text-right font-semibold text-muted-foreground">R$</TableHead>
+                            <TableHead className="text-right font-semibold text-muted-foreground">%</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                     {stats.filter(s => s.comissaoVenda > 0 || s.comissaoAngariacao > 0 || s.vgvMetrics > 0).map((broker) => (
                         <TableRow key={broker.name}>
-                        <TableCell className="font-semibold">{broker.name}</TableCell>
-                        <TableCell className="text-right">{broker.comissaoVenda > 0 ? formatCurrency(broker.comissaoVenda) : ''}</TableCell>
-                        <TableCell className="text-right">{broker.comissaoAngariacao > 0 ? formatCurrency(broker.comissaoAngariacao) : ''}</TableCell>
-                        <TableCell className="text-right font-bold">{broker.vgvMetrics > 0 ? formatCurrency(broker.vgvMetrics) : ''}</TableCell>
+                            <TableCell className="font-semibold">{broker.name}</TableCell>
+                            <TableCell className="text-right">
+                                {broker.comissaoVenda > 0 ? formatCurrency(broker.comissaoVenda) : ''}
+                            </TableCell>
+                            <TableCell className="text-right">
+                                {broker.comissaoVenda > 0 ? `${broker.comissaoVendaPercent.toFixed(0)}%` : ''}
+                            </TableCell>
+                            <TableCell className="text-right">
+                                {broker.comissaoAngariacao > 0 ? formatCurrency(broker.comissaoAngariacao) : ''}
+                            </TableCell>
+                            <TableCell className="text-right">
+                                {broker.comissaoAngariacao > 0 ? `${broker.comissaoAngariacaoPercent.toFixed(0)}%` : ''}
+                            </TableCell>
+                            <TableCell className="text-right font-bold">
+                                {broker.vgvMetrics > 0 ? formatCurrency(broker.vgvMetrics) : ''}
+                            </TableCell>
                         </TableRow>
                     ))}
                     </TableBody>
