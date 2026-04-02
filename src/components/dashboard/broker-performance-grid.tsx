@@ -269,7 +269,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         vgvMetrics,
         comissaoVendaPercent: 0,
         comissaoAngariacaoPercent: 0,
-        vgvMetricsPercent: 0,
       };
     }).sort((a, b) => {
       if (performanceView === 'metricas') {
@@ -491,11 +490,9 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                             <TableHead rowSpan={2} className="align-bottom">Corretor</TableHead>
                             <TableHead colSpan={2} className="text-center">Venda</TableHead>
                             <TableHead colSpan={2} className="text-center">Angariação</TableHead>
-                            <TableHead colSpan={2} className="text-center">VGV</TableHead>
+                            <TableHead rowSpan={2} className="text-center align-bottom">VGV (R$)</TableHead>
                         </TableRow>
                         <TableRow>
-                            <TableHead className="text-right font-semibold text-muted-foreground">R$</TableHead>
-                            <TableHead className="text-right font-semibold text-muted-foreground">%</TableHead>
                             <TableHead className="text-right font-semibold text-muted-foreground">R$</TableHead>
                             <TableHead className="text-right font-semibold text-muted-foreground">%</TableHead>
                             <TableHead className="text-right font-semibold text-muted-foreground">R$</TableHead>
@@ -520,9 +517,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                             </TableCell>
                             <TableCell className="text-right font-bold">
                                 {broker.vgvMetrics > 0 ? formatCurrency(broker.vgvMetrics) : ''}
-                            </TableCell>
-                            <TableCell className="text-right">
-                                {broker.vgvMetricsPercent > 0 ? `${broker.vgvMetricsPercent.toFixed(2)}%` : ''}
                             </TableCell>
                         </TableRow>
                     ))}
