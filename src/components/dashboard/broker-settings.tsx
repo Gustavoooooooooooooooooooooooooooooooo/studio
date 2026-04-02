@@ -75,7 +75,7 @@ export function BrokerSettings({ brokers, onAddBroker, onDeleteBroker }: BrokerS
                 <TableBody>
                     {brokers && brokers.length > 0 ? (
                     brokers.map((broker) => {
-                      const brokerCode = broker.substring(0, 3).toUpperCase();
+                      const brokerCode = broker.normalize("NFD").replace(/[\u0300-\u036f]/g, "").substring(0, 3).toUpperCase();
                       return (
                         <TableRow key={broker}>
                           <TableCell className="font-mono text-sm text-muted-foreground font-semibold">
