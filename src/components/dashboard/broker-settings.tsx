@@ -67,14 +67,20 @@ export function BrokerSettings({ brokers, onAddBroker, onDeleteBroker }: BrokerS
                 <Table>
                 <TableHeader className="bg-muted/30 sticky top-0">
                     <TableRow>
+                    <TableHead className="w-[100px]">Código</TableHead>
                     <TableHead>Corretor</TableHead>
                     <TableHead className="text-right w-[100px]">Ações</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {brokers && brokers.length > 0 ? (
-                    brokers.map((broker) => (
+                    brokers.map((broker) => {
+                      const brokerCode = broker.substring(0, 3).toUpperCase();
+                      return (
                         <TableRow key={broker}>
+                          <TableCell className="font-mono text-sm text-muted-foreground font-semibold">
+                            {brokerCode}
+                          </TableCell>
                           <TableCell className="font-semibold flex items-center gap-2 text-sm">
                               <UserCheck className="h-4 w-4 text-emerald-500" />
                               {broker}
@@ -104,10 +110,10 @@ export function BrokerSettings({ brokers, onAddBroker, onDeleteBroker }: BrokerS
                           </TableCell>
                         </TableRow>
                       )
-                    )
+                    })
                     ) : (
                     <TableRow>
-                        <TableCell colSpan={2} className="text-center py-12 text-muted-foreground">
+                        <TableCell colSpan={3} className="text-center py-12 text-muted-foreground">
                         <div className="flex flex-col items-center gap-2">
                             <AlertCircle className="h-8 w-8 opacity-20" />
                             <p className="font-medium">Nenhum corretor cadastrado.</p>
