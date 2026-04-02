@@ -77,6 +77,18 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
 
     const totalDaysCount = 427; // Maintained for sales frequency as requested
 
+    const allSalesInPeriod = sales.filter(s => {
+        const isSaleType = !normalize(s.tipo || '').includes('loca') && !normalize(s.tipo || '').includes('aluguel');
+        if (!isSaleType) return false;
+
+        const d = parseDate(s.saleDate);
+        if (!d) return false;
+        const monthMatch = selectedMonths.length === 0 || selectedMonths.includes(String(d.getUTCMonth()));
+        const yearMatch = selectedYears.length === 0 || selectedYears.includes(String(d.getUTCFullYear()));
+        return monthMatch && yearMatch;
+    });
+    const totalVgvInPeriod = allSalesInPeriod.reduce((acc, s) => acc + (s.closedValue || 0), 0);
+
     return brokers.map(brokerName => {
       const configBrokerName = normalize(brokerName);
       
@@ -206,40 +218,27 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       const avgLeadsPerRental = numRentals > 0 ? leadsLocacao / numRentals : 0;
 
       // Metrics for the new "Métricas" tab
-      const salesInvolved = sales.filter(s => {
-        const isSaleType = !normalize(s.tipo || '').includes('loca') && !normalize(s.tipo || '').includes('aluguel');
-        if (!isSaleType) return false;
-        if (!filterByPeriod(s, "saleDate")) return false;
-        return isMatch(s.vendedor) || isMatch(s.angariador);
-      });
+      const salesAsSellerInPeriod = allSalesInPeriod.filter(s => isMatch(s.vendedor));
+      const salesAsCapturerInPeriod = allSalesInPeriod.filter(s => isMatch(s.angariador));
 
-      let comissaoVenda = 0;
-      let comissaoAngariacao = 0;
-
-      salesInvolved.forEach(s => {
+      const comissaoVenda = salesAsSellerInPeriod.reduce((acc, s) => {
         const commission = s.commission || 0;
-        if (commission === 0) return;
-
-        const isCurrentBrokerTheSeller = isMatch(s.vendedor);
-        const isCurrentBrokerTheCapturer = isMatch(s.angariador);
+        if (commission === 0) return acc;
         const isSellerAndCapturerSame = normalize(s.vendedor) === normalize(s.angariador);
+        return acc + (isSellerAndCapturerSame ? commission : commission / 2);
+      }, 0);
 
-        if (isCurrentBrokerTheSeller) {
-          if (isSellerAndCapturerSame) {
-            comissaoVenda += commission;
-          } else {
-            comissaoVenda += commission / 2;
-          }
-        }
-        if (isCurrentBrokerTheCapturer && !isSellerAndCapturerSame) {
-          comissaoAngariacao += commission / 2;
-        }
-      });
+      const comissaoAngariacao = salesAsCapturerInPeriod.reduce((acc, s) => {
+          const commission = s.commission || 0;
+          if (commission === 0) return acc;
+          const isSellerAndCapturerSame = normalize(s.vendedor) === normalize(s.angariador);
+          return acc + (isSellerAndCapturerSame ? 0 : commission / 2);
+      }, 0);
       
-      const vgvMetrics = salesInvolved.reduce((acc, s) => acc + (s.closedValue || 0), 0);
+      const vgvVendidoPeloCorretor = salesAsSellerInPeriod.reduce((acc, s) => acc + (s.closedValue || 0), 0);
       
-      const comissaoVendaPercent = 0;
-      const comissaoAngariacaoPercent = 0;
+      const comissaoVendaPercent = totalVgvInPeriod > 0 ? (vgvVendidoPeloCorretor / totalVgvInPeriod) * 100 : 0;
+      const comissaoAngariacaoPercent = 0; // Placeholder as requested
 
       return {
         name: brokerName,
@@ -271,7 +270,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         comissaoAngariacao,
         comissaoVendaPercent,
         comissaoAngariacaoPercent,
-        vgvMetrics,
+        vgvMetrics: vgvVendidoPeloCorretor,
       };
     }).sort((a, b) => {
       if (performanceView === 'metricas') {
@@ -490,10 +489,16 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead className="font-semibold">Corretor</TableHead>
+                            <TableHead rowSpan={2} className="font-semibold align-bottom">Corretor</TableHead>
                             <TableHead colSpan={2} className="text-center font-semibold">Venda</TableHead>
                             <TableHead colSpan={2} className="text-center font-semibold">Angariação</TableHead>
-                            <TableHead className="text-right font-semibold">VGV (R$)</TableHead>
+                            <TableHead rowSpan={2} className="text-right font-bold align-bottom">VGV (R$)</TableHead>
+                        </TableRow>
+                        <TableRow>
+                            <TableHead className="text-right font-semibold text-muted-foreground">R$</TableHead>
+                            <TableHead className="text-right font-semibold text-muted-foreground">%</TableHead>
+                            <TableHead className="text-right font-semibold text-muted-foreground">R$</TableHead>
+                            <TableHead className="text-right font-semibold text-muted-foreground">%</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
