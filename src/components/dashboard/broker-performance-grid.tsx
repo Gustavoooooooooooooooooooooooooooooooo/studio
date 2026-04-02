@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +19,7 @@ interface BrokerPerformanceGridProps {
 export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths, selectedYears, brokers }: BrokerPerformanceGridProps) {
   const [performanceView, setPerformanceView] = useState<'venda' | 'locacao' | 'metricas'>('venda');
 
-  const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  const normalize = useCallback((s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim(), []);
 
   const parseDate = (d: any): Date | null => {
     if (!d) return null;
@@ -77,17 +77,24 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
 
     const totalDaysCount = 427; // Maintained for sales frequency as requested
 
-    const allSalesInPeriod = sales.filter(s => {
-        const isSaleType = !normalize(s.tipo || '').includes('loca') && !normalize(s.tipo || '').includes('aluguel');
-        if (!isSaleType) return false;
-
-        const d = parseDate(s.saleDate);
+    const filterByPeriod = (item: any, dateField: string) => {
+        const d = parseDate(item[dateField]);
         if (!d) return false;
         const monthMatch = selectedMonths.length === 0 || selectedMonths.includes(String(d.getUTCMonth()));
         const yearMatch = selectedYears.length === 0 || selectedYears.includes(String(d.getUTCFullYear()));
         return monthMatch && yearMatch;
+    };
+
+    const allSalesInPeriod = sales.filter(s => {
+        const isSaleType = !normalize(s.tipo || '').includes('loca') && !normalize(s.tipo || '').includes('aluguel');
+        if (!isSaleType) return false;
+        return filterByPeriod(s, 'saleDate');
     });
     const totalVgvInPeriod = allSalesInPeriod.reduce((acc, s) => acc + (s.closedValue || 0), 0);
+
+    const allPropertiesInPeriod = properties.filter(p => filterByPeriod(p, 'captureDate'));
+    const totalVgvAngariadoInPeriod = allPropertiesInPeriod.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0);
+
 
     return brokers.map(brokerName => {
       const configBrokerName = normalize(brokerName);
@@ -107,14 +114,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         if (!sheetName) return false;
         return normalize(sheetName) === configBrokerName;
       }
-
-      const filterByPeriod = (item: any, dateField: string) => {
-        const d = parseDate(item[dateField]);
-        if (!d) return false;
-        const monthMatch = selectedMonths.length === 0 || selectedMonths.includes(String(d.getUTCMonth()));
-        const yearMatch = selectedYears.length === 0 || selectedYears.includes(String(d.getUTCFullYear()));
-        return monthMatch && yearMatch;
-      };
 
       // 1. Angariações
       const bPropsFiltered = properties.filter(p => {
@@ -238,7 +237,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       const vgvVendidoPeloCorretor = salesAsSellerInPeriod.reduce((acc, s) => acc + (s.closedValue || 0), 0);
       
       const comissaoVendaPercent = totalVgvInPeriod > 0 ? (vgvVendidoPeloCorretor / totalVgvInPeriod) * 100 : 0;
-      const comissaoAngariacaoPercent = 0; // Placeholder as requested
+      const comissaoAngariacaoPercent = totalVgvAngariadoInPeriod > 0 ? (vgvAngariado / totalVgvAngariadoInPeriod) * 100 : 0;
 
       return {
         name: brokerName,
@@ -281,7 +280,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       }
       return b.numRentals - a.numRentals || b.vglFechado - a.vglFechado;
     });
-  }, [sales, leads, properties, brokers, selectedMonths, selectedYears, performanceView]);
+  }, [sales, leads, properties, brokers, selectedMonths, selectedYears, performanceView, normalize]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
@@ -490,14 +489,14 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                     <TableHeader>
                         <TableRow>
                             <TableHead rowSpan={2} className="font-semibold align-bottom">Corretor</TableHead>
-                            <TableHead colSpan={2} className="text-center font-semibold">Venda</TableHead>
-                            <TableHead colSpan={2} className="text-center font-semibold">Angariação</TableHead>
-                            <TableHead rowSpan={2} className="text-right font-bold align-bottom">VGV (R$)</TableHead>
+                            <TableHead colSpan={2} className="text-center font-semibold border-l">Venda</TableHead>
+                            <TableHead colSpan={2} className="text-center font-semibold border-l">Angariação</TableHead>
+                            <TableHead rowSpan={2} className="text-right font-bold align-bottom border-l">VGV (R$)</TableHead>
                         </TableRow>
                         <TableRow>
-                            <TableHead className="text-right font-semibold text-muted-foreground">R$</TableHead>
+                            <TableHead className="text-right font-semibold text-muted-foreground border-l">R$</TableHead>
                             <TableHead className="text-right font-semibold text-muted-foreground">%</TableHead>
-                            <TableHead className="text-right font-semibold text-muted-foreground">R$</TableHead>
+                            <TableHead className="text-right font-semibold text-muted-foreground border-l">R$</TableHead>
                             <TableHead className="text-right font-semibold text-muted-foreground">%</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -505,19 +504,19 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                     {stats.filter(s => s.comissaoVenda > 0 || s.comissaoAngariacao > 0 || s.vgvMetrics > 0).map((broker) => (
                         <TableRow key={broker.name}>
                             <TableCell className="font-semibold">{broker.name}</TableCell>
-                            <TableCell className="text-right">
+                            <TableCell className="text-right border-l">
                                 {broker.comissaoVenda > 0 ? formatCurrency(broker.comissaoVenda) : ''}
                             </TableCell>
                             <TableCell className="text-right">
                                 {broker.comissaoVenda > 0 ? `${broker.comissaoVendaPercent.toFixed(1)}%` : ''}
                             </TableCell>
-                            <TableCell className="text-right">
+                            <TableCell className="text-right border-l">
                                 {broker.comissaoAngariacao > 0 ? formatCurrency(broker.comissaoAngariacao) : ''}
                             </TableCell>
                             <TableCell className="text-right">
                                 {broker.comissaoAngariacao > 0 ? `${broker.comissaoAngariacaoPercent.toFixed(1)}%` : ''}
                             </TableCell>
-                            <TableCell className="text-right font-bold">
+                            <TableCell className="text-right font-bold border-l">
                                 {broker.vgvMetrics > 0 ? formatCurrency(broker.vgvMetrics) : ''}
                             </TableCell>
                         </TableRow>
