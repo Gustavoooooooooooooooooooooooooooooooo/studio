@@ -236,6 +236,9 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       
       const vgvVendidoPeloCorretor = salesAsSellerInPeriod.reduce((acc, s) => acc + (s.closedValue || 0), 0);
       
+      const vgvDasVendasAngariadas = salesAsCapturerInPeriod.reduce((acc, s) => acc + (s.closedValue || 0), 0);
+      const vgvMetrics = vgvVendidoPeloCorretor + vgvDasVendasAngariadas;
+
       const comissaoVendaPercent = totalVgvInPeriod > 0 ? (vgvVendidoPeloCorretor / totalVgvInPeriod) * 100 : 0;
       const comissaoAngariacaoPercent = totalVgvAngariadoInPeriod > 0 ? (vgvAngariado / totalVgvAngariadoInPeriod) * 100 : 0;
 
@@ -269,7 +272,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         comissaoAngariacao,
         comissaoVendaPercent,
         comissaoAngariacaoPercent,
-        vgvMetrics: vgvVendidoPeloCorretor,
+        vgvMetrics,
       };
     }).sort((a, b) => {
       if (performanceView === 'metricas') {
@@ -488,16 +491,10 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead rowSpan={2} className="font-semibold align-bottom">Corretor</TableHead>
+                            <TableHead className="font-semibold">Corretor</TableHead>
                             <TableHead colSpan={2} className="text-center font-semibold border-l">Venda</TableHead>
                             <TableHead colSpan={2} className="text-center font-semibold border-l">Angariação</TableHead>
-                            <TableHead rowSpan={2} className="text-right font-bold align-bottom border-l">VGV (R$)</TableHead>
-                        </TableRow>
-                        <TableRow>
-                            <TableHead className="text-right font-semibold text-muted-foreground border-l">R$</TableHead>
-                            <TableHead className="text-right font-semibold text-muted-foreground">%</TableHead>
-                            <TableHead className="text-right font-semibold text-muted-foreground border-l">R$</TableHead>
-                            <TableHead className="text-right font-semibold text-muted-foreground">%</TableHead>
+                            <TableHead className="text-right font-bold align-bottom border-l">VGV (R$)</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
