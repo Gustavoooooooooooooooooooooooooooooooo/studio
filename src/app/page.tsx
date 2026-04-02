@@ -117,8 +117,11 @@ const parseCurrency = (val: any) => {
     if (val === undefined || val === null || String(val).trim() === "") return 0;
     if (typeof val === 'number') return val;
     let s = String(val).trim().replace(/[R$ ]/g, "");
-    if (s.includes('.') && s.includes(',')) s = s.replace(/\./g, "").replace(",", ".");
-    else if (s.includes(',') && !s.includes('.')) s = s.replace(",", ".");
+    if (s.includes('.') && s.includes(',')) {
+      s = s.replace(/\./g, "").replace(",", ".");
+    } else if (s.includes(',')) {
+      s = s.replace(",", ".");
+    }
     const num = parseFloat(s);
     return isNaN(num) ? 0 : num;
 };
@@ -181,7 +184,8 @@ function DashboardContent() {
                   clientName: String(getVal(row, ["locatario", "inquilino", "cliente"]) || "N/A"),
                   advertisedValue: parseCurrency(getVal(row, ["valor do aluguel", "valor locacao", "aluguel", "anuncio", "valor do anuncio", "valor anuncio", "valor do anúncio"])),
                   closedValue: parseCurrency(getVal(row, ["valor aluguel fechado", "valor final locacao", "valor fechado", "negocio fechado", "negócio fechado"])),
-                  commission: parseCurrency(getVal(row, ["comissao", "comissão"])),
+                  comissaoCorretor: parseCurrency(getVal(row, ["comissao corretor", "comissão corretor", "comissao atendente"])),
+                  comissaoAngariacao: parseCurrency(getVal(row, ["comissao angariacao", "comissão angariação", "comissao captador"])),
                   saleDate: formatDateDisplay(getVal(row, ["data locacao", "data do contrato", "fechamento", "negocio fechado", "negócio fechado"], ["vendedor"])),
                   propertyCaptureDate: formatDateDisplay(getVal(row, ["entrada do imovel", "data entrada", "cadastro", "carimbo"])),
                   origem: String(getVal(row, ["origem", "origem do lead?"]) || "N/A"),
@@ -197,7 +201,8 @@ function DashboardContent() {
                   clientName: String(getVal(row, ["cliente", "comprador"]) || "N/A"),
                   advertisedValue: parseCurrency(getVal(row, ["valor do anuncio", "valor anuncio", "anuncio", "qual valor anunciado?"])),
                   closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda", "qual valor final de venda?", "negocio fechado", "negócio fechado"])),
-                  commission: parseCurrency(getVal(row, ["comissao", "comissão"])),
+                  comissaoCorretor: parseCurrency(getVal(row, ["comissao corretor", "comissão corretor", "comissao vendedor"])),
+                  comissaoAngariacao: parseCurrency(getVal(row, ["comissao angariacao", "comissão angariação", "comissao captador"])),
                   saleDate: formatDateDisplay(getVal(row, ["data do venda", "data venda", "fechamento", "venda"], ["vendedor", "corretor"])),
                   propertyCaptureDate: formatDateDisplay(getVal(row, ["entrada do imovel", "data entrada", "cadastro", "carimbo"])),
                   origem: String(getVal(row, ["origem do lead?"]) || "N/A"),
@@ -414,15 +419,15 @@ function DashboardContent() {
     const avgDiscountValueRent = rentalsForDiscount.length > 0 ? totalRentDiscountValue / rentalsForDiscount.length : 0;
 
     const salesForCommission = filteredSales.filter(s => 
-      !normalize(s.tipo).includes('loca') && !normalize(s.tipo).includes('aluguel') && s.commission > 0
+      !normalize(s.tipo).includes('loca') && !normalize(s.tipo).includes('aluguel') && s.comissaoCorretor > 0
     );
-    const totalSaleCommission = salesForCommission.reduce((acc, s) => acc + s.commission, 0);
+    const totalSaleCommission = salesForCommission.reduce((acc, s) => acc + s.comissaoCorretor, 0);
     const avgCommissionSale = salesForCommission.length > 0 ? totalSaleCommission / salesForCommission.length : 0;
 
     const rentalsForCommission = filteredSales.filter(s => 
-      (normalize(s.tipo).includes('loca') || normalize(s.tipo).includes('aluguel')) && s.commission > 0
+      (normalize(s.tipo).includes('loca') || normalize(s.tipo).includes('aluguel')) && s.comissaoCorretor > 0
     );
-    const totalRentCommission = rentalsForCommission.reduce((acc, s) => acc + s.commission, 0);
+    const totalRentCommission = rentalsForCommission.reduce((acc, s) => acc + s.comissaoCorretor, 0);
     const avgCommissionRent = rentalsForCommission.length > 0 ? totalRentCommission / rentalsForCommission.length : 0;
 
     const getLeadDetails = (lead: any) => {

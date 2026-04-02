@@ -220,19 +220,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       const salesAsSellerInPeriod = allSalesInPeriod.filter(s => isMatch(s.vendedor));
       const salesAsCapturerInPeriod = allSalesInPeriod.filter(s => isMatch(s.angariador));
 
-      const comissaoVenda = salesAsSellerInPeriod.reduce((acc, s) => {
-        const commission = s.commission || 0;
-        if (commission === 0) return acc;
-        const isSellerAndCapturerSame = normalize(s.vendedor) === normalize(s.angariador);
-        return acc + (isSellerAndCapturerSame ? commission : commission / 2);
-      }, 0);
-
-      const comissaoAngariacao = salesAsCapturerInPeriod.reduce((acc, s) => {
-          const commission = s.commission || 0;
-          if (commission === 0) return acc;
-          const isSellerAndCapturerSame = normalize(s.vendedor) === normalize(s.angariador);
-          return acc + (isSellerAndCapturerSame ? 0 : commission / 2);
-      }, 0);
+      const comissaoVenda = salesAsSellerInPeriod.reduce((acc, s) => acc + (s.comissaoCorretor || 0), 0);
+      const comissaoAngariacao = salesAsCapturerInPeriod.reduce((acc, s) => acc + (s.comissaoAngariacao || 0), 0);
       
       const vgvVendidoPeloCorretor = salesAsSellerInPeriod.reduce((acc, s) => acc + (s.closedValue || 0), 0);
       
@@ -495,6 +484,14 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                             <TableHead colSpan={2} className="text-center font-semibold border-l">Venda</TableHead>
                             <TableHead colSpan={2} className="text-center font-semibold border-l">Angariação</TableHead>
                             <TableHead className="text-right font-bold align-bottom border-l">VGV (R$)</TableHead>
+                        </TableRow>
+                        <TableRow>
+                            <TableHead></TableHead>
+                            <TableHead className="text-right font-semibold text-muted-foreground border-l">R$</TableHead>
+                            <TableHead className="text-right font-semibold text-muted-foreground">%</TableHead>
+                            <TableHead className="text-right font-semibold text-muted-foreground border-l">R$</TableHead>
+                            <TableHead className="text-right font-semibold text-muted-foreground">%</TableHead>
+                            <TableHead className="border-l"></TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
