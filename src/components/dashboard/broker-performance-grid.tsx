@@ -484,6 +484,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                             <TableHead colSpan={2} className="text-center font-semibold border-l">Venda</TableHead>
                             <TableHead colSpan={2} className="text-center font-semibold border-l">Angariação</TableHead>
                             <TableHead className="text-right font-bold align-bottom border-l">VGV (R$)</TableHead>
+                            <TableHead className="text-right font-bold align-bottom border-l">Comissão Acumulada</TableHead>
                         </TableRow>
                         <TableRow>
                             <TableHead></TableHead>
@@ -491,6 +492,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                             <TableHead className="text-right font-semibold text-muted-foreground">%</TableHead>
                             <TableHead className="text-right font-semibold text-muted-foreground border-l">R$</TableHead>
                             <TableHead className="text-right font-semibold text-muted-foreground">%</TableHead>
+                            <TableHead className="border-l"></TableHead>
                             <TableHead className="border-l"></TableHead>
                         </TableRow>
                     </TableHeader>
@@ -512,6 +514,9 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                             </TableCell>
                             <TableCell className="text-right font-bold border-l">
                                 {broker.vgvMetrics > 0 ? formatCurrency(broker.vgvMetrics) : ''}
+                            </TableCell>
+                            <TableCell className="text-right font-bold border-l text-primary">
+                                {(broker.comissaoVenda + broker.comissaoAngariacao) > 0 ? formatCurrency(broker.comissaoVenda + broker.comissaoAngariacao) : ''}
                             </TableCell>
                         </TableRow>
                     ))}
