@@ -478,7 +478,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                         <TableRow>
                             <TableHead className="font-semibold">Corretor</TableHead>
                             <TableHead className="text-right font-semibold border-l">Venda</TableHead>
-                            <TableHead className="text-right font-semibold">Comissão Venda (%)</TableHead>
+                            <TableHead className="text-right font-semibold"></TableHead>
                             <TableHead className="text-right font-semibold border-l">Comissão Angariação (R$)</TableHead>
                             <TableHead className="text-right font-semibold">Comissão Angariação (%)</TableHead>
                             <TableHead className="text-right font-bold align-bottom border-l">VGV (R$)</TableHead>
