@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useMemo, useState, useCallback } from "react";
@@ -104,10 +103,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         const normalizedSheetName = normalize(String(sheetName || ""));
         if (!normalizedSheetName) return false;
         
-        const configWords = configBrokerName.split(' ');
-        const sheetWords = normalizedSheetName.split(' ');
-        
-        return configWords.every(cw => sheetWords.includes(cw));
+        return normalizedSheetName.includes(configBrokerName) || configBrokerName.includes(normalizedSheetName);
       };
 
       const isExactMatch = (sheetName: string | undefined | null) => {
@@ -221,7 +217,11 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       const salesAsCapturerInPeriod = allSalesInPeriod.filter(s => isMatch(s.angariador));
 
       const comissaoVenda = salesAsSellerInPeriod.reduce((acc, s) => acc + (s.comissaoCorretor || 0), 0);
-      const comissaoAngariacao = salesAsCapturerInPeriod.reduce((acc, s) => acc + (s.comissaoAngariacao || 0), 0);
+      
+      const comissaoAngariacao = salesAsCapturerInPeriod.reduce((acc, s) => {
+        const comissaoImobiliaria = s.comissaoImobiliaria || 0;
+        return acc + (comissaoImobiliaria * 0.3);
+      }, 0);
       
       const vgvVendidoPeloCorretor = salesAsSellerInPeriod.reduce((acc, s) => acc + (s.closedValue || 0), 0);
       
@@ -481,8 +481,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                     <TableHeader>
                         <TableRow>
                             <TableHead className="font-semibold">Corretor</TableHead>
-                            <TableHead className="text-right font-semibold border-l">Venda</TableHead>
-                            <TableHead className="text-right font-semibold">Comissão Venda (%)</TableHead>
+                            <TableHead className="text-center font-semibold border-l">Venda</TableHead>
                             <TableHead className="text-right font-semibold border-l">Comissão Angariação (R$)</TableHead>
                             <TableHead className="text-right font-semibold">Comissão Angariação (%)</TableHead>
                             <TableHead className="text-right font-bold align-bottom border-l">VGV (R$)</TableHead>
@@ -490,14 +489,11 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                    {stats.filter(s => s.comissaoVenda > 0 || s.comissaoAngariacao > 0 || s.vgvMetrics > 0).map((broker) => (
+                    {stats.map((broker) => (
                         <TableRow key={broker.name}>
                             <TableCell className="font-semibold">{broker.name}</TableCell>
                             <TableCell className="text-right border-l">
                                 {broker.comissaoVenda > 0 ? formatCurrency(broker.comissaoVenda) : ''}
-                            </TableCell>
-                            <TableCell className="text-right">
-                                {broker.comissaoVenda > 0 ? `${broker.comissaoVendaPercent.toFixed(1)}%` : ''}
                             </TableCell>
                             <TableCell className="text-right border-l">
                                 {broker.comissaoAngariacao > 0 ? formatCurrency(broker.comissaoAngariacao) : ''}
