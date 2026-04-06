@@ -479,8 +479,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                             <TableHead className="font-semibold">Corretor</TableHead>
                             <TableHead colSpan={2} className="text-center font-semibold border-l">Venda</TableHead>
                             <TableHead colSpan={2} className="text-center font-semibold border-l">Angariação</TableHead>
-                            <TableHead className="text-center font-bold align-bottom border-l">VGV</TableHead>
-                            <TableHead className="text-right font-bold align-bottom border-l">Comissão Acumulada</TableHead>
+                            <TableHead className="text-center font-bold border-l">VGV</TableHead>
+                            <TableHead className="text-right font-bold border-l">Comissão Acumulada</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -499,7 +499,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                             <TableCell className="text-right">
                                 {broker.comissaoAngariacao > 0 ? `${broker.comissaoAngariacaoPercent.toFixed(1)}%` : ''}
                             </TableCell>
-                            <TableCell className="text-right font-bold border-l">
+                            <TableCell className="text-center font-bold border-l">
                                 {broker.vgvMetrics > 0 ? formatCurrency(broker.vgvMetrics) : ''}
                             </TableCell>
                             <TableCell className="text-right font-bold border-l text-primary">
