@@ -37,6 +37,7 @@ interface StatsCardsProps {
     avgDiscountValueRent: number;
     avgCommissionSale: number;
     avgCommissionRent: number;
+    totalRentCommission: number;
     totalDeals: number;
     avgLeadsVenda: number;
     avgLeadsLocacao: number;
@@ -119,7 +120,7 @@ export function StatsCards({ metrics }: StatsCardsProps) {
       group: "Financeiro",
       values: [
         { label: "Total Venda", value: formatCurrency(metrics.totalComissaoImobiliariaVenda) },
-        { label: "Média Locação (Corretor)", value: formatCurrency(metrics.avgCommissionRent) },
+        { label: "Total Locação", value: formatCurrency(metrics.totalRentCommission) },
       ]
     },
     {

@@ -491,6 +491,7 @@ function DashboardContent() {
       avgTicket, avgTicketRent, salesFrequency,
       avgDiscountSale, avgDiscountRent, avgDiscountValueSale, avgDiscountValueRent,
       avgCommissionSale, avgCommissionRent,
+      totalRentCommission,
       totalDeals: filteredSales.length,
       avgLeadsVenda: leadsVenda / monthsToAverage,
       avgLeadsLocacao: leadsLocacao / monthsToAverage,
