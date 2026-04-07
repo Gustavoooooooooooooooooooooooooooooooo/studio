@@ -473,42 +473,56 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                 )}
             </TabsContent>
             <TabsContent value="metricas" className="m-0">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead className="font-semibold">Corretor</TableHead>
-                            <TableHead colSpan={2} className="text-center font-semibold border-l">Venda</TableHead>
-                            <TableHead colSpan={2} className="text-center font-semibold border-l">Angariação</TableHead>
-                            <TableHead className="text-center font-bold border-l">VGV</TableHead>
-                            <TableHead className="text-right font-bold border-l">Comissão Acumulada</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                    {stats.map((broker) => (
-                        <TableRow key={broker.name}>
-                            <TableCell className="font-semibold">{broker.name}</TableCell>
-                            <TableCell className="text-right border-l">
-                                {broker.comissaoVenda > 0 ? formatCurrency(broker.comissaoVenda) : ''}
-                            </TableCell>
-                            <TableCell className="text-right">
-                                {broker.comissaoVenda > 0 ? `${broker.comissaoVendaPercent.toFixed(1)}%` : ''}
-                            </TableCell>
-                            <TableCell className="text-right border-l">
-                                {broker.comissaoAngariacao > 0 ? formatCurrency(broker.comissaoAngariacao) : ''}
-                            </TableCell>
-                            <TableCell className="text-right">
-                                {broker.comissaoAngariacao > 0 ? `${broker.comissaoAngariacaoPercent.toFixed(1)}%` : ''}
-                            </TableCell>
-                            <TableCell className="text-center font-bold border-l">
-                                {broker.vgvMetrics > 0 ? formatCurrency(broker.vgvMetrics) : ''}
-                            </TableCell>
-                            <TableCell className="text-right font-bold border-l text-primary">
-                                {(broker.comissaoVenda + broker.comissaoAngariacao) > 0 ? formatCurrency(broker.comissaoVenda + broker.comissaoAngariacao) : ''}
-                            </TableCell>
-                        </TableRow>
-                    ))}
-                    </TableBody>
-                </Table>
+              {(() => {
+                const filteredStats = stats.filter(b => b.comissaoVenda > 0 || b.comissaoAngariacao > 0 || b.vgvMetrics > 0);
+                if (filteredStats.length > 0) {
+                  return (
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead className="font-semibold">Corretor</TableHead>
+                                <TableHead colSpan={2} className="text-center font-semibold border-l">Venda</TableHead>
+                                <TableHead colSpan={2} className="text-center font-semibold border-l">Angariação</TableHead>
+                                <TableHead className="text-center font-bold border-l">VGV</TableHead>
+                                <TableHead className="text-right font-bold border-l">Comissão Acumulada</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                        {filteredStats.map((broker) => (
+                            <TableRow key={broker.name}>
+                                <TableCell className="font-semibold">{broker.name}</TableCell>
+                                <TableCell className="text-right border-l">
+                                    {broker.comissaoVenda > 0 ? formatCurrency(broker.comissaoVenda) : ''}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    {broker.comissaoVenda > 0 ? `${broker.comissaoVendaPercent.toFixed(1)}%` : ''}
+                                </TableCell>
+                                <TableCell className="text-right border-l">
+                                    {broker.comissaoAngariacao > 0 ? formatCurrency(broker.comissaoAngariacao) : ''}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    {broker.comissaoAngariacao > 0 ? `${broker.comissaoAngariacaoPercent.toFixed(1)}%` : ''}
+                                </TableCell>
+                                <TableCell className="text-center font-bold border-l">
+                                    {broker.vgvMetrics > 0 ? formatCurrency(broker.vgvMetrics) : ''}
+                                </TableCell>
+                                <TableCell className="text-right font-bold border-l text-primary">
+                                    {(broker.comissaoVenda + broker.comissaoAngariacao) > 0 ? formatCurrency(broker.comissaoVenda + broker.comissaoAngariacao) : ''}
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                        </TableBody>
+                    </Table>
+                  );
+                } else {
+                  return (
+                    <div className="py-20 text-center text-muted-foreground">
+                      <p className="text-sm font-medium">Nenhum corretor com métricas de comissão ou VGV para exibir.</p>
+                      <p className="text-xs text-muted-foreground/80">Verifique a aba de Vendas e os dados nas planilhas.</p>
+                    </div>
+                  );
+                }
+              })()}
             </TabsContent>
         </CardContent>
       </Tabs>
