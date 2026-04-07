@@ -203,6 +203,7 @@ function DashboardContent() {
                   closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda", "qual valor final de venda?", "negocio fechado", "negócio fechado"])),
                   comissaoCorretor: parseCurrency(getVal(row, ["comissao corretor", "comissão corretor", "comissao vendedor"])),
                   comissaoAngariacao: parseCurrency(getVal(row, ["comissao angariacao", "comissão angariação", "comissao captador", "Comissão Angariador"])),
+                  comissaoImobiliaria: parseCurrency(getVal(row, ["Qual valor da comissão de venda? (total Canto)"])),
                   saleDate: formatDateDisplay(getVal(row, ["data do venda", "data venda", "fechamento", "venda"], ["vendedor", "corretor"])),
                   propertyCaptureDate: formatDateDisplay(getVal(row, ["entrada do imovel", "data entrada", "cadastro", "carimbo"])),
                   origem: String(getVal(row, ["origem do lead?"]) || "N/A"),
@@ -430,6 +431,10 @@ function DashboardContent() {
     const totalRentCommission = rentalsForCommission.reduce((acc, s) => acc + s.comissaoCorretor, 0);
     const avgCommissionRent = rentalsForCommission.length > 0 ? totalRentCommission / rentalsForCommission.length : 0;
 
+    const totalComissaoImobiliariaVenda = filteredSales
+      .filter(s => !normalize(s.tipo).includes('loca') && !normalize(s.tipo).includes('aluguel'))
+      .reduce((acc, s) => acc + (s.comissaoImobiliaria || 0), 0);
+
     const getLeadDetails = (lead: any) => {
         const entries = Object.entries(lead);
         const isLocacaoLead = entries.some(([key, val]) => {
@@ -492,6 +497,7 @@ function DashboardContent() {
       avgVisitsVenda: visitsVenda / monthsToAverage,
       avgVisitsLocacao: visitsLocacao / monthsToAverage,
       totalVGVFechado, totalVGLFechado,
+      totalComissaoImobiliariaVenda,
     };
   }, [processedSales, leads, processedInventory, inventory, now, selectedMonths, selectedYears, processedLeads]);
 

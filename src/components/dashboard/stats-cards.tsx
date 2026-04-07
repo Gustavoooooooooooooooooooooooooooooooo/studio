@@ -44,6 +44,7 @@ interface StatsCardsProps {
     avgVisitsLocacao: number;
     totalVGVFechado: number;
     totalVGLFechado: number;
+    totalComissaoImobiliariaVenda: number;
   }
 }
 
@@ -112,13 +113,13 @@ export function StatsCards({ metrics }: StatsCardsProps) {
       ]
     },
     {
-      title: "Comissão Média",
+      title: "Comissão da Imobiliária",
       icon: BadgeDollarSign,
       color: "text-green-600",
       group: "Financeiro",
       values: [
-        { label: "Venda", value: formatCurrency(metrics.avgCommissionSale) },
-        { label: "Locação", value: formatCurrency(metrics.avgCommissionRent) },
+        { label: "Total Venda", value: formatCurrency(metrics.totalComissaoImobiliariaVenda) },
+        { label: "Média Locação (Corretor)", value: formatCurrency(metrics.avgCommissionRent) },
       ]
     },
     {
