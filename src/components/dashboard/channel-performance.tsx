@@ -1,3 +1,4 @@
+
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -183,9 +184,14 @@ export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears
       
       const dateKey = keys.find(k => normalize(k).includes("data") || normalize(k).includes("carimbo") || normalize(k).includes("criado"));
       const date = dateKey ? parseDate(lead[dateKey]) : null;
-      
-      const natureKey = keys.find(k => normalize(k).includes("natureza") || normalize(k).includes("negociacao"));
-      const isLocacao = natureKey && lead[natureKey] ? (normalize(lead[natureKey]).includes("loca") || normalize(lead[natureKey]).includes("alug")) : false;
+
+      const entries = Object.entries(lead);
+      const isLocacao = entries.some(([key, val]) => {
+          const nk = normalize(key);
+          const nv = normalize(String(val || ''));
+          return (nk.includes("natureza") || nk.includes("negociacao") || nk === "tipo") && 
+                 (nv.includes("loca") || nv.includes("alug"));
+      });
       
       const hasVisit = Object.entries(lead).some(([key, val]) => {
           const nk = normalize(key);
