@@ -15,7 +15,8 @@ import {
   BadgeDollarSign,
   Handshake,
   Users,
-  CalendarCheck
+  CalendarCheck,
+  Star
 } from "lucide-react";
 
 interface StatsCardsProps {
@@ -46,6 +47,8 @@ interface StatsCardsProps {
     totalVGVFechado: number;
     totalVGLFechado: number;
     totalComissaoImobiliariaVenda: number;
+    capturedSoldCount: number;
+    capturedSoldVGV: number;
   }
 }
 
@@ -161,6 +164,16 @@ export function StatsCards({ metrics }: StatsCardsProps) {
       values: [
         { label: "Venda", value: String(Math.round(metrics.avgVisitsVenda)) },
         { label: "Locação", value: String(Math.round(metrics.avgVisitsLocacao)) },
+      ]
+    },
+    {
+      title: "Angariados Vendidos",
+      icon: Star,
+      color: "text-yellow-500",
+      group: "Angariação",
+      values: [
+        { label: "Quantidade", value: String(metrics.capturedSoldCount) },
+        { label: "VGV", value: formatCurrency(metrics.capturedSoldVGV) },
       ]
     }
   ];

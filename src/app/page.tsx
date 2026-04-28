@@ -480,6 +480,19 @@ function DashboardContent() {
     }
     monthsToAverage = Math.max(1, monthsToAverage);
 
+    const normalizedBrokers = allBrokers.map(normalize);
+    const capturedSold = filteredSales.filter(sale => {
+        const capturerName = sale.angariador;
+        if (!capturerName || capturerName === "N/A") return false;
+        
+        const normalizedCapturer = normalize(capturerName);
+
+        return normalizedBrokers.some(broker => normalizedCapturer.includes(broker));
+    });
+
+    const capturedSoldCount = capturedSold.length;
+    const capturedSoldVGV = capturedSold.reduce((acc, s) => acc + (s.closedValue || 0), 0);
+
     return {
       avgDaysToSell, avgDaysToRent: 0,
       totalValue: inventory.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0),
@@ -499,8 +512,10 @@ function DashboardContent() {
       avgVisitsLocacao: visitsLocacao / monthsToAverage,
       totalVGVFechado, totalVGLFechado,
       totalComissaoImobiliariaVenda,
+      capturedSoldCount,
+      capturedSoldVGV,
     };
-  }, [processedSales, leads, processedInventory, inventory, now, selectedMonths, selectedYears, processedLeads]);
+  }, [processedSales, leads, processedInventory, inventory, now, selectedMonths, selectedYears, processedLeads, allBrokers]);
 
   const monthOptions = [
     { value: '0', label: 'Janeiro' }, { value: '1', label: 'Fevereiro' }, { value: '2', label: 'Março' },
