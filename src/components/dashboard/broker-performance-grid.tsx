@@ -154,7 +154,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         const hasVisit = entries.some(([key, val]) => {
           const nk = normalize(key);
           const nv = normalize(String(val || ""));
-          return nk.includes("status da atividade atual") && nv.includes("realizada");
+          return (nk.includes("status de atividade atual") || nk.includes("visit")) && (nv === "realizada" || nv.includes("realizada") || nv === "sim");
         });
 
         if (hasVisit) {
@@ -257,8 +257,9 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         comissaoAngariacao,
         comissaoVendaPercent,
         comissaoAngariacaoPercent,
-        vgvMetrics,
-        vgvVendidoPeloCorretor,
+        vgvMetrics, // VGV Total
+        vgvVendidoPeloCorretor, // VGV Vendido
+        vgvAngariadoVendido: vgvDasVendasAngariadas, // VGV Angariado nas vendas
       };
     });
 
@@ -287,6 +288,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         comissaoAngariacao: sortedStats.reduce((acc, s) => acc + s.comissaoAngariacao, 0),
         vgvMetrics: sortedStats.reduce((acc, s) => acc + s.vgvMetrics, 0),
         vgvVendidoPeloCorretor: sortedStats.reduce((acc, s) => acc + s.vgvVendidoPeloCorretor, 0),
+        vgvAngariadoVendido: sortedStats.reduce((acc, s) => acc + s.vgvAngariadoVendido, 0),
     };
     
     calculatedTotals.avgLeadsPerVisitVenda = calculatedTotals.visitsVenda > 0 ? calculatedTotals.leadsVenda / calculatedTotals.visitsVenda : 0;
@@ -584,7 +586,9 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                                 <TableHead className="font-semibold">Corretor</TableHead>
                                 <TableHead colSpan={2} className="text-center font-semibold border-l">Venda</TableHead>
                                 <TableHead colSpan={2} className="text-center font-semibold border-l">Angariação</TableHead>
-                                <TableHead className="text-center font-bold border-l">VGV</TableHead>
+                                <TableHead className="text-center font-bold border-l">VGV Angariado</TableHead>
+                                <TableHead className="text-center font-bold border-l">VGV Vendido</TableHead>
+                                <TableHead className="text-center font-bold border-l">VGV Total</TableHead>
                                 <TableHead className="text-right font-bold border-l">Comissão Acumulada</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -604,6 +608,12 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                                 <TableCell className="text-right">
                                     {broker.comissaoAngariacao > 0 ? `${broker.comissaoAngariacaoPercent.toFixed(1)}%` : ''}
                                 </TableCell>
+                                <TableCell className="text-center font-medium border-l">
+                                    {broker.vgvAngariadoVendido > 0 ? formatCurrency(broker.vgvAngariadoVendido) : ''}
+                                </TableCell>
+                                <TableCell className="text-center font-medium border-l">
+                                    {broker.vgvVendidoPeloCorretor > 0 ? formatCurrency(broker.vgvVendidoPeloCorretor) : ''}
+                                </TableCell>
                                 <TableCell className="text-center font-bold border-l">
                                     {broker.vgvMetrics > 0 ? formatCurrency(broker.vgvMetrics) : ''}
                                 </TableCell>
@@ -621,6 +631,8 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                                     <TableCell className="text-right">{totals.comissaoVendaPercent.toFixed(1)}%</TableCell>
                                     <TableCell className="text-right border-l">{formatCurrency(totals.comissaoAngariacao)}</TableCell>
                                     <TableCell className="text-right">{totals.comissaoAngariacaoPercent.toFixed(1)}%</TableCell>
+                                    <TableCell className="text-center border-l">{formatCurrency(totals.vgvAngariadoVendido)}</TableCell>
+                                    <TableCell className="text-center border-l">{formatCurrency(totals.vgvVendidoPeloCorretor)}</TableCell>
                                     <TableCell className="text-center border-l">{formatCurrency(totals.vgvMetrics)}</TableCell>
                                     <TableCell className="text-right border-l text-primary">{formatCurrency(totals.comissaoVenda + totals.comissaoAngariacao)}</TableCell>
                                 </TableRow>
