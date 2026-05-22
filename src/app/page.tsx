@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
@@ -75,24 +76,13 @@ const toDate = (val: any): Date | null => {
 const getVal = (row: any, searchKeys: string[], excludeKeys: string[] = []) => {
     if (!row) return undefined;
     const rowKeys = Object.keys(row);
-    const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f9]/g, "").trim();
     const normalizedSearch = searchKeys.map(normalize);
     const normalizedExclude = excludeKeys.map(normalize);
 
-    if (searchKeys.some(k => k === "origem do lead?")) {
-        const exactMatchKey = rowKeys.find(rk => rk.trim() === "origem do lead?");
-        if (exactMatchKey) return row[exactMatchKey];
-    }
-
     for (const sKey of normalizedSearch) {
       const match = rowKeys.find(rk => normalize(rk) === sKey);
-      if (match) {
-        const val = row[match];
-        if (sKey.includes("data") || sKey.includes("carimbo")) {
-          if (val && !/\d/.test(String(val))) continue;
-        }
-        return val;
-      }
+      if (match) return row[match];
     }
 
     for (const sKey of normalizedSearch) {
@@ -102,13 +92,7 @@ const getVal = (row: any, searchKeys: string[], excludeKeys: string[] = []) => {
         const isExcluded = normalizedExclude.some(ex => nrk.includes(ex));
         return isMatch && !isExcluded;
       });
-      if (match) {
-        const val = row[match];
-        if (sKey.includes("data") || sKey.includes("carimbo")) {
-            if (val && !/\d/.test(String(val))) continue;
-        }
-        return val;
-      }
+      if (match) return row[match];
     }
     return undefined;
   };
@@ -437,17 +421,35 @@ function DashboardContent() {
 
     const getLeadDetails = (lead: any) => {
         const entries = Object.entries(lead);
+        const normalizeVal = (v: any) => String(v || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
         const isLocacaoLead = entries.some(([key, val]) => {
             const nk = normalize(key);
-            const nv = normalize(val);
+            const nv = normalizeVal(val);
             return (nk.includes("natureza") || nk.includes("negociacao") || nk === "tipo") && 
                    (nv.includes("loca") || nv.includes("alug"));
         });
+
+        // Detecção Automática de Visita: Busca por várias colunas e valores positivos
         const hasVisit = entries.some(([key, val]) => {
           const nk = normalize(key);
-          const nv = normalize(val);
-          return (nk.includes("status da atividade atual") || nk.includes("visit")) && (nv.includes("realizada") || nv.includes("sim"));
+          const nv = String(val || "").trim();
+          const nvn = normalizeVal(val);
+
+          // 1. Regra específica: Status de atividade atual == Realizada
+          if (nk === "status de atividade atual" && nv === "Realizada") return true;
+
+          // 2. Regra automática: Coluna de visita com valor positivo
+          const isVisitColumn = nk.includes("visit") || nk.includes("vistoria");
+          const isPositiveValue = nvn === "sim" || nvn === "realizada" || nvn === "ok" || nvn === "1" || nvn === "confirmada";
+          if (isVisitColumn && isPositiveValue) return true;
+
+          // 3. Regra automática: Status que indica visita
+          if (nk.includes("status") && (nvn.includes("visita realizada") || nvn.includes("fez visita"))) return true;
+
+          return false;
         });
+
         return { isLocacao: isLocacaoLead, isVisit: hasVisit };
     };
     
