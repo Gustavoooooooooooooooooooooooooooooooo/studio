@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -123,12 +122,11 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
         const isMatch = (sheetName: string | undefined | null): boolean => {
             if (!sheetName || String(sheetName).trim() === "N/A" || String(sheetName).trim() === "") return false;
             const normalizedSheetName = normalize(String(sheetName));
-            if (!normalizedSheetName) return false;
+            if (normalizedSheetName === "lancamento") return false;
 
             const configWords = configBrokerName.split(' ');
-            const sheetWords = normalizedSheetName.split(' ');
+            const sheetWords = normalizedSheetName.split(/[\s\/,.-]+/);
             
-            // Every word in the configured name must be present in the sheet name
             return configWords.every(cw => sheetWords.includes(cw));
         };
         
@@ -322,5 +320,3 @@ export function InventoryHealth({ properties, sales, targets, onTargetsChange, b
     </div>
   );
 }
-
-    

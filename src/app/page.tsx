@@ -419,6 +419,17 @@ function DashboardContent() {
       .filter(s => !normalize(s.tipo).includes('loca') && !normalize(s.tipo).includes('aluguel'))
       .reduce((acc, s) => acc + (s.comissaoImobiliaria || 0), 0);
 
+    const isMatchStrict = (sheetValue: string, brokerName: string) => {
+        if (!sheetValue || sheetValue === "N/A") return false;
+        const nSheet = normalize(sheetValue);
+        const nBroker = normalize(brokerName);
+        if (nSheet === "lancamento") return false;
+        
+        const brokerWords = nBroker.split(' ');
+        const sheetWords = nSheet.split(/[\s\/,.-]+/);
+        return brokerWords.every(bw => sheetWords.includes(bw));
+    };
+    
     const getLeadDetails = (lead: any) => {
         const entries = Object.entries(lead);
         const normalizeVal = (v: any) => String(v || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
@@ -430,24 +441,17 @@ function DashboardContent() {
                    (nv.includes("loca") || nv.includes("alug"));
         });
 
-        // Detecção Automática de Visita: Busca por várias colunas e valores positivos
         const hasVisit = entries.some(([key, val]) => {
           const nk = normalize(key);
           const nv = String(val || "").trim();
           const nvn = normalizeVal(val);
 
-          // NOVO: Regra da coluna AQ (Total de imóveis visitados)
           if (nk.includes("total de imoveis visitados") && Number(nv) > 0) return true;
-
-          // 1. Regra específica: Status de atividade atual == Realizada
           if (nk === "status de atividade atual" && nv === "Realizada") return true;
-
-          // 2. Regra automática: Coluna de visita com valor positivo
+          
           const isVisitColumn = nk.includes("visit") || nk.includes("vistoria");
           const isPositiveValue = nvn === "sim" || nvn === "realizada" || nvn === "ok" || nvn === "1" || nvn === "confirmada";
           if (isVisitColumn && isPositiveValue) return true;
-
-          // 3. Regra automática: Status que indica visita
           if (nk.includes("status") && (nvn.includes("visita realizada") || nvn.includes("fez visita"))) return true;
 
           return false;
@@ -485,18 +489,20 @@ function DashboardContent() {
     }
     monthsToAverage = Math.max(1, monthsToAverage);
 
-    const normalizedBrokers = allBrokers.map(normalize);
-    const capturedSold = filteredSales.filter(sale => {
-        const capturerName = sale.angariador;
-        if (!capturerName || capturerName === "N/A") return false;
-        
-        const normalizedCapturer = normalize(capturerName);
+    // Corrigido para somar produção por corretor para bater com a tabela
+    let capturedSoldCount = 0;
+    let capturedSoldVGV = 0;
 
-        return normalizedBrokers.some(broker => normalizedCapturer.includes(broker));
+    const salesForVenda = filteredSales.filter(s => normalize(s.tipo) === 'venda');
+    
+    allBrokers.forEach(brokerName => {
+        salesForVenda.forEach(sale => {
+            if (isMatchStrict(sale.angariador, brokerName)) {
+                capturedSoldCount++;
+                capturedSoldVGV += (sale.closedValue || 0);
+            }
+        });
     });
-
-    const capturedSoldCount = capturedSold.length;
-    const capturedSoldVGV = capturedSold.reduce((acc, s) => acc + (s.closedValue || 0), 0);
 
     return {
       avgDaysToSell, avgDaysToRent: 0,

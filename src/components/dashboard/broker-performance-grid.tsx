@@ -90,15 +90,20 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         if (!isSaleType) return false;
         return filterByPeriod(s, 'saleDate');
     });
+    
     const totalVgvInPeriod = allSalesInPeriod.reduce((acc, s) => acc + (s.closedValue || 0), 0);
 
     const brokerStats = brokers.map(brokerName => {
       const configBrokerName = normalize(brokerName);
       
-      const isMatch = (sheetName: string | undefined | null) => {
-        if (!sheetName || sheetName === "N/A") return false;
-        const normalizedSheetName = normalize(String(sheetName || ""));
-        return normalizedSheetName === configBrokerName || normalizedSheetName.includes(configBrokerName);
+      const isMatch = (sheetValue: string | undefined | null) => {
+        if (!sheetValue || sheetValue === "N/A") return false;
+        const nSheet = normalize(String(sheetValue));
+        if (nSheet === "lancamento") return false;
+        
+        const brokerWords = configBrokerName.split(' ');
+        const sheetWords = nSheet.split(/[\s\/,.-]+/);
+        return brokerWords.every(bw => sheetWords.includes(bw));
       };
 
       const bPropsFiltered = properties.filter(p => {
@@ -143,11 +148,9 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
           const nv = String(val || "").trim();
           const nvn = normalizeVal(val);
 
-          // NOVO: Regra da coluna AQ (Total de imóveis visitados)
           if (nk.includes("total de imoveis visitados") && Number(nv) > 0) return true;
-
-          // Lógica Robusta de Detecção de Visita (Mapeamento Inteligente)
           if (nk === "status de atividade atual" && nv === "Realizada") return true;
+          
           const isVisitColumn = nk.includes("visit") || nk.includes("vistoria");
           const isPositiveValue = nvn === "sim" || nvn === "realizada" || nvn === "ok" || nvn === "1" || nvn === "confirmada";
           if (isVisitColumn && isPositiveValue) return true;
@@ -198,7 +201,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
 
       const vgvVendidoPercent = totalVgvInPeriod > 0 ? (vgvVendidoPeloCorretor / totalVgvInPeriod) * 100 : 0;
       const vgvAngariadoPercent = totalVgvInPeriod > 0 ? (vgvAngariadoVendido / totalVgvInPeriod) * 100 : 0;
-      const vgvTotalPercent = totalVgvInPeriod > 0 ? ((vgvVendidoPercent + vgvAngariadoPercent) / 2) : 0;
+      const vgvTotalPercent = totalVgvInPeriod > 0 ? (vgvMetrics / totalVgvInPeriod) * 100 : 0;
 
       return {
         name: brokerName,
@@ -272,12 +275,12 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
     calculatedTotals.conversionLeadToVisitLocacao = calculatedTotals.leadsLocacao > 0 ? (calculatedTotals.visitsLocacao / calculatedTotals.leadsLocacao) * 100 : 0;
     calculatedTotals.avgVisitsPerRental = calculatedTotals.numRentals > 0 ? calculatedTotals.visitsLocacao / calculatedTotals.numRentals : 0;
     calculatedTotals.conversionVisitToRental = calculatedTotals.visitsLocacao > 0 ? (calculatedTotals.numRentals / calculatedTotals.visitsLocacao) * 100 : 0;
-    calculatedTotals.avgLeadsPerRental = calculatedTotals.numRentals > 0 ? calculatedTotals.leadsLocacao / calculatedTotals.numRentals : 0;
+    calculatedTotals.avgLeadsPerRental = calculatedTotals.numRentals > 0 ? calculatedTotals.leadsLocacao / calculatedTotals.leadsLocacao : 0;
     calculatedTotals.conversionLeadToRental = calculatedTotals.leadsLocacao > 0 ? (calculatedTotals.numRentals / calculatedTotals.leadsLocacao) * 100 : 0;
 
     calculatedTotals.vgvVendidoPercent = totalVgvInPeriod > 0 ? (calculatedTotals.vgvVendidoPeloCorretor / totalVgvInPeriod) * 100 : 0;
     calculatedTotals.vgvAngariadoPercent = totalVgvInPeriod > 0 ? (calculatedTotals.vgvAngariadoVendido / totalVgvInPeriod) * 100 : 0;
-    calculatedTotals.vgvTotalPercent = totalVgvInPeriod > 0 ? ((calculatedTotals.vgvVendidoPercent + calculatedTotals.vgvAngariadoPercent) / 2) : 0;
+    calculatedTotals.vgvTotalPercent = totalVgvInPeriod > 0 ? (calculatedTotals.vgvMetrics / totalVgvInPeriod) * 100 : 0;
 
     return { stats: sortedStats, totals: calculatedTotals };
   }, [sales, leads, properties, brokers, selectedMonths, selectedYears, performanceView, normalize]);
