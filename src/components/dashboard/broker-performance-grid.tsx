@@ -104,7 +104,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         return filterByPeriod(s, 'saleDate');
     });
     
-    // VGV total das vendas REAIS ÚNICAS realizadas no período
     const uniqueSalesInPeriod = allSalesInPeriod.filter(sale => 
         brokers.some(broker => isMatchStrict(sale.angariador, broker)) || 
         brokers.some(broker => isMatchStrict(sale.vendedor, broker))
@@ -153,8 +152,10 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
           const nk = normalize(key);
           const nv = String(val || "").trim();
           const nvn = normalizeVal(val);
+
           if (nk.includes("total de imoveis visitados") && Number(nv) > 0) return true;
           if (nk === "status de atividade atual" && nv === "Realizada") return true;
+          
           return false;
         });
 
@@ -188,7 +189,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       const conversionLeadToRental = leadsLocacao > 0 ? (numRentals / leadsLocacao) * 100 : 0;
       const avgLeadsPerVisitLocacao = visitsLocacao > 0 ? leadsLocacao / visitsLocacao : 0;
       const avgVisitsPerRental = numRentals > 0 ? visitsLocacao / numRentals : 0;
-      const avgLeadsPerRental = numRentals > 0 ? leadsLocacao / leadsLocacao : 0;
+      const avgLeadsPerRental = numRentals > 0 ? leadsLocacao / numRentals : 0;
 
       const salesAsCapturerInPeriod = allSalesInPeriod.filter(s => isMatchStrict(s.angariador, brokerName));
 
@@ -246,7 +247,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       return b.numSales - a.numSales || b.numRentals - a.numRentals;
     });
 
-    // CORREÇÃO DOS TOTAIS: Devem refletir vendas ÚNICAS e não a soma das participações
     const recognizedCapturedSales = allSalesInPeriod.filter(sale => 
       brokers.some(broker => isMatchStrict(sale.angariador, broker))
     );
@@ -254,14 +254,14 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       brokers.some(broker => isMatchStrict(sale.vendedor, broker))
     );
 
-    const calculatedTotals = {
+    const calculatedTotals: any = {
         leadsVenda: sortedStats.reduce((acc, s) => acc + s.leadsVenda, 0),
         leadsLocacao: sortedStats.reduce((acc, s) => acc + s.leadsLocacao, 0),
         capturesSale: sortedStats.reduce((acc, s) => acc + s.capturesSale, 0),
         capturesRent: sortedStats.reduce((acc, s) => acc + s.capturesRent, 0),
         visitsVenda: sortedStats.reduce((acc, s) => acc + s.visitsVenda, 0),
         visitsLocacao: sortedStats.reduce((acc, s) => acc + s.visitsLocacao, 0),
-        numSales: recognizedBrokerSales.length, // Total real de vendas únicas
+        numSales: recognizedBrokerSales.length,
         numRentals: sortedStats.reduce((acc, s) => acc + s.numRentals, 0),
         vgvVendido: sortedStats.reduce((acc, s) => acc + s.vgvVendido, 0),
         vglFechado: sortedStats.reduce((acc, s) => acc + s.vglFechado, 0),
@@ -278,6 +278,13 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
     calculatedTotals.conversionVisitToSale = calculatedTotals.visitsVenda > 0 ? (calculatedTotals.numSales / calculatedTotals.visitsVenda) * 100 : 0;
     calculatedTotals.avgLeadsPerSale = calculatedTotals.numSales > 0 ? calculatedTotals.leadsVenda / calculatedTotals.numSales : 0;
     calculatedTotals.conversionLeadToSale = calculatedTotals.leadsVenda > 0 ? (calculatedTotals.numSales / calculatedTotals.leadsVenda) * 100 : 0;
+
+    calculatedTotals.avgLeadsPerVisitLocacao = calculatedTotals.visitsLocacao > 0 ? calculatedTotals.leadsLocacao / calculatedTotals.visitsLocacao : 0;
+    calculatedTotals.conversionLeadToVisitLocacao = calculatedTotals.leadsLocacao > 0 ? (calculatedTotals.visitsLocacao / calculatedTotals.leadsLocacao) * 100 : 0;
+    calculatedTotals.avgVisitsPerRental = calculatedTotals.numRentals > 0 ? calculatedTotals.visitsLocacao / calculatedTotals.numRentals : 0;
+    calculatedTotals.conversionVisitToRental = calculatedTotals.visitsLocacao > 0 ? (calculatedTotals.numRentals / calculatedTotals.visitsLocacao) * 100 : 0;
+    calculatedTotals.avgLeadsPerRental = calculatedTotals.numRentals > 0 ? calculatedTotals.leadsLocacao / calculatedTotals.numRentals : 0;
+    calculatedTotals.conversionLeadToRental = calculatedTotals.leadsLocacao > 0 ? (calculatedTotals.numRentals / calculatedTotals.leadsLocacao) * 100 : 0;
 
     calculatedTotals.vgvVendidoPercent = totalVgvInPeriod > 0 ? (calculatedTotals.vgvVendidoPeloCorretor / totalVgvInPeriod) * 100 : 0;
     calculatedTotals.vgvAngariadoPercent = totalVgvInPeriod > 0 ? (calculatedTotals.vgvAngariadoVendido / totalVgvInPeriod) * 100 : 0;
