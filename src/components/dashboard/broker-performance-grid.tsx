@@ -6,6 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFoo
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Info } from "lucide-react";
 
 interface BrokerPerformanceGridProps {
   sales: any[];
@@ -91,6 +93,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         return filterByPeriod(s, 'saleDate');
     });
     
+    // VGV total das vendas reais realizadas no período (base para % de participação)
     const totalVgvInPeriod = allSalesInPeriod.reduce((acc, s) => acc + (s.closedValue || 0), 0);
 
     const brokerStats = brokers.map(brokerName => {
@@ -101,6 +104,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         const nSheet = normalize(String(sheetValue));
         if (nSheet === "lancamento") return false;
         
+        // Match exato de nome (evita que Josiane pegue dados de Ane)
         const brokerWords = configBrokerName.split(' ');
         const sheetWords = nSheet.split(/[\s\/,.-]+/);
         return brokerWords.every(bw => sheetWords.includes(bw));
@@ -143,6 +147,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         
         if (isLocacaoLead) acc.leadsLocacao++; else acc.leadsVenda++;
 
+        // Nova lógica de detecção de visita via coluna AQ "Total de imóveis visitados"
         const hasVisit = entries.some(([key, val]) => {
           const nk = normalize(key);
           const nv = String(val || "").trim();
@@ -188,8 +193,9 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       const conversionLeadToRental = leadsLocacao > 0 ? (numRentals / leadsLocacao) * 100 : 0;
       const avgLeadsPerVisitLocacao = visitsLocacao > 0 ? leadsLocacao / visitsLocacao : 0;
       const avgVisitsPerRental = numRentals > 0 ? visitsLocacao / numRentals : 0;
-      const avgLeadsPerRental = numRentals > 0 ? leadsLocacao / numRentals : 0;
+      const avgLeadsPerRental = numRentals > 0 ? leadsLocacao / leadsLocacao : 0;
 
+      // VGV Angariado: Imóveis que ele captou e foram vendidos (não importa quem vendeu)
       const salesAsCapturerInPeriod = allSalesInPeriod.filter(s => isMatch(s.angariador));
 
       const comissaoVenda = brokerSalesFiltered.reduce((acc, s) => acc + (s.comissaoCorretor || 0), 0);
@@ -469,6 +475,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                 </Table>
             </TabsContent>
             <TabsContent value="metricas" className="m-0">
+              <TooltipProvider>
               {(() => {
                 const filteredStats = stats.filter(b => b.comissaoVenda > 0 || b.comissaoAngariacao > 0 || b.vgvMetrics > 0);
                 if (filteredStats.length > 0) {
@@ -477,11 +484,51 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                         <TableHeader>
                             <TableRow>
                                 <TableHead className="font-semibold border-r">Corretor</TableHead>
-                                <TableHead colSpan={2} className="text-center font-semibold border-r">Venda (Comissão)</TableHead>
-                                <TableHead colSpan={2} className="text-center font-semibold border-r">Angariação (Comissão)</TableHead>
-                                <TableHead colSpan={2} className="text-center font-bold border-r">VGV Angariado (Fechado)</TableHead>
-                                <TableHead colSpan={2} className="text-center font-bold border-r">VGV Vendido</TableHead>
-                                <TableHead colSpan={2} className="text-center font-bold border-r">VGV Total (Participação)</TableHead>
+                                <TableHead colSpan={2} className="text-center font-semibold border-r">
+                                    <div className="flex items-center justify-center gap-1">
+                                      Venda (Comissão)
+                                      <Tooltip>
+                                        <TooltipTrigger><Info className="h-3 w-3 opacity-50" /></TooltipTrigger>
+                                        <TooltipContent>Comissão recebida por atuar como Vendedor.</TooltipContent>
+                                      </Tooltip>
+                                    </div>
+                                </TableHead>
+                                <TableHead colSpan={2} className="text-center font-semibold border-r">
+                                    <div className="flex items-center justify-center gap-1">
+                                      Angariação (Comissão)
+                                      <Tooltip>
+                                        <TooltipTrigger><Info className="h-3 w-3 opacity-50" /></TooltipTrigger>
+                                        <TooltipContent>Comissão recebida por ter captado o imóvel que foi vendido.</TooltipContent>
+                                      </Tooltip>
+                                    </div>
+                                </TableHead>
+                                <TableHead colSpan={2} className="text-center font-bold border-r">
+                                    <div className="flex items-center justify-center gap-1">
+                                      VGV Angariado (Fechado)
+                                      <Tooltip>
+                                        <TooltipTrigger><Info className="h-3 w-3 opacity-50" /></TooltipTrigger>
+                                        <TooltipContent>Valor total dos imóveis que VOCÊ CAPTOU e foram vendidos.</TooltipContent>
+                                      </Tooltip>
+                                    </div>
+                                </TableHead>
+                                <TableHead colSpan={2} className="text-center font-bold border-r">
+                                    <div className="flex items-center justify-center gap-1">
+                                      VGV Vendido
+                                      <Tooltip>
+                                        <TooltipTrigger><Info className="h-3 w-3 opacity-50" /></TooltipTrigger>
+                                        <TooltipContent>Valor total dos imóveis que VOCÊ VENDEU (atendimento ao comprador).</TooltipContent>
+                                      </Tooltip>
+                                    </div>
+                                </TableHead>
+                                <TableHead colSpan={2} className="text-center font-bold border-r">
+                                    <div className="flex items-center justify-center gap-1">
+                                      VGV Total (Participação)
+                                      <Tooltip>
+                                        <TooltipTrigger><Info className="h-3 w-3 opacity-50" /></TooltipTrigger>
+                                        <TooltipContent>Soma da sua produção (Angariação Vendida + Venda Direta).</TooltipContent>
+                                      </Tooltip>
+                                    </div>
+                                </TableHead>
                                 <TableHead className="text-right font-bold text-primary">Comissão Total</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -523,6 +570,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                   return <div className="py-20 text-center text-muted-foreground text-sm">Nenhum corretor com métricas financeiras no período.</div>;
                 }
               })()}
+              </TooltipProvider>
             </TabsContent>
         </CardContent>
       </Tabs>
