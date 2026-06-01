@@ -76,7 +76,7 @@ const toDate = (val: any): Date | null => {
 const getVal = (row: any, searchKeys: string[], excludeKeys: string[] = []) => {
     if (!row) return undefined;
     const rowKeys = Object.keys(row);
-    const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f9]/g, "").trim();
+    const normalize = (s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
     const normalizedSearch = searchKeys.map(normalize);
     const normalizedExclude = excludeKeys.map(normalize);
 
@@ -321,6 +321,17 @@ function DashboardContent() {
   const metrics = useMemo(() => {
     const normalize = (s: any) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
+    const isMatchStrict = (sheetValue: string, brokerName: string) => {
+      if (!sheetValue || sheetValue === "N/A") return false;
+      const nSheet = normalize(sheetValue);
+      const nBroker = normalize(brokerName);
+      if (nSheet === "lancamento") return false;
+      
+      const brokerWords = nBroker.split(' ');
+      const sheetWords = nSheet.split(/[\s\/,.-]+/);
+      return brokerWords.every(bw => sheetWords.includes(bw));
+    };
+
     const filterByDate = (items: any[], dateField: keyof (typeof items)[0]) => {
         return items.filter(item => {
             const d = item[dateField];
@@ -418,17 +429,6 @@ function DashboardContent() {
     const totalComissaoImobiliariaVenda = filteredSales
       .filter(s => !normalize(s.tipo).includes('loca') && !normalize(s.tipo).includes('aluguel'))
       .reduce((acc, s) => acc + (s.comissaoImobiliaria || 0), 0);
-
-    const isMatchStrict = (sheetValue: string, brokerName: string) => {
-        if (!sheetValue || sheetValue === "N/A") return false;
-        const nSheet = normalize(sheetValue);
-        const nBroker = normalize(brokerName);
-        if (nSheet === "lancamento") return false;
-        
-        const brokerWords = nBroker.split(' ');
-        const sheetWords = nSheet.split(/[\s\/,.-]+/);
-        return brokerWords.every(bw => sheetWords.includes(bw));
-    };
     
     const getLeadDetails = (lead: any) => {
         const entries = Object.entries(lead);
@@ -489,20 +489,15 @@ function DashboardContent() {
     }
     monthsToAverage = Math.max(1, monthsToAverage);
 
-    // Corrigido para somar produção por corretor para bater com a tabela
-    let capturedSoldCount = 0;
-    let capturedSoldVGV = 0;
-
     const salesForVenda = filteredSales.filter(s => normalize(s.tipo) === 'venda');
     
-    allBrokers.forEach(brokerName => {
-        salesForVenda.forEach(sale => {
-            if (isMatchStrict(sale.angariador, brokerName)) {
-                capturedSoldCount++;
-                capturedSoldVGV += (sale.closedValue || 0);
-            }
-        });
-    });
+    // CORREÇÃO: Filtra as vendas únicas que possuem pelo menos um angariador da lista reconhecida
+    const recognizedCapturedSales = salesForVenda.filter(sale => 
+      allBrokers.some(broker => isMatchStrict(sale.angariador, broker))
+    );
+
+    const capturedSoldCount = recognizedCapturedSales.length;
+    const capturedSoldVGV = recognizedCapturedSales.reduce((acc, s) => acc + (s.closedValue || 0), 0);
 
     return {
       avgDaysToSell, avgDaysToRent: 0,

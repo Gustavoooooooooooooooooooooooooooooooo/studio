@@ -87,32 +87,34 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         return monthMatch && yearMatch;
     };
 
+    const isMatchStrict = (sheetValue: string | undefined | null, brokerName: string) => {
+        if (!sheetValue || sheetValue === "N/A") return false;
+        const nSheet = normalize(String(sheetValue));
+        const nBroker = normalize(brokerName);
+        if (nSheet === "lancamento") return false;
+        
+        const brokerWords = nBroker.split(' ');
+        const sheetWords = nSheet.split(/[\s\/,.-]+/);
+        return brokerWords.every(bw => sheetWords.includes(bw));
+    };
+
     const allSalesInPeriod = sales.filter(s => {
         const isSaleType = !normalize(s.tipo || '').includes('loca') && !normalize(s.tipo || '').includes('aluguel');
         if (!isSaleType) return false;
         return filterByPeriod(s, 'saleDate');
     });
     
-    // VGV total das vendas reais realizadas no período (base para % de participação)
-    const totalVgvInPeriod = allSalesInPeriod.reduce((acc, s) => acc + (s.closedValue || 0), 0);
+    // VGV total das vendas REAIS ÚNICAS realizadas no período
+    const uniqueSalesInPeriod = allSalesInPeriod.filter(sale => 
+        brokers.some(broker => isMatchStrict(sale.angariador, broker)) || 
+        brokers.some(broker => isMatchStrict(sale.vendedor, broker))
+    );
+    const totalVgvInPeriod = uniqueSalesInPeriod.reduce((acc, s) => acc + (s.closedValue || 0), 0);
 
     const brokerStats = brokers.map(brokerName => {
-      const configBrokerName = normalize(brokerName);
-      
-      const isMatch = (sheetValue: string | undefined | null) => {
-        if (!sheetValue || sheetValue === "N/A") return false;
-        const nSheet = normalize(String(sheetValue));
-        if (nSheet === "lancamento") return false;
-        
-        // Match exato de nome (evita que Josiane pegue dados de Ane)
-        const brokerWords = configBrokerName.split(' ');
-        const sheetWords = nSheet.split(/[\s\/,.-]+/);
-        return brokerWords.every(bw => sheetWords.includes(bw));
-      };
-
       const bPropsFiltered = properties.filter(p => {
         const brokerField = p.brokerId || p.angariador || p.captador;
-        if (!isMatch(brokerField)) return false;
+        if (!isMatchStrict(brokerField, brokerName)) return false;
         return filterByPeriod(p, 'captureDate');
       });
       
@@ -130,7 +132,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         return Object.entries(l).some(([key, val]) => {
           const nk = normalize(key);
           const isBrokerColumn = nk.includes("corretor") || nk.includes("responsavel") || nk.includes("atendente") || nk.includes("vendedor");
-          return isBrokerColumn && isMatch(String(val || ""));
+          return isBrokerColumn && isMatchStrict(String(val || ""), brokerName);
         });
       });
 
@@ -147,19 +149,12 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         
         if (isLocacaoLead) acc.leadsLocacao++; else acc.leadsVenda++;
 
-        // Nova lógica de detecção de visita via coluna AQ "Total de imóveis visitados"
         const hasVisit = entries.some(([key, val]) => {
           const nk = normalize(key);
           const nv = String(val || "").trim();
           const nvn = normalizeVal(val);
-
           if (nk.includes("total de imoveis visitados") && Number(nv) > 0) return true;
           if (nk === "status de atividade atual" && nv === "Realizada") return true;
-          
-          const isVisitColumn = nk.includes("visit") || nk.includes("vistoria");
-          const isPositiveValue = nvn === "sim" || nvn === "realizada" || nvn === "ok" || nvn === "1" || nvn === "confirmada";
-          if (isVisitColumn && isPositiveValue) return true;
-          if (nk.includes("status") && (nvn.includes("visita realizada") || nvn.includes("fez visita"))) return true;
           return false;
         });
 
@@ -169,11 +164,11 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         return acc;
       }, { leadsVenda: 0, leadsLocacao: 0, visitsVenda: 0, visitsLocacao: 0 });
 
-      const brokerSalesFiltered = allSalesInPeriod.filter(s => isMatch(s.vendedor));
+      const brokerSalesFiltered = allSalesInPeriod.filter(s => isMatchStrict(s.vendedor, brokerName));
       const numSales = brokerSalesFiltered.length;
 
       const brokerRentalsFiltered = sales.filter(s => 
-          isMatch(s.vendedor) && 
+          isMatchStrict(s.vendedor, brokerName) && 
           (normalize(s.tipo || '').includes('loca') || normalize(s.tipo || '').includes('aluguel')) &&
           filterByPeriod(s, "saleDate")
       );
@@ -195,8 +190,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       const avgVisitsPerRental = numRentals > 0 ? visitsLocacao / numRentals : 0;
       const avgLeadsPerRental = numRentals > 0 ? leadsLocacao / leadsLocacao : 0;
 
-      // VGV Angariado: Imóveis que ele captou e foram vendidos (não importa quem vendeu)
-      const salesAsCapturerInPeriod = allSalesInPeriod.filter(s => isMatch(s.angariador));
+      const salesAsCapturerInPeriod = allSalesInPeriod.filter(s => isMatchStrict(s.angariador, brokerName));
 
       const comissaoVenda = brokerSalesFiltered.reduce((acc, s) => acc + (s.comissaoCorretor || 0), 0);
       const comissaoAngariacao = salesAsCapturerInPeriod.reduce((acc, s) => acc + (s.comissaoAngariacao || 0), 0);
@@ -252,6 +246,14 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
       return b.numSales - a.numSales || b.numRentals - a.numRentals;
     });
 
+    // CORREÇÃO DOS TOTAIS: Devem refletir vendas ÚNICAS e não a soma das participações
+    const recognizedCapturedSales = allSalesInPeriod.filter(sale => 
+      brokers.some(broker => isMatchStrict(sale.angariador, broker))
+    );
+    const recognizedBrokerSales = allSalesInPeriod.filter(sale => 
+      brokers.some(broker => isMatchStrict(sale.vendedor, broker))
+    );
+
     const calculatedTotals = {
         leadsVenda: sortedStats.reduce((acc, s) => acc + s.leadsVenda, 0),
         leadsLocacao: sortedStats.reduce((acc, s) => acc + s.leadsLocacao, 0),
@@ -259,15 +261,15 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         capturesRent: sortedStats.reduce((acc, s) => acc + s.capturesRent, 0),
         visitsVenda: sortedStats.reduce((acc, s) => acc + s.visitsVenda, 0),
         visitsLocacao: sortedStats.reduce((acc, s) => acc + s.visitsLocacao, 0),
-        numSales: sortedStats.reduce((acc, s) => acc + s.numSales, 0),
+        numSales: recognizedBrokerSales.length, // Total real de vendas únicas
         numRentals: sortedStats.reduce((acc, s) => acc + s.numRentals, 0),
         vgvVendido: sortedStats.reduce((acc, s) => acc + s.vgvVendido, 0),
         vglFechado: sortedStats.reduce((acc, s) => acc + s.vglFechado, 0),
         comissaoVenda: sortedStats.reduce((acc, s) => acc + s.comissaoVenda, 0),
         comissaoAngariacao: sortedStats.reduce((acc, s) => acc + s.comissaoAngariacao, 0),
-        vgvVendidoPeloCorretor: sortedStats.reduce((acc, s) => acc + s.vgvVendidoPeloCorretor, 0),
-        vgvAngariadoVendido: sortedStats.reduce((acc, s) => acc + s.vgvAngariadoVendido, 0),
-        vgvMetrics: sortedStats.reduce((acc, s) => acc + s.vgvMetrics, 0),
+        vgvVendidoPeloCorretor: recognizedBrokerSales.reduce((acc, s) => acc + (s.closedValue || 0), 0),
+        vgvAngariadoVendido: recognizedCapturedSales.reduce((acc, s) => acc + (s.closedValue || 0), 0),
+        vgvMetrics: totalVgvInPeriod,
     };
 
     calculatedTotals.avgLeadsPerVisitVenda = calculatedTotals.visitsVenda > 0 ? calculatedTotals.leadsVenda / calculatedTotals.visitsVenda : 0;
@@ -276,13 +278,6 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
     calculatedTotals.conversionVisitToSale = calculatedTotals.visitsVenda > 0 ? (calculatedTotals.numSales / calculatedTotals.visitsVenda) * 100 : 0;
     calculatedTotals.avgLeadsPerSale = calculatedTotals.numSales > 0 ? calculatedTotals.leadsVenda / calculatedTotals.numSales : 0;
     calculatedTotals.conversionLeadToSale = calculatedTotals.leadsVenda > 0 ? (calculatedTotals.numSales / calculatedTotals.leadsVenda) * 100 : 0;
-
-    calculatedTotals.avgLeadsPerVisitLocacao = calculatedTotals.visitsLocacao > 0 ? calculatedTotals.leadsLocacao / calculatedTotals.visitsLocacao : 0;
-    calculatedTotals.conversionLeadToVisitLocacao = calculatedTotals.leadsLocacao > 0 ? (calculatedTotals.visitsLocacao / calculatedTotals.leadsLocacao) * 100 : 0;
-    calculatedTotals.avgVisitsPerRental = calculatedTotals.numRentals > 0 ? calculatedTotals.visitsLocacao / calculatedTotals.numRentals : 0;
-    calculatedTotals.conversionVisitToRental = calculatedTotals.visitsLocacao > 0 ? (calculatedTotals.numRentals / calculatedTotals.visitsLocacao) * 100 : 0;
-    calculatedTotals.avgLeadsPerRental = calculatedTotals.numRentals > 0 ? calculatedTotals.leadsLocacao / calculatedTotals.leadsLocacao : 0;
-    calculatedTotals.conversionLeadToRental = calculatedTotals.leadsLocacao > 0 ? (calculatedTotals.numRentals / calculatedTotals.leadsLocacao) * 100 : 0;
 
     calculatedTotals.vgvVendidoPercent = totalVgvInPeriod > 0 ? (calculatedTotals.vgvVendidoPeloCorretor / totalVgvInPeriod) * 100 : 0;
     calculatedTotals.vgvAngariadoPercent = totalVgvInPeriod > 0 ? (calculatedTotals.vgvAngariadoVendido / totalVgvInPeriod) * 100 : 0;
