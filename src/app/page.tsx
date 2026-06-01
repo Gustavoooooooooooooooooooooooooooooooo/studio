@@ -436,6 +436,9 @@ function DashboardContent() {
           const nv = String(val || "").trim();
           const nvn = normalizeVal(val);
 
+          // NOVO: Regra da coluna AQ (Total de imóveis visitados)
+          if (nk.includes("total de imoveis visitados") && Number(nv) > 0) return true;
+
           // 1. Regra específica: Status de atividade atual == Realizada
           if (nk === "status de atividade atual" && nv === "Realizada") return true;
 

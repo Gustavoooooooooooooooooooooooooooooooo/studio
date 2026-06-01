@@ -143,6 +143,9 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
           const nv = String(val || "").trim();
           const nvn = normalizeVal(val);
 
+          // NOVO: Regra da coluna AQ (Total de imóveis visitados)
+          if (nk.includes("total de imoveis visitados") && Number(nv) > 0) return true;
+
           // Lógica Robusta de Detecção de Visita (Mapeamento Inteligente)
           if (nk === "status de atividade atual" && nv === "Realizada") return true;
           const isVisitColumn = nk.includes("visit") || nk.includes("vistoria");
