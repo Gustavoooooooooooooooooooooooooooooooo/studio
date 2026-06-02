@@ -189,7 +189,7 @@ export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears
       const isLocacao = entries.some(([key, val]) => {
           const nk = normalize(key);
           const nv = normalize(String(val || ''));
-          return (nk.includes("natureza") || nk.includes("negociacao") || nk === "tipo") && 
+          return (nk.includes("natureza") || nk.includes("negociacao") || nk.includes("interesse") || nk.includes("finalidade") || nk === "tipo") && 
                  (nv.includes("loca") || nv.includes("alug"));
       });
       

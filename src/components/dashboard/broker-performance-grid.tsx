@@ -142,7 +142,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         const isLocacaoLead = entries.some(([key, val]) => {
             const nk = normalize(key);
             const nv = normalizeVal(val);
-            return (nk.includes("natureza") || nk.includes("negociacao") || nk === "tipo") && 
+            return (nk.includes("natureza") || nk.includes("negociacao") || nk.includes("interesse") || nk.includes("finalidade") || nk === "tipo") && 
                    (nv.includes("loca") || nv.includes("alug"));
         });
         
@@ -367,26 +367,26 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                     <TableFooter className="bg-primary/5 font-bold">
                         <TableRow>
                             <TableCell className="sticky left-0 bg-primary/5 z-10 border-r">TOTAL</TableCell>
-                            <TableCell className="text-center border-r">{totals?.leadsVenda}</TableCell>
-                            <TableCell className="text-center border-r">{totals?.capturesSale}</TableCell>
-                            <TableCell className="text-center border-r">{totals?.visitsVenda}</TableCell>
-                            <TableCell className="text-center border-r text-primary">{totals?.numSales}</TableCell>
+                            <TableCell className="text-center border-r">{totals?.leadsVenda || 0}</TableCell>
+                            <TableCell className="text-center border-r">{totals?.capturesSale || 0}</TableCell>
+                            <TableCell className="text-center border-r">{totals?.visitsVenda || 0}</TableCell>
+                            <TableCell className="text-center border-r text-primary">{totals?.numSales || 0}</TableCell>
                             <TableCell className="text-center border-r">
                                 <div className="flex flex-col items-center leading-tight">
-                                    <span>{totals?.avgLeadsPerVisitVenda.toFixed(1)}</span>
-                                    <span className="text-[9px] opacity-60">{totals?.conversionLeadToVisitVenda.toFixed(1)}%</span>
+                                    <span>{totals?.avgLeadsPerVisitVenda?.toFixed(1) || '0.0'}</span>
+                                    <span className="text-[9px] opacity-60">{totals?.conversionLeadToVisitVenda?.toFixed(1) || '0.0'}%</span>
                                 </div>
                             </TableCell>
                             <TableCell className="text-center border-r">
                                 <div className="flex flex-col items-center leading-tight">
-                                    <span>{totals?.avgVisitsPerSale.toFixed(1)}</span>
-                                    <span className="text-[9px] opacity-60">{totals?.conversionVisitToSale.toFixed(1)}%</span>
+                                    <span>{totals?.avgVisitsPerSale?.toFixed(1) || '0.0'}</span>
+                                    <span className="text-[9px] opacity-60">{totals?.conversionVisitToSale?.toFixed(1) || '0.0'}%</span>
                                 </div>
                             </TableCell>
                             <TableCell className="text-center border-r">
                                 <div className="flex flex-col items-center leading-tight">
-                                    <span>{totals?.avgLeadsPerSale.toFixed(1)}</span>
-                                    <span className="text-[9px] opacity-60">{totals?.conversionLeadToSale.toFixed(1)}%</span>
+                                    <span>{totals?.avgLeadsPerSale?.toFixed(1) || '0.0'}</span>
+                                    <span className="text-[9px] opacity-60">{totals?.conversionLeadToSale?.toFixed(1) || '0.0'}%</span>
                                 </div>
                             </TableCell>
                             <TableCell className="text-right border-r">-</TableCell>
@@ -449,26 +449,26 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                     <TableFooter className="bg-primary/5 font-bold">
                         <TableRow>
                             <TableCell className="sticky left-0 bg-primary/5 z-10 border-r">TOTAL</TableCell>
-                            <TableCell className="text-center border-r">{totals?.leadsLocacao}</TableCell>
-                            <TableCell className="text-center border-r">{totals?.capturesRent}</TableCell>
-                            <TableCell className="text-center border-r">{totals?.visitsLocacao}</TableCell>
-                            <TableCell className="text-center border-r text-primary">{totals?.numRentals}</TableCell>
+                            <TableCell className="text-center border-r">{totals?.leadsLocacao || 0}</TableCell>
+                            <TableCell className="text-center border-r">{totals?.capturesRent || 0}</TableCell>
+                            <TableCell className="text-center border-r">{totals?.visitsLocacao || 0}</TableCell>
+                            <TableCell className="text-center border-r text-primary">{totals?.numRentals || 0}</TableCell>
                             <TableCell className="text-center border-r">
                                 <div className="flex flex-col items-center leading-tight">
-                                    <span>{totals?.avgLeadsPerVisitLocacao.toFixed(1)}</span>
-                                    <span className="text-[9px] opacity-60">{totals?.conversionLeadToVisitLocacao.toFixed(1)}%</span>
+                                    <span>{totals?.avgLeadsPerVisitLocacao?.toFixed(1) || '0.0'}</span>
+                                    <span className="text-[9px] opacity-60">{totals?.conversionLeadToVisitLocacao?.toFixed(1) || '0.0'}%</span>
                                 </div>
                             </TableCell>
                             <TableCell className="text-center border-r">
                                 <div className="flex flex-col items-center leading-tight">
-                                    <span>{totals?.avgVisitsPerRental.toFixed(1)}</span>
-                                    <span className="text-[9px] opacity-60">{totals?.conversionVisitToRental.toFixed(1)}%</span>
+                                    <span>{totals?.avgVisitsPerRental?.toFixed(1) || '0.0'}</span>
+                                    <span className="text-[9px] opacity-60">{totals?.conversionVisitToRental?.toFixed(1) || '0.0'}%</span>
                                 </div>
                             </TableCell>
                             <TableCell className="text-center border-r">
                                 <div className="flex flex-col items-center leading-tight">
-                                    <span>{totals?.avgLeadsPerRental.toFixed(1)}</span>
-                                    <span className="text-[9px] opacity-60">{totals?.conversionLeadToRental.toFixed(1)}%</span>
+                                    <span>{totals?.avgLeadsPerRental?.toFixed(1) || '0.0'}</span>
+                                    <span className="text-[9px] opacity-60">{totals?.conversionLeadToRental?.toFixed(1) || '0.0'}%</span>
                                 </div>
                             </TableCell>
                             <TableCell className="text-right text-primary">{totals ? formatCurrency(totals.vglFechado) : 'R$ 0'}</TableCell>
@@ -558,11 +558,11 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                                 <TableCell className="text-right border-l" colSpan={2}>{totals ? formatCurrency(totals.comissaoVenda) : 'R$ 0'}</TableCell>
                                 <TableCell className="text-right" colSpan={2}>{totals ? formatCurrency(totals.comissaoAngariacao) : 'R$ 0'}</TableCell>
                                 <TableCell className="text-right">{totals ? formatCurrency(totals.vgvAngariadoVendido) : 'R$ 0'}</TableCell>
-                                <TableCell className="text-right text-[10px] border-r">{totals?.vgvAngariadoPercent.toFixed(1)}%</TableCell>
+                                <TableCell className="text-right text-[10px] border-r">{totals?.vgvAngariadoPercent?.toFixed(1) || '0.0'}%</TableCell>
                                 <TableCell className="text-right">{totals ? formatCurrency(totals.vgvVendidoPeloCorretor) : 'R$ 0'}</TableCell>
-                                <TableCell className="text-right text-[10px] border-r">{totals?.vgvVendidoPercent.toFixed(1)}%</TableCell>
+                                <TableCell className="text-right text-[10px] border-r">{totals?.vgvVendidoPercent?.toFixed(1) || '0.0'}%</TableCell>
                                 <TableCell className="text-right">{totals ? formatCurrency(totals.vgvMetrics) : 'R$ 0'}</TableCell>
-                                <TableCell className="text-right text-[10px] border-r">{totals?.vgvTotalPercent.toFixed(1)}%</TableCell>
+                                <TableCell className="text-right text-[10px] border-r">{totals?.vgvTotalPercent?.toFixed(1) || '0.0'}%</TableCell>
                                 <TableCell className="text-right text-primary">{totals ? formatCurrency(totals.comissaoVenda + totals.comissaoAngariacao) : 'R$ 0'}</TableCell>
                             </TableRow>
                         </TableFooter>

@@ -152,7 +152,7 @@ function DashboardContent() {
                 id: propertyCode, propertyCode,
                 neighborhood: String(getVal(row, ["bairro", "localizacao", "cidade", "distrito"]) || "N/A"),
                 saleValue: parseCurrency(getVal(row, ["valor venda", "venda", "preco venda", "valor", "preco", "vlr venda"])),
-                rentalValue: parseCurrency(getVal(row, ["valor locacao", "aluguel", "locacao", "valor aluguel", "mensalidade", "vlr locacao"])),
+                rentalValue: parseCurrency(getVal(row, ["valor locacao", "aluguel", "locacao", "valor aluguel", "mensalidade", "vlr locacao", "valor da locação", "preço locação"])),
                 brokerId: String(getVal(row, ["angariador", "corretor", "captador", "responsavel"]) || "N/A"),
                 captureDate: formatDateDisplay(getVal(row, ["data entrada", "entrada", "cadastro", "carimbo", "data"])),
                 status: statusRaw ? String(statusRaw) : "Disponível",
@@ -162,16 +162,16 @@ function DashboardContent() {
               if (dealType === 'Locação') {
                 return {
                   id: `${propertyCode}-${idx}`,
-                  vendedor: String(getVal(row, ["vendedor", "corretor", "responsavel", "atendente"]) || "N/A"),
-                  angariador: String(getVal(row, ["angariador", "captador"]) || "N/A"),
+                  vendedor: String(getVal(row, ["vendedor", "corretor", "responsavel", "atendente", "venda por"]) || "N/A"),
+                  angariador: String(getVal(row, ["angariador", "captador", "angariação por"]) || "N/A"),
                   propertyCode,
                   neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
                   clientName: String(getVal(row, ["locatario", "inquilino", "cliente"]) || "N/A"),
-                  advertisedValue: parseCurrency(getVal(row, ["valor do aluguel", "valor locacao", "aluguel", "anuncio", "valor do anuncio", "valor anuncio", "valor do anúncio", "preço locação", "preço aluguel"])),
-                  closedValue: parseCurrency(getVal(row, ["valor aluguel fechado", "valor final locacao", "valor fechado", "negocio fechado", "negócio fechado", "valor fechamento", "fechado aluguel"])),
-                  comissaoCorretor: parseCurrency(getVal(row, ["comissao corretor", "comissão corretor", "comissao atendente"])),
+                  advertisedValue: parseCurrency(getVal(row, ["valor do aluguel", "valor locacao", "aluguel", "anuncio", "valor do anuncio", "valor anuncio", "valor do anúncio", "preço locação", "preço aluguel", "vlr anunciado"])),
+                  closedValue: parseCurrency(getVal(row, ["valor aluguel fechado", "valor final locacao", "valor fechado", "negocio fechado", "negócio fechado", "valor fechamento", "fechado aluguel", "vlr fechado"])),
+                  comissaoCorretor: parseCurrency(getVal(row, ["comissao corretor", "comissão corretor", "comissao atendente", "comissão vendedor"])),
                   comissaoAngariacao: parseCurrency(getVal(row, ["comissao angariacao", "comissão angariação", "comissao captador", "Comissão Angariador"])),
-                  saleDate: formatDateDisplay(getVal(row, ["data locacao", "data do contrato", "fechamento", "negocio fechado", "negócio fechado", "data"], ["vendedor"])),
+                  saleDate: formatDateDisplay(getVal(row, ["data locacao", "data do contrato", "fechamento", "negocio fechado", "negócio fechado", "data", "data assinatura", "início contrato"], ["vendedor"])),
                   propertyCaptureDate: formatDateDisplay(getVal(row, ["entrada do imovel", "data entrada", "cadastro", "carimbo"])),
                   origem: String(getVal(row, ["origem", "origem do lead?"]) || "N/A"),
                   tipo: 'Locação', status: 'Alugado',
@@ -410,7 +410,6 @@ function DashboardContent() {
     );
     const totalSaleDiscountPercent = salesForDiscount.reduce((acc, s) => acc + ((s.advertisedValue - s.closedValue) / s.advertisedValue), 0);
     const avgDiscountSale = salesForDiscount.length > 0 ? (totalSaleDiscountPercent / salesForDiscount.length) * 100 : 0;
-    const totalSaleDiscountValue = salesForDiscount.reduce((acc, s) => acc + (s.advertisedValue - s.closedValue), 0);
     const avgDiscountValueSale = salesForDiscount.length > 0 ? totalSaleDiscountValue / salesForDiscount.length : 0;
 
     const rentalsForDiscount = filteredSales.filter(s => 
@@ -445,7 +444,7 @@ function DashboardContent() {
         const isLocacaoLead = entries.some(([key, val]) => {
             const nk = normalize(key);
             const nv = normalizeVal(val);
-            return (nk.includes("natureza") || nk.includes("negociacao") || nk === "tipo") && 
+            return (nk.includes("natureza") || nk.includes("negociacao") || nk.includes("interesse") || nk.includes("finalidade") || nk === "tipo") && 
                    (nv.includes("loca") || nv.includes("alug"));
         });
 
