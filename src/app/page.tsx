@@ -167,8 +167,8 @@ function DashboardContent() {
                   propertyCode,
                   neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
                   clientName: String(getVal(row, ["locatario", "inquilino", "cliente"]) || "N/A"),
-                  advertisedValue: parseCurrency(getVal(row, ["valor do aluguel", "valor locacao", "aluguel", "anuncio", "valor do anuncio", "valor anuncio", "valor do anúncio", "preço locação", "preço aluguel", "vlr anunciado"])),
-                  closedValue: parseCurrency(getVal(row, ["valor aluguel fechado", "valor final locacao", "valor fechado", "negocio fechado", "negócio fechado", "valor fechamento", "fechado aluguel", "vlr fechado"])),
+                  advertisedValue: parseCurrency(getVal(row, ["valor do aluguel", "valor locacao", "aluguel", "anuncio", "valor do anuncio", "valor anuncio", "valor do anúncio", "preço locação", "preço aluguel", "vlr anunciado", "valor anunciado"])),
+                  closedValue: parseCurrency(getVal(row, ["valor aluguel fechado", "valor final locacao", "valor fechado", "negocio fechado", "negócio fechado", "valor fechamento", "fechado aluguel", "vlr fechado", "aluguel fechado"])),
                   comissaoCorretor: parseCurrency(getVal(row, ["comissao corretor", "comissão corretor", "comissao atendente", "comissão vendedor"])),
                   comissaoAngariacao: parseCurrency(getVal(row, ["comissao angariacao", "comissão angariação", "comissao captador", "Comissão Angariador"])),
                   saleDate: formatDateDisplay(getVal(row, ["data locacao", "data do contrato", "fechamento", "negocio fechado", "negócio fechado", "data", "data assinatura", "início contrato"], ["vendedor"])),
@@ -409,6 +409,7 @@ function DashboardContent() {
       s.advertisedValue > 0 && s.closedValue > 0 && s.advertisedValue >= s.closedValue
     );
     const totalSaleDiscountPercent = salesForDiscount.reduce((acc, s) => acc + ((s.advertisedValue - s.closedValue) / s.advertisedValue), 0);
+    const totalSaleDiscountValue = salesForDiscount.reduce((acc, s) => acc + (s.advertisedValue - s.closedValue), 0);
     const avgDiscountSale = salesForDiscount.length > 0 ? (totalSaleDiscountPercent / salesForDiscount.length) * 100 : 0;
     const avgDiscountValueSale = salesForDiscount.length > 0 ? totalSaleDiscountValue / salesForDiscount.length : 0;
 
