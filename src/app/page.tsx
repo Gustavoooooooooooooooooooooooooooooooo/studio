@@ -167,11 +167,11 @@ function DashboardContent() {
                   propertyCode,
                   neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
                   clientName: String(getVal(row, ["locatario", "inquilino", "cliente"]) || "N/A"),
-                  advertisedValue: parseCurrency(getVal(row, ["valor do aluguel", "valor locacao", "aluguel", "anuncio", "valor do anuncio", "valor anuncio", "valor do anúncio"])),
-                  closedValue: parseCurrency(getVal(row, ["valor aluguel fechado", "valor final locacao", "valor fechado", "negocio fechado", "negócio fechado"])),
+                  advertisedValue: parseCurrency(getVal(row, ["valor do aluguel", "valor locacao", "aluguel", "anuncio", "valor do anuncio", "valor anuncio", "valor do anúncio", "preço locação", "preço aluguel"])),
+                  closedValue: parseCurrency(getVal(row, ["valor aluguel fechado", "valor final locacao", "valor fechado", "negocio fechado", "negócio fechado", "valor fechamento", "fechado aluguel"])),
                   comissaoCorretor: parseCurrency(getVal(row, ["comissao corretor", "comissão corretor", "comissao atendente"])),
                   comissaoAngariacao: parseCurrency(getVal(row, ["comissao angariacao", "comissão angariação", "comissao captador", "Comissão Angariador"])),
-                  saleDate: formatDateDisplay(getVal(row, ["data locacao", "data do contrato", "fechamento", "negocio fechado", "negócio fechado"], ["vendedor"])),
+                  saleDate: formatDateDisplay(getVal(row, ["data locacao", "data do contrato", "fechamento", "negocio fechado", "negócio fechado", "data"], ["vendedor"])),
                   propertyCaptureDate: formatDateDisplay(getVal(row, ["entrada do imovel", "data entrada", "cadastro", "carimbo"])),
                   origem: String(getVal(row, ["origem", "origem do lead?"]) || "N/A"),
                   tipo: 'Locação', status: 'Alugado',
@@ -184,12 +184,12 @@ function DashboardContent() {
                   propertyCode,
                   neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
                   clientName: String(getVal(row, ["cliente", "comprador"]) || "N/A"),
-                  advertisedValue: parseCurrency(getVal(row, ["valor do anuncio", "valor anuncio", "anuncio", "qual valor anunciado?"])),
-                  closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda", "qual valor final de venda?", "negocio fechado", "negócio fechado"])),
+                  advertisedValue: parseCurrency(getVal(row, ["valor do anuncio", "valor anuncio", "anuncio", "qual valor anunciado?", "preço anunciado"])),
+                  closedValue: parseCurrency(getVal(row, ["valor fechado", "valor venda", "qual valor final de venda?", "negocio fechado", "negócio fechado", "valor fechamento"])),
                   comissaoCorretor: parseCurrency(getVal(row, ["comissao corretor", "comissão corretor", "comissao vendedor"])),
                   comissaoAngariacao: parseCurrency(getVal(row, ["comissao angariacao", "comissão angariação", "comissao captador", "Comissão Angariador"])),
                   comissaoImobiliaria: parseCurrency(getVal(row, ["Qual valor da comissão de venda? (total Canto)"])),
-                  saleDate: formatDateDisplay(getVal(row, ["data do venda", "data venda", "fechamento", "venda"], ["vendedor", "corretor"])),
+                  saleDate: formatDateDisplay(getVal(row, ["data do venda", "data venda", "fechamento", "venda", "data"], ["vendedor", "corretor"])),
                   propertyCaptureDate: formatDateDisplay(getVal(row, ["entrada do imovel", "data entrada", "cadastro", "carimbo"])),
                   origem: String(getVal(row, ["origem do lead?"]) || "N/A"),
                   tipo: 'Venda', status: 'Vendido',
@@ -415,11 +415,11 @@ function DashboardContent() {
 
     const rentalsForDiscount = filteredSales.filter(s => 
       (normalize(s.tipo).includes('loca') || normalize(s.tipo).includes('aluguel')) && 
-      s.advertisedValue > 0 && s.closedValue > 0 && s.advertisedValue >= s.closedValue
+      s.advertisedValue > 0 && s.closedValue > 0
     );
-    const totalRentDiscountPercent = rentalsForDiscount.reduce((acc, s) => acc + ((s.advertisedValue - s.closedValue) / s.advertisedValue), 0);
+    const totalRentDiscountPercent = rentalsForDiscount.reduce((acc, s) => acc + (Math.max(0, s.advertisedValue - s.closedValue) / (s.advertisedValue || 1)), 0);
     const avgDiscountRent = rentalsForDiscount.length > 0 ? (totalRentDiscountPercent / rentalsForDiscount.length) * 100 : 0;
-    const totalRentDiscountValue = rentalsForDiscount.reduce((acc, s) => acc + (s.advertisedValue - s.closedValue), 0);
+    const totalRentDiscountValue = rentalsForDiscount.reduce((acc, s) => acc + Math.max(0, s.advertisedValue - s.closedValue), 0);
     const avgDiscountValueRent = rentalsForDiscount.length > 0 ? totalRentDiscountValue / rentalsForDiscount.length : 0;
 
     const salesForCommission = filteredSales.filter(s => 
@@ -512,7 +512,7 @@ function DashboardContent() {
       lastSaleDisplay: daysSinceLastSale !== null ? `${Math.max(0, daysSinceLastSale)} Dias` : "-",
       totalLeads: leads.length,
       totalSales: filteredSales.filter(s => normalize(s.tipo) === 'venda').length,
-      totalRentals: filteredSales.filter(s => normalize(s.tipo) !== 'venda').length,
+      totalRentals: filteredSales.filter(s => normalize(s.tipo).includes('loca') || normalize(s.tipo).includes('aluguel')).length,
       totalProperties: currentInventory.length,
       avgTicket, avgTicketRent, salesFrequency,
       avgDiscountSale, avgDiscountRent, avgDiscountValueSale, avgDiscountValueRent,

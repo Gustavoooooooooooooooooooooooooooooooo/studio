@@ -196,7 +196,7 @@ export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears
       const hasVisit = Object.entries(lead).some(([key, val]) => {
           const nk = normalize(key);
           const nv = normalize(String(val || ""));
-          return (nk.includes("status da atividade atual") || nk.includes("visit")) && (nv.includes("realizada") || nv.includes("sim"));
+          return (nk.includes("status da atividade atual") || nk.includes("visit") || nk.includes("visitados")) && (nv.includes("realizada") || nv.includes("sim") || (Number(nv) > 0));
       });
       
       if (filterByPeriod(date)) {
@@ -321,7 +321,9 @@ export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears
     const totalDeals = sales.filter(s => {
       const channel = getMappedChannel(s.origem || '');
       const date = parseDate(s.saleDate);
-      return allowedCostChannels.includes(channel) && filterByPeriod(date);
+      const tipo = normalize(s.tipo || '');
+      const isCorrectType = tipo === 'venda' || tipo.includes('loca') || tipo.includes('aluguel');
+      return allowedCostChannels.includes(channel) && filterByPeriod(date) && isCorrectType;
     }).length;
 
     const avgCostPerDeal = totalDeals > 0 ? totalInvestment / totalDeals : 0;
@@ -333,7 +335,7 @@ export function ChannelPerformance({ leads, sales, selectedMonths, selectedYears
         avgCostPerDeal,
         avgCplTotal,
     };
-  }, [costData, allowedCostChannels, sales, getMappedChannel, filterByPeriod]);
+  }, [costData, allowedCostChannels, sales, getMappedChannel, filterByPeriod, normalize]);
 
   const { rows, monthlyTotals, grandTotalVenda, grandTotalLocacao } = matrixData;
 
