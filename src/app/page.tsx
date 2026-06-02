@@ -146,15 +146,16 @@ function DashboardContent() {
 
           const processedData = result.data.map((row, idx) => {
             if (mode === 'inventory') {
-              const propertyCode = getVal(row, ["codigo", "unidade", "referencia", "id_imovel"]) || `REF-${idx + 1}`;
+              const propertyCode = getVal(row, ["codigo", "unidade", "referencia", "id_imovel", "id"]) || `REF-${idx + 1}`;
+              const statusRaw = getVal(row, ["status", "situacao", "disponibilidade", "disponivel", "ativo"]);
               return {
                 id: propertyCode, propertyCode,
-                neighborhood: String(getVal(row, ["bairro", "localizacao"]) || "N/A"),
-                saleValue: parseCurrency(getVal(row, ["valor venda", "venda"])),
-                rentalValue: parseCurrency(getVal(row, ["valor locacao", "aluguel", "locacao", "valor aluguel"])),
-                brokerId: String(getVal(row, ["angariador", "corretor", "captador"]) || "N/A"),
-                captureDate: formatDateDisplay(getVal(row, ["data entrada", "entrada", "cadastro", "carimbo"])),
-                status: String(getVal(row, ["status", "situacao"]) || "Disponível"),
+                neighborhood: String(getVal(row, ["bairro", "localizacao", "cidade", "distrito"]) || "N/A"),
+                saleValue: parseCurrency(getVal(row, ["valor venda", "venda", "preco venda", "valor", "preco", "vlr venda"])),
+                rentalValue: parseCurrency(getVal(row, ["valor locacao", "aluguel", "locacao", "valor aluguel", "mensalidade", "vlr locacao"])),
+                brokerId: String(getVal(row, ["angariador", "corretor", "captador", "responsavel"]) || "N/A"),
+                captureDate: formatDateDisplay(getVal(row, ["data entrada", "entrada", "cadastro", "carimbo", "data"])),
+                status: statusRaw ? String(statusRaw) : "Disponível",
               };
             } else if (mode === 'sales') {
               const propertyCode = getVal(row, ["codigo", "unidade", "referencia", "id_imovel"]) || `REF-${idx + 1}`;
@@ -345,6 +346,13 @@ function DashboardContent() {
     const filteredSales = filterByDate(processedSales, 'saleDateObj');
     const filteredProperties = filterByDate(processedInventory, 'captureDateObj');
     const filteredLeads = filterByDate(processedLeads, 'dateObj');
+
+    // Estoque Disponível (snapshot atual, ignorando filtro de data de captura para volume total)
+    const currentInventory = processedInventory.filter(p => {
+        const status = normalize(p.status);
+        // Considera disponível se o status for vazio, ou se contiver termos de disponibilidade
+        return status === "" || status.includes('disponiv') || status.includes('ativo') || status.includes('estoque') || status === "venda" || status === "locacao";
+    });
     
     const salesForFrequencyCalc = processedSales.filter(s => {
       const d = s.saleDateObj;
@@ -381,10 +389,10 @@ function DashboardContent() {
     
     const avgDaysToSell = validCycles.length > 0 ? validCycles.reduce((a, b) => a + b, 0) / validCycles.length : 0;
 
-    const salePropsInventory = inventory.filter(p => (Number(p.saleValue) || 0) > 0);
+    const salePropsInventory = currentInventory.filter(p => (Number(p.saleValue) || 0) > 0);
     const avgTicket = salePropsInventory.length > 0 ? salePropsInventory.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0) / salePropsInventory.length : 0;
 
-    const rentPropsInventory = inventory.filter(p => (Number(p.rentalValue) || 0) > 0);
+    const rentPropsInventory = currentInventory.filter(p => (Number(p.rentalValue) || 0) > 0);
     const avgTicketRent = rentPropsInventory.length > 0 ? rentPropsInventory.reduce((acc, p) => acc + (Number(p.rentalValue) || 0), 0) / rentPropsInventory.length : 0;
 
     const allSaleDates = processedSales
@@ -491,7 +499,6 @@ function DashboardContent() {
 
     const salesForVenda = filteredSales.filter(s => normalize(s.tipo) === 'venda');
     
-    // CORREÇÃO: Filtra as vendas únicas que possuem pelo menos um angariador da lista reconhecida
     const recognizedCapturedSales = salesForVenda.filter(sale => 
       allBrokers.some(broker => isMatchStrict(sale.angariador, broker))
     );
@@ -501,12 +508,12 @@ function DashboardContent() {
 
     return {
       avgDaysToSell, avgDaysToRent: 0,
-      totalValue: inventory.reduce((acc, p) => acc + (Number(p.saleValue) || 0), 0),
+      totalValue: currentInventory.reduce((acc, p) => acc + (p.saleValue || 0), 0),
       lastSaleDisplay: daysSinceLastSale !== null ? `${Math.max(0, daysSinceLastSale)} Dias` : "-",
       totalLeads: leads.length,
       totalSales: filteredSales.filter(s => normalize(s.tipo) === 'venda').length,
       totalRentals: filteredSales.filter(s => normalize(s.tipo) !== 'venda').length,
-      totalProperties: filteredProperties.length,
+      totalProperties: currentInventory.length,
       avgTicket, avgTicketRent, salesFrequency,
       avgDiscountSale, avgDiscountRent, avgDiscountValueSale, avgDiscountValueRent,
       avgCommissionSale, avgCommissionRent,
