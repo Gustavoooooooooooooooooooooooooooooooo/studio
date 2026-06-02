@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Info } from "lucide-react";
+import { Info, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 
 interface BrokerPerformanceGridProps {
   sales: any[];
@@ -20,6 +20,10 @@ interface BrokerPerformanceGridProps {
 
 export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths, selectedYears, brokers }: BrokerPerformanceGridProps) {
   const [performanceView, setPerformanceView] = useState<'venda' | 'locacao' | 'metricas'>('venda');
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({
+    key: 'numSales',
+    direction: 'desc'
+  });
 
   const normalize = useCallback((s: string) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim(), []);
 
@@ -72,6 +76,14 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
     }
 
     return null;
+  };
+
+  const requestSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'desc';
+    if (sortConfig.key === key && sortConfig.direction === 'desc') {
+      direction = 'asc';
+    }
+    setSortConfig({ key, direction });
   };
 
   const { stats, totals } = useMemo(() => {
@@ -236,15 +248,23 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         vgvAngariadoVendido,
         vgvVendidoPercent,
         vgvAngariadoPercent,
-        vgvTotalPercent
+        vgvTotalPercent,
+        comissaoTotal: comissaoVenda + comissaoAngariacao
       };
     });
 
-    const sortedStats = brokerStats.sort((a, b) => {
-      if (performanceView === 'metricas') {
-        return (b.comissaoVenda + b.comissaoAngariacao) - (a.comissaoVenda + a.comissaoAngariacao);
+    const sortedStats = [...brokerStats].sort((a, b) => {
+      const key = sortConfig.key as keyof typeof a;
+      const valA = a[key];
+      const valB = b[key];
+
+      if (valA === valB) return 0;
+      
+      if (sortConfig.direction === 'asc') {
+        return valA < valB ? -1 : 1;
+      } else {
+        return valA > valB ? -1 : 1;
       }
-      return b.numSales - a.numSales || b.numRentals - a.numRentals;
     });
 
     const recognizedCapturedSales = allSalesInPeriod.filter(sale => 
@@ -267,6 +287,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
         vglFechado: sortedStats.reduce((acc, s) => acc + s.vglFechado, 0),
         comissaoVenda: sortedStats.reduce((acc, s) => acc + s.comissaoVenda, 0),
         comissaoAngariacao: sortedStats.reduce((acc, s) => acc + s.comissaoAngariacao, 0),
+        comissaoTotal: sortedStats.reduce((acc, s) => acc + s.comissaoTotal, 0),
         vgvVendidoPeloCorretor: recognizedBrokerSales.reduce((acc, s) => acc + (s.closedValue || 0), 0),
         vgvAngariadoVendido: recognizedCapturedSales.reduce((acc, s) => acc + (s.closedValue || 0), 0),
         vgvMetrics: totalVgvInPeriod,
@@ -291,15 +312,30 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
     calculatedTotals.vgvTotalPercent = totalVgvInPeriod > 0 ? (calculatedTotals.vgvMetrics / totalVgvInPeriod) * 100 : 0;
 
     return { stats: sortedStats, totals: calculatedTotals };
-  }, [sales, leads, properties, brokers, selectedMonths, selectedYears, performanceView, normalize]);
+  }, [sales, leads, properties, brokers, selectedMonths, selectedYears, sortConfig, normalize]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(value);
   };
 
+  const SortIcon = ({ sortKey }: { sortKey: string }) => {
+    if (sortConfig.key !== sortKey) return <ArrowUpDown className="h-3 w-3 opacity-30" />;
+    return sortConfig.direction === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />;
+  };
+
   return (
     <Card className="border-none shadow-sm overflow-hidden bg-white">
-      <Tabs defaultValue="venda" className="w-full" onValueChange={(value) => setPerformanceView(value as 'venda' | 'locacao' | 'metricas')}>
+      <Tabs 
+        defaultValue="venda" 
+        className="w-full" 
+        onValueChange={(value) => {
+          setPerformanceView(value as 'venda' | 'locacao' | 'metricas');
+          setSortConfig({ 
+            key: value === 'metricas' ? 'comissaoTotal' : (value === 'venda' ? 'numSales' : 'numRentals'), 
+            direction: 'desc' 
+          });
+        }}
+      >
         <CardHeader className="bg-muted/10 border-b py-3 px-4">
           <div className="flex justify-between items-center">
               <CardTitle className="text-base font-bold text-primary">Performance por Corretor</CardTitle>
@@ -315,16 +351,36 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                 <Table className="border-collapse">
                     <TableHeader>
                     <TableRow className="bg-muted/5">
-                        <TableHead className="font-bold border-r text-xs uppercase sticky left-0 bg-muted/5 z-10">Corretor</TableHead>
-                        <TableHead className="text-center border-r text-xs uppercase">Leads</TableHead>
-                        <TableHead className="text-center border-r text-xs uppercase">Angariados</TableHead>
-                        <TableHead className="text-center border-r text-xs uppercase">Visitas</TableHead>
-                        <TableHead className="text-center border-r text-xs uppercase bg-primary/5">Vendas</TableHead>
+                        <TableHead 
+                          className="font-bold border-r text-xs uppercase sticky left-0 bg-muted/5 z-10 cursor-pointer hover:bg-muted/10"
+                          onClick={() => requestSort('name')}
+                        >
+                          <div className="flex items-center gap-1">
+                            Corretor
+                            <SortIcon sortKey="name" />
+                          </div>
+                        </TableHead>
+                        <TableHead className="text-center border-r text-xs uppercase cursor-pointer hover:bg-muted/10" onClick={() => requestSort('leadsVenda')}>
+                          <div className="flex items-center justify-center gap-1">Leads <SortIcon sortKey="leadsVenda" /></div>
+                        </TableHead>
+                        <TableHead className="text-center border-r text-xs uppercase cursor-pointer hover:bg-muted/10" onClick={() => requestSort('capturesSale')}>
+                          <div className="flex items-center justify-center gap-1">Angariados <SortIcon sortKey="capturesSale" /></div>
+                        </TableHead>
+                        <TableHead className="text-center border-r text-xs uppercase cursor-pointer hover:bg-muted/10" onClick={() => requestSort('visitsVenda')}>
+                          <div className="flex items-center justify-center gap-1">Visitas <SortIcon sortKey="visitsVenda" /></div>
+                        </TableHead>
+                        <TableHead className="text-center border-r text-xs uppercase bg-primary/5 cursor-pointer hover:bg-primary/10" onClick={() => requestSort('numSales')}>
+                          <div className="flex items-center justify-center gap-1 text-primary">Vendas <SortIcon sortKey="numSales" /></div>
+                        </TableHead>
                         <TableHead className="text-center border-r text-xs uppercase">Média Leads p/ Visita</TableHead>
                         <TableHead className="text-center border-r text-xs uppercase">Média Visitas p/ Venda</TableHead>
                         <TableHead className="text-center border-r text-xs uppercase bg-green-50/20">Média Leads p/ Venda</TableHead>
-                        <TableHead className="text-right border-r text-xs uppercase">Frequência</TableHead>
-                        <TableHead className="text-right font-bold text-xs uppercase bg-primary/5">VGV Est. (Ang.)</TableHead>
+                        <TableHead className="text-right border-r text-xs uppercase cursor-pointer hover:bg-muted/10" onClick={() => requestSort('salesFrequency')}>
+                           <div className="flex items-center justify-end gap-1">Frequência <SortIcon sortKey="salesFrequency" /></div>
+                        </TableHead>
+                        <TableHead className="text-right font-bold text-xs uppercase bg-primary/5 cursor-pointer hover:bg-primary/10" onClick={() => requestSort('vgvVendido')}>
+                          <div className="flex items-center justify-end gap-1 text-primary">VGV Est. (Ang.) <SortIcon sortKey="vgvVendido" /></div>
+                        </TableHead>
                     </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -399,15 +455,27 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                 <Table className="border-collapse">
                     <TableHeader>
                     <TableRow className="bg-muted/5">
-                        <TableHead className="font-bold border-r text-xs uppercase sticky left-0 bg-muted/5 z-10">Corretor</TableHead>
-                        <TableHead className="text-center border-r text-xs uppercase">Leads</TableHead>
-                        <TableHead className="text-center border-r text-xs uppercase">Angariados</TableHead>
-                        <TableHead className="text-center border-r text-xs uppercase">Visitas</TableHead>
-                        <TableHead className="text-center border-r text-xs uppercase bg-primary/5">Locações</TableHead>
+                        <TableHead className="font-bold border-r text-xs uppercase sticky left-0 bg-muted/5 z-10 cursor-pointer hover:bg-muted/10" onClick={() => requestSort('name')}>
+                          <div className="flex items-center gap-1">Corretor <SortIcon sortKey="name" /></div>
+                        </TableHead>
+                        <TableHead className="text-center border-r text-xs uppercase cursor-pointer hover:bg-muted/10" onClick={() => requestSort('leadsLocacao')}>
+                          <div className="flex items-center justify-center gap-1">Leads <SortIcon sortKey="leadsLocacao" /></div>
+                        </TableHead>
+                        <TableHead className="text-center border-r text-xs uppercase cursor-pointer hover:bg-muted/10" onClick={() => requestSort('capturesRent')}>
+                          <div className="flex items-center justify-center gap-1">Angariados <SortIcon sortKey="capturesRent" /></div>
+                        </TableHead>
+                        <TableHead className="text-center border-r text-xs uppercase cursor-pointer hover:bg-muted/10" onClick={() => requestSort('visitsLocacao')}>
+                          <div className="flex items-center justify-center gap-1">Visitas <SortIcon sortKey="visitsLocacao" /></div>
+                        </TableHead>
+                        <TableHead className="text-center border-r text-xs uppercase bg-primary/5 cursor-pointer hover:bg-primary/10" onClick={() => requestSort('numRentals')}>
+                          <div className="flex items-center justify-center gap-1 text-primary">Locações <SortIcon sortKey="numRentals" /></div>
+                        </TableHead>
                         <TableHead className="text-center border-r text-xs uppercase">Média Leads p/ Visita</TableHead>
                         <TableHead className="text-center border-r text-xs uppercase">Média Visitas p/ Loc.</TableHead>
                         <TableHead className="text-center border-r text-xs uppercase bg-green-50/20">Média Leads p/ Loc.</TableHead>
-                        <TableHead className="text-right font-bold text-xs uppercase bg-primary/5">VGL Est. (Ang.)</TableHead>
+                        <TableHead className="text-right font-bold text-xs uppercase bg-primary/5 cursor-pointer hover:bg-primary/10" onClick={() => requestSort('vglFechado')}>
+                           <div className="flex items-center justify-end gap-1 text-primary">VGL Est. (Ang.) <SortIcon sortKey="vglFechado" /></div>
+                        </TableHead>
                     </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -485,53 +553,88 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead className="font-semibold border-r">Corretor</TableHead>
-                                <TableHead colSpan={2} className="text-center font-semibold border-r">
+                                <TableHead className="font-semibold border-r cursor-pointer hover:bg-muted/10" onClick={() => requestSort('name')}>
+                                  <div className="flex items-center gap-1">Corretor <SortIcon sortKey="name" /></div>
+                                </TableHead>
+                                <TableHead 
+                                  colSpan={2} 
+                                  className="text-center font-semibold border-r cursor-pointer hover:bg-muted/10"
+                                  onClick={() => requestSort('comissaoVenda')}
+                                >
                                     <div className="flex items-center justify-center gap-1">
                                       Venda (Comissão)
+                                      <SortIcon sortKey="comissaoVenda" />
                                       <Tooltip>
-                                        <TooltipTrigger><Info className="h-3 w-3 opacity-50" /></TooltipTrigger>
+                                        <TooltipTrigger onClick={(e) => e.stopPropagation()}><Info className="h-3 w-3 opacity-50" /></TooltipTrigger>
                                         <TooltipContent>Comissão recebida por atuar como Vendedor.</TooltipContent>
                                       </Tooltip>
                                     </div>
                                 </TableHead>
-                                <TableHead colSpan={2} className="text-center font-semibold border-r">
+                                <TableHead 
+                                  colSpan={2} 
+                                  className="text-center font-semibold border-r cursor-pointer hover:bg-muted/10"
+                                  onClick={() => requestSort('comissaoAngariacao')}
+                                >
                                     <div className="flex items-center justify-center gap-1">
                                       Angariação (Comissão)
+                                      <SortIcon sortKey="comissaoAngariacao" />
                                       <Tooltip>
-                                        <TooltipTrigger><Info className="h-3 w-3 opacity-50" /></TooltipTrigger>
+                                        <TooltipTrigger onClick={(e) => e.stopPropagation()}><Info className="h-3 w-3 opacity-50" /></TooltipTrigger>
                                         <TooltipContent>Comissão recebida por ter captado o imóvel que foi vendido.</TooltipContent>
                                       </Tooltip>
                                     </div>
                                 </TableHead>
-                                <TableHead colSpan={2} className="text-center font-bold border-r">
+                                <TableHead 
+                                  colSpan={2} 
+                                  className="text-center font-bold border-r cursor-pointer hover:bg-muted/10"
+                                  onClick={() => requestSort('vgvAngariadoVendido')}
+                                >
                                     <div className="flex items-center justify-center gap-1">
                                       VGV Angariado (Fechado)
+                                      <SortIcon sortKey="vgvAngariadoVendido" />
                                       <Tooltip>
-                                        <TooltipTrigger><Info className="h-3 w-3 opacity-50" /></TooltipTrigger>
+                                        <TooltipTrigger onClick={(e) => e.stopPropagation()}><Info className="h-3 w-3 opacity-50" /></TooltipTrigger>
                                         <TooltipContent>Valor total dos imóveis que VOCÊ CAPTOU e foram vendidos.</TooltipContent>
                                       </Tooltip>
                                     </div>
                                 </TableHead>
-                                <TableHead colSpan={2} className="text-center font-bold border-r">
+                                <TableHead 
+                                  colSpan={2} 
+                                  className="text-center font-bold border-r cursor-pointer hover:bg-muted/10"
+                                  onClick={() => requestSort('vgvVendidoPeloCorretor')}
+                                >
                                     <div className="flex items-center justify-center gap-1">
                                       VGV Vendido
+                                      <SortIcon sortKey="vgvVendidoPeloCorretor" />
                                       <Tooltip>
-                                        <TooltipTrigger><Info className="h-3 w-3 opacity-50" /></TooltipTrigger>
+                                        <TooltipTrigger onClick={(e) => e.stopPropagation()}><Info className="h-3 w-3 opacity-50" /></TooltipTrigger>
                                         <TooltipContent>Valor total dos imóveis que VOCÊ VENDEU (atendimento ao comprador).</TooltipContent>
                                       </Tooltip>
                                     </div>
                                 </TableHead>
-                                <TableHead colSpan={2} className="text-center font-bold border-r">
+                                <TableHead 
+                                  colSpan={2} 
+                                  className="text-center font-bold border-r cursor-pointer hover:bg-muted/10"
+                                  onClick={() => requestSort('vgvMetrics')}
+                                >
                                     <div className="flex items-center justify-center gap-1">
                                       VGV Total (Participação)
+                                      <SortIcon sortKey="vgvMetrics" />
                                       <Tooltip>
-                                        <TooltipTrigger><Info className="h-3 w-3 opacity-50" /></TooltipTrigger>
+                                        <TooltipTrigger onClick={(e) => e.stopPropagation()}><Info className="h-3 w-3 opacity-50" /></TooltipTrigger>
                                         <TooltipContent>Soma da sua produção (Angariação Vendida + Venda Direta).</TooltipContent>
                                       </Tooltip>
                                     </div>
                                 </TableHead>
-                                <TableHead className="text-right font-bold text-primary">Comissão Total</TableHead>
+                                <TableHead 
+                                  className="text-right font-bold text-primary cursor-pointer hover:bg-primary/5"
+                                  onClick={() => requestSort('comissaoTotal')}
+                                >
+                                  <div className="flex items-center justify-end gap-1">
+                                    Comissão Total
+                                    <SortIcon sortKey="comissaoTotal" />
+                                  </div>
+                                </TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -548,7 +651,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                                 <TableCell className="text-right text-[10px] text-muted-foreground border-r">{broker.vgvVendidoPeloCorretor > 0 ? `${broker.vgvVendidoPercent.toFixed(1)}%` : ''}</TableCell>
                                 <TableCell className="text-right font-bold">{broker.vgvMetrics > 0 ? formatCurrency(broker.vgvMetrics) : ''}</TableCell>
                                 <TableCell className="text-right text-[10px] font-medium text-primary/70 border-r">{broker.vgvMetrics > 0 ? `${broker.vgvTotalPercent.toFixed(1)}%` : ''}</TableCell>
-                                <TableCell className="text-right font-bold text-primary">{(broker.comissaoVenda + broker.comissaoAngariacao) > 0 ? formatCurrency(broker.comissaoVenda + broker.comissaoAngariacao) : ''}</TableCell>
+                                <TableCell className="text-right font-bold text-primary">{broker.comissaoTotal > 0 ? formatCurrency(broker.comissaoTotal) : ''}</TableCell>
                             </TableRow>
                         ))}
                         </TableBody>
@@ -563,7 +666,7 @@ export function BrokerPerformanceGrid({ sales, leads, properties, selectedMonths
                                 <TableCell className="text-right text-[10px] border-r">{totals?.vgvVendidoPercent?.toFixed(1) || '0.0'}%</TableCell>
                                 <TableCell className="text-right">{totals ? formatCurrency(totals.vgvMetrics) : 'R$ 0'}</TableCell>
                                 <TableCell className="text-right text-[10px] border-r">{totals?.vgvTotalPercent?.toFixed(1) || '0.0'}%</TableCell>
-                                <TableCell className="text-right text-primary">{totals ? formatCurrency(totals.comissaoVenda + totals.comissaoAngariacao) : 'R$ 0'}</TableCell>
+                                <TableCell className="text-right text-primary">{totals ? formatCurrency(totals.comissaoTotal) : 'R$ 0'}</TableCell>
                             </TableRow>
                         </TableFooter>
                     </Table>
